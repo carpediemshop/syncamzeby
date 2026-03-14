@@ -109,21 +109,56 @@ app.post("/webhooks/products", express.raw({ type: "*/*" }), (req, res) => {
     });
   });
 
-  console.log("PRODUCT WEBHOOK OK");
+  app.post("/webhooks/products", express.raw({ type: "*/*" }), (req, res) => {
+  const payload = JSON.parse(req.body.toString());
+
+  payload.variants.forEach((variant) => {
+    inventoryMap.set(String(variant.inventory_item_id), {
+      sku: variant.sku,
+      price: variant.price
+    });
+  });
+
+  console.log("=== PRODUCT WEBHOOK OK ===");
+  console.log(
+    JSON.stringify(
+      payload.variants.map((variant) => ({
+        sku: variant.sku,
+        price: variant.price,
+        inventory_item_id: variant.inventory_item_id,
+        inventory_quantity: variant.inventory_quantity
+      })),
+      null,
+      2
+    )
+  );
 
   res.sendStatus(200);
 });
 
 app.post("/webhooks/inventory", express.raw({ type: "*/*" }), async (req, res) => {
-
   const payload = JSON.parse(req.body.toString());
+
+  console.log("=== INVENTORY WEBHOOK RAW ===");
+  console.log(JSON.stringify(payload, null, 2));
 
   const mapped = inventoryMap.get(String(payload.inventory_item_id));
 
   if (!mapped) {
-    console.log("SKU NOT FOUND");
+    console.log("SKU NOT FOUND FOR INVENTORY ITEM", payload.inventory_item_id);
     return res.sendStatus(200);
   }
+
+  const sku = mapped.sku;
+  const price = mapped.price;
+  const quantity = payload.available;
+
+  console.log("SYNC TO AMAZON", { sku, price, quantity });
+
+  await sendPriceQuantityToAmazon({ sku, price, quantity });
+
+  res.sendStatus(200);
+});
 
   const sku = mapped.sku;
   const price = mapped.price;
