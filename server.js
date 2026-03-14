@@ -70,10 +70,13 @@ async function sendPriceQuantityToAmazon({ sku, price, quantity }) {
     };
 
     const url =
-      "https://sellingpartnerapi-eu.amazon.com/listings/2021-08-01/items/" +
-      AMAZON_SELLER_ID +
-      "/" +
-      sku;
+  "https://sellingpartnerapi-eu.amazon.com/listings/2021-08-01/items/" +
+  AMAZON_SELLER_ID +
+  "/" +
+  encodeURIComponent(sku) +
+  "?marketplaceIds=" +
+  encodeURIComponent(AMAZON_MARKETPLACE_ID) +
+  "&issueLocale=it_IT";
 
     const response = await axios.patch(url, body, {
       headers: {
