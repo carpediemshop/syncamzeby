@@ -71,7 +71,7 @@ async function sendPriceQuantityToAmazon({ sku, price, quantity }) {
 
     const url =
       "https://sellingpartnerapi-eu.amazon.com/listings/2021-08-01/items/" +
-      "YOUR_SELLER_ID" +
+      process.env.AMAZON_SELLER_ID +
       "/" +
       sku;
 
