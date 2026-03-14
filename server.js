@@ -102,11 +102,32 @@ app.post("/webhooks/products", express.raw({ type: "*/*" }), (req, res) => {
   const payload = JSON.parse(req.body.toString());
 
   payload.variants.forEach((variant) => {
-    inventoryMap.set(String(variant.inventory_item_id), {
+
+  const existing = inventoryMap.get(String(variant.inventory_item_id)) || {};
+
+  inventoryMap.set(String(variant.inventory_item_id), {
+    sku: variant.sku,
+    price: variant.price,
+    quantity: existing.quantity || variant.inventory_quantity
+  });
+
+  if (existing.quantity !== undefined) {
+
+    console.log("SYNC TO AMAZON", {
       sku: variant.sku,
       price: variant.price,
+      quantity: existing.quantity
     });
-  });
+
+    sendPriceQuantityToAmazon({
+      sku: variant.sku,
+      price: variant.price,
+      quantity: existing.quantity
+    });
+
+  }
+
+});
 
   console.log("=== PRODUCT WEBHOOK OK ===");
   console.log(
