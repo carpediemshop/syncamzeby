@@ -152,13 +152,18 @@ app.post("/webhooks/inventory", express.raw({ type: "*/*" }), async (req, res) =
   console.log("=== INVENTORY WEBHOOK RAW ===");
   console.log(JSON.stringify(payload, null, 2));
 
-  const mapped = inventoryMap.get(String(payload.inventory_item_id));
+  let mapped = inventoryMap.get(String(payload.inventory_item_id));
 
-  if (!mapped) {
-    console.log("SKU NOT FOUND FOR INVENTORY ITEM", payload.inventory_item_id);
-    return res.sendStatus(200);
-  }
+if (!mapped) {
+  inventoryMap.set(String(payload.inventory_item_id), {
+    quantity: payload.available
+  });
 
+  console.log("WAITING PRODUCT DATA FOR", payload.inventory_item_id);
+  return res.sendStatus(200);
+}
+mapped.quantity = payload.available;
+  
   const sku = mapped.sku;
   const price = mapped.price;
   const quantity = payload.available;
