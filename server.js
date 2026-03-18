@@ -15,9 +15,8 @@ const AMAZON_SELLER_ID = process.env.AMAZON_SELLER_ID;
 
 // Shopify
 const SHOPIFY_SHOP_DOMAIN = process.env.SHOPIFY_SHOP_DOMAIN;
-const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID || process.env.SHOPIFY_API_KEY;
-const SHOPIFY_CLIENT_SECRET =
-  process.env.SHOPIFY_CLIENT_SECRET || process.env.SHOPIFY_API_SECRET;
+const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID;
+const SHOPIFY_CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET;
 const SHOPIFY_LOCATION_ID = process.env.SHOPIFY_LOCATION_ID;
 
 async function getAmazonAccessToken() {
@@ -40,22 +39,34 @@ async function getAmazonAccessToken() {
 }
 
 async function getShopifyAccessToken() {
-  const response = await axios.post(
-    `https://${SHOPIFY_SHOP_DOMAIN}/admin/oauth/access_token`,
-    new URLSearchParams({
-      client_id: SHOPIFY_CLIENT_ID,
-      client_secret: SHOPIFY_CLIENT_SECRET,
-      grant_type: "client_credentials",
-    }),
-    {
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-      },
-    }
-  );
+  try {
+    const response = await axios.post(
+      `https://${SHOPIFY_SHOP_DOMAIN}/admin/oauth/access_token`,
+      new URLSearchParams({
+        client_id: SHOPIFY_CLIENT_ID,
+        client_secret: SHOPIFY_CLIENT_SECRET,
+        grant_type: "client_credentials",
+      }),
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        },
+      }
+    );
 
-  return response.data.access_token;
+    return response.data.access_token;
+  } catch (error) {
+    console.log("SHOPIFY TOKEN ERROR");
+
+    if (error.response) {
+      console.log(error.response.data);
+      throw new Error(JSON.stringify(error.response.data));
+    } else {
+      console.log(error.message);
+      throw error;
+    }
+  }
 }
 
 async function shopifyGraphQL(query, variables = {}) {
@@ -87,15 +98,13 @@ async function shopifyGraphQL(query, variables = {}) {
 
 async function findShopifyInventoryItemBySku(sku) {
   const query = `
-    query FindVariantBySku($query: String!) {
-      productVariants(first: 1, query: $query) {
+    query FindInventoryItemBySku($query: String!) {
+      inventoryItems(first: 1, query: $query) {
         edges {
           node {
             id
             sku
-            inventoryItem {
-              id
-            }
+            tracked
           }
         }
       }
@@ -106,22 +115,32 @@ async function findShopifyInventoryItemBySku(sku) {
     query: `sku:${sku}`,
   });
 
-  const edge = data.productVariants.edges[0];
+  const edge = data.inventoryItems.edges[0];
   if (!edge) return null;
 
   return {
-    variantId: edge.node.id,
+    inventoryItemId: edge.node.id,
     sku: edge.node.sku,
-    inventoryItemId: edge.node.inventoryItem.id,
+    tracked: edge.node.tracked,
   };
 }
 
-async function adjustShopifyInventoryBySku({ sku, delta, reason = "correction" }) {
+async function adjustShopifyInventoryBySku({
+  sku,
+  delta,
+  reason = "correction",
+  referenceDocumentUri = "gid://syncamzeby/amazon-order-sync/manual-test",
+}) {
   const found = await findShopifyInventoryItemBySku(sku);
 
   if (!found) {
     console.log("SHOPIFY SKU NOT FOUND", sku);
     return { ok: false, error: "SHOPIFY SKU NOT FOUND", sku };
+  }
+
+  if (!found.tracked) {
+    console.log("SHOPIFY INVENTORY NOT TRACKED FOR SKU", sku);
+    return { ok: false, error: "SHOPIFY INVENTORY NOT TRACKED", sku };
   }
 
   const mutation = `
@@ -132,7 +151,9 @@ async function adjustShopifyInventoryBySku({ sku, delta, reason = "correction" }
           message
         }
         inventoryAdjustmentGroup {
+          createdAt
           reason
+          referenceDocumentUri
           changes {
             name
             delta
@@ -146,7 +167,7 @@ async function adjustShopifyInventoryBySku({ sku, delta, reason = "correction" }
     input: {
       reason,
       name: "available",
-      referenceDocumentUri: "amazon-order-sync",
+      referenceDocumentUri,
       changes: [
         {
           inventoryItemId: found.inventoryItemId,
@@ -313,6 +334,7 @@ async function processRecentAmazonOrders() {
         sku,
         delta: -Math.abs(qty),
         reason: "correction",
+        referenceDocumentUri: `gid://syncamzeby/amazon-order/${orderId}`,
       });
     }
 
@@ -365,6 +387,7 @@ app.get("/shopify/test-adjust", async (req, res) => {
       sku,
       delta: -Math.abs(qty),
       reason: "correction",
+      referenceDocumentUri: `gid://syncamzeby/manual-adjust/${sku}`,
     });
 
     res.json({ ok: true, result });
