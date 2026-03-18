@@ -42,14 +42,15 @@ async function getAmazonAccessToken() {
 async function getShopifyAccessToken() {
   const response = await axios.post(
     `https://${SHOPIFY_SHOP_DOMAIN}/admin/oauth/access_token`,
-    {
+    new URLSearchParams({
       client_id: SHOPIFY_CLIENT_ID,
       client_secret: SHOPIFY_CLIENT_SECRET,
       grant_type: "client_credentials",
-    },
+    }),
     {
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
       },
     }
   );
@@ -120,7 +121,7 @@ async function adjustShopifyInventoryBySku({ sku, delta, reason = "correction" }
 
   if (!found) {
     console.log("SHOPIFY SKU NOT FOUND", sku);
-    return;
+    return { ok: false, error: "SHOPIFY SKU NOT FOUND", sku };
   }
 
   const mutation = `
@@ -159,6 +160,14 @@ async function adjustShopifyInventoryBySku({ sku, delta, reason = "correction" }
   const data = await shopifyGraphQL(mutation, variables);
 
   console.log("SHOPIFY INVENTORY ADJUST RESULT", JSON.stringify(data, null, 2));
+
+  return {
+    ok: true,
+    sku,
+    delta,
+    inventoryItemId: found.inventoryItemId,
+    data,
+  };
 }
 
 async function sendPriceQuantityToAmazon({ sku, price, quantity }) {
@@ -217,13 +226,16 @@ async function sendPriceQuantityToAmazon({ sku, price, quantity }) {
     });
 
     console.log("AMAZON UPDATE SUCCESS", response.data);
+    return response.data;
   } catch (error) {
     console.log("AMAZON UPDATE ERROR");
 
     if (error.response) {
       console.log(error.response.data);
+      return error.response.data;
     } else {
       console.log(error.message);
+      return { error: error.message };
     }
   }
 }
@@ -235,8 +247,10 @@ async function getRecentAmazonOrders() {
 
   const url =
     "https://sellingpartnerapi-eu.amazon.com/orders/v0/orders" +
-    "?MarketplaceIds=" + encodeURIComponent(AMAZON_MARKETPLACE_ID) +
-    "&CreatedAfter=" + encodeURIComponent(createdAfter) +
+    "?MarketplaceIds=" +
+    encodeURIComponent(AMAZON_MARKETPLACE_ID) +
+    "&CreatedAfter=" +
+    encodeURIComponent(createdAfter) +
     "&OrderStatuses=Unshipped,PartiallyShipped,Shipped";
 
   const response = await axios.get(url, {
@@ -347,13 +361,13 @@ app.get("/shopify/test-adjust", async (req, res) => {
       return res.status(400).json({ error: "missing sku" });
     }
 
-    await adjustShopifyInventoryBySku({
+    const result = await adjustShopifyInventoryBySku({
       sku,
       delta: -Math.abs(qty),
       reason: "correction",
     });
 
-    res.json({ ok: true, sku, delta: -Math.abs(qty) });
+    res.json({ ok: true, result });
   } catch (error) {
     if (error.response) {
       console.log("SHOPIFY TEST ADJUST ERROR RESPONSE", error.response.data);
