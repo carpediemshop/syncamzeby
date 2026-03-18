@@ -4,6 +4,7 @@ import axios from "axios";
 const app = express();
 
 const inventoryMap = new Map();
+const processedAmazonOrders = new Set();
 
 // Amazon
 const AMAZON_MARKETPLACE_ID = process.env.AMAZON_MARKETPLACE_ID;
@@ -72,6 +73,12 @@ async function shopifyGraphQL(query, variables = {}) {
 
   if (response.data.errors) {
     throw new Error(JSON.stringify(response.data.errors));
+  }
+
+  if (response.data.data?.inventoryAdjustQuantities?.userErrors?.length) {
+    throw new Error(
+      JSON.stringify(response.data.data.inventoryAdjustQuantities.userErrors)
+    );
   }
 
   return response.data.data;
@@ -224,13 +231,13 @@ async function sendPriceQuantityToAmazon({ sku, price, quantity }) {
 async function getRecentAmazonOrders() {
   const token = await getAmazonAccessToken();
 
-  const createdAfter = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const createdAfter = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
   const url =
     "https://sellingpartnerapi-eu.amazon.com/orders/v0/orders" +
     "?MarketplaceIds=" + encodeURIComponent(AMAZON_MARKETPLACE_ID) +
     "&CreatedAfter=" + encodeURIComponent(createdAfter) +
-    "&OrderStatuses=Unshipped,PartiallyShipped";
+    "&OrderStatuses=Unshipped,PartiallyShipped,Shipped";
 
   const response = await axios.get(url, {
     headers: {
@@ -260,6 +267,47 @@ async function getAmazonOrderItems(orderId) {
   return response.data;
 }
 
+async function processRecentAmazonOrders() {
+  const ordersData = await getRecentAmazonOrders();
+  const orders = ordersData?.payload?.Orders || [];
+
+  console.log("AMAZON RECENT ORDERS FOUND", orders.length);
+
+  for (const order of orders) {
+    const orderId = order.AmazonOrderId;
+
+    if (!orderId || processedAmazonOrders.has(orderId)) {
+      continue;
+    }
+
+    const itemsData = await getAmazonOrderItems(orderId);
+    const items = itemsData?.payload?.OrderItems || [];
+
+    console.log("PROCESS AMAZON ORDER", orderId, "ITEMS", items.length);
+
+    for (const item of items) {
+      const sku = item.SellerSKU;
+      const qty = Number(item.QuantityOrdered || 0);
+
+      if (!sku || qty <= 0) {
+        continue;
+      }
+
+      console.log("AMAZON ORDER ITEM", { orderId, sku, qty });
+
+      await adjustShopifyInventoryBySku({
+        sku,
+        delta: -Math.abs(qty),
+        reason: "correction",
+      });
+    }
+
+    processedAmazonOrders.add(orderId);
+  }
+
+  return { count: orders.length };
+}
+
 app.get("/", (req, res) => {
   res.send("SyncAmzEby running");
 });
@@ -277,10 +325,10 @@ app.get("/amazon/test-orders", async (req, res) => {
   }
 });
 
-app.get("/amazon/test-order-items/:orderId", async (req, res) => {
+app.get("/amazon/process-orders", async (req, res) => {
   try {
-    const items = await getAmazonOrderItems(req.params.orderId);
-    res.json(items);
+    const result = await processRecentAmazonOrders();
+    res.json({ ok: true, ...result });
   } catch (error) {
     if (error.response) {
       res.status(500).json(error.response.data);
@@ -307,7 +355,13 @@ app.get("/shopify/test-adjust", async (req, res) => {
 
     res.json({ ok: true, sku, delta: -Math.abs(qty) });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    if (error.response) {
+      console.log("SHOPIFY TEST ADJUST ERROR RESPONSE", error.response.data);
+      return res.status(500).json(error.response.data);
+    }
+
+    console.log("SHOPIFY TEST ADJUST ERROR", error.message);
+    return res.status(500).json({ error: error.message });
   }
 });
 
