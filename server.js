@@ -1,11 +1,19 @@
 import express from "express";
 import axios from "axios";
-import pkg from "pg";
+import {
+  SQSClient,
+  ReceiveMessageCommand,
+  DeleteMessageCommand,
+  GetQueueAttributesCommand,
+} from "@aws-sdk/client-sqs";
 
-const { Pool } = pkg;
 const app = express();
 
-const inventoryMap = new Map();
+const PORT = Number(process.env.PORT || 3000);
+
+// ======================================================
+// ENV
+// ======================================================
 
 // Amazon
 const AMAZON_MARKETPLACE_ID = process.env.AMAZON_MARKETPLACE_ID;
@@ -13,61 +21,57 @@ const AMAZON_CLIENT_ID = process.env.AMAZON_LWA_CLIENT_ID;
 const AMAZON_CLIENT_SECRET = process.env.AMAZON_LWA_CLIENT_SECRET;
 const AMAZON_REFRESH_TOKEN = process.env.AMAZON_REFRESH_TOKEN;
 const AMAZON_SELLER_ID = process.env.AMAZON_SELLER_ID;
+const AMAZON_SQS_QUEUE_URL = process.env.AMAZON_SQS_QUEUE_URL;
+const AMAZON_SQS_QUEUE_ARN = process.env.AMAZON_SQS_QUEUE_ARN;
 
 // Shopify
 const SHOPIFY_SHOP_DOMAIN = process.env.SHOPIFY_SHOP_DOMAIN;
-const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID;
-const SHOPIFY_CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET;
+const SHOPIFY_ADMIN_ACCESS_TOKEN = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
 const SHOPIFY_LOCATION_ID = process.env.SHOPIFY_LOCATION_ID;
 
-// Database
-const DATABASE_URL = process.env.DATABASE_URL;
-const pool = DATABASE_URL
-  ? new Pool({
-      connectionString: DATABASE_URL,
-      ssl: { rejectUnauthorized: false }
-    })
-  : null;
+// Polling
+const AUTO_POLL_SQS = String(process.env.AUTO_POLL_SQS || "false") === "true";
+const SQS_POLL_INTERVAL_MS = Number(process.env.SQS_POLL_INTERVAL_MS || 20000);
 
-async function initDb() {
-  if (!pool) {
-    console.log("DATABASE_URL missing");
-    return;
+// Amazon endpoint EU
+const AMAZON_SP_API_BASE = "https://sellingpartnerapi-eu.amazon.com";
+
+// In-memory maps
+const inventoryMap = new Map();
+const processedAmazonOrderEvents = new Set();
+
+// AWS SQS client
+const sqsClient = new SQSClient({
+  region: process.env.AWS_REGION || "us-east-1",
+});
+
+// ======================================================
+// VALIDATION
+// ======================================================
+
+function requireEnv(name, value) {
+  if (!value) {
+    throw new Error(`Missing environment variable: ${name}`);
   }
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS processed_amazon_orders (
-      amazon_order_id TEXT PRIMARY KEY,
-      processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-
-  console.log("DB READY");
 }
 
-async function isAmazonOrderProcessed(orderId) {
-  if (!pool) return false;
+function validateEnv() {
+  requireEnv("AMAZON_MARKETPLACE_ID", AMAZON_MARKETPLACE_ID);
+  requireEnv("AMAZON_LWA_CLIENT_ID", AMAZON_CLIENT_ID);
+  requireEnv("AMAZON_LWA_CLIENT_SECRET", AMAZON_CLIENT_SECRET);
+  requireEnv("AMAZON_REFRESH_TOKEN", AMAZON_REFRESH_TOKEN);
+  requireEnv("AMAZON_SELLER_ID", AMAZON_SELLER_ID);
+  requireEnv("AMAZON_SQS_QUEUE_URL", AMAZON_SQS_QUEUE_URL);
+  requireEnv("AMAZON_SQS_QUEUE_ARN", AMAZON_SQS_QUEUE_ARN);
 
-  const result = await pool.query(
-    `SELECT 1 FROM processed_amazon_orders WHERE amazon_order_id = $1 LIMIT 1`,
-    [orderId]
-  );
-
-  return result.rowCount > 0;
+  requireEnv("SHOPIFY_SHOP_DOMAIN", SHOPIFY_SHOP_DOMAIN);
+  requireEnv("SHOPIFY_ADMIN_ACCESS_TOKEN", SHOPIFY_ADMIN_ACCESS_TOKEN);
+  requireEnv("SHOPIFY_LOCATION_ID", SHOPIFY_LOCATION_ID);
 }
 
-async function markAmazonOrderProcessed(orderId) {
-  if (!pool) return;
-
-  await pool.query(
-    `
-      INSERT INTO processed_amazon_orders (amazon_order_id)
-      VALUES ($1)
-      ON CONFLICT (amazon_order_id) DO NOTHING
-    `,
-    [orderId]
-  );
-}
+// ======================================================
+// AMAZON AUTH
+// ======================================================
 
 async function getAmazonAccessToken() {
   const response = await axios.post(
@@ -76,71 +80,92 @@ async function getAmazonAccessToken() {
       grant_type: "refresh_token",
       refresh_token: AMAZON_REFRESH_TOKEN,
       client_id: AMAZON_CLIENT_ID,
-      client_secret: AMAZON_CLIENT_SECRET
+      client_secret: AMAZON_CLIENT_SECRET,
     }),
     {
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
-      }
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      },
     }
   );
 
   return response.data.access_token;
 }
 
-async function getShopifyAccessToken() {
-  try {
-    const response = await axios.post(
-      `https://${SHOPIFY_SHOP_DOMAIN}/admin/oauth/access_token`,
-      new URLSearchParams({
-        client_id: SHOPIFY_CLIENT_ID,
-        client_secret: SHOPIFY_CLIENT_SECRET,
-        grant_type: "client_credentials"
-      }),
-      {
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          Accept: "application/json"
-        }
-      }
-    );
-
-    return response.data.access_token;
-  } catch (error) {
-    console.log("SHOPIFY TOKEN ERROR");
-
-    if (error.response) {
-      console.log(error.response.data);
-      throw new Error(JSON.stringify(error.response.data));
-    } else {
-      console.log(error.message);
-      throw error;
+async function getAmazonGrantlessNotificationsToken() {
+  const response = await axios.post(
+    "https://api.amazon.com/auth/o2/token",
+    new URLSearchParams({
+      grant_type: "client_credentials",
+      scope: "sellingpartnerapi::notifications",
+      client_id: AMAZON_CLIENT_ID,
+      client_secret: AMAZON_CLIENT_SECRET,
+    }),
+    {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      },
     }
-  }
+  );
+
+  return response.data.access_token;
 }
 
-async function shopifyGraphQL(query, variables = {}) {
-  const token = await getShopifyAccessToken();
+// ======================================================
+// AMAZON LOW LEVEL HELPERS
+// ======================================================
 
+function amazonHeaders(accessToken) {
+  return {
+    "x-amz-access-token": accessToken,
+    "x-amz-date": new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z"),
+    "user-agent": "SyncAmzEby/1.0 (Language=JavaScript)",
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+}
+
+async function amazonGet(path, accessToken, params = {}) {
+  const response = await axios.get(`${AMAZON_SP_API_BASE}${path}`, {
+    params,
+    headers: amazonHeaders(accessToken),
+  });
+  return response.data;
+}
+
+async function amazonPost(path, accessToken, body) {
+  const response = await axios.post(`${AMAZON_SP_API_BASE}${path}`, body, {
+    headers: amazonHeaders(accessToken),
+  });
+  return response.data;
+}
+
+async function amazonPatch(path, accessToken, body, params = {}) {
+  const response = await axios.patch(`${AMAZON_SP_API_BASE}${path}`, body, {
+    params,
+    headers: amazonHeaders(accessToken),
+  });
+  return response.data;
+}
+
+// ======================================================
+// SHOPIFY
+// ======================================================
+
+async function shopifyGraphQL(query, variables = {}) {
   const response = await axios.post(
     `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2026-01/graphql.json`,
     { query, variables },
     {
       headers: {
         "Content-Type": "application/json",
-        "X-Shopify-Access-Token": token
-      }
+        "X-Shopify-Access-Token": SHOPIFY_ADMIN_ACCESS_TOKEN,
+      },
     }
   );
 
   if (response.data.errors) {
     throw new Error(JSON.stringify(response.data.errors));
-  }
-
-  if (response.data.data?.inventoryAdjustQuantities?.userErrors?.length) {
-    throw new Error(
-      JSON.stringify(response.data.data.inventoryAdjustQuantities.userErrors)
-    );
   }
 
   return response.data.data;
@@ -162,7 +187,7 @@ async function findShopifyInventoryItemBySku(sku) {
   `;
 
   const data = await shopifyGraphQL(query, {
-    query: `sku:${sku}`
+    query: `sku:${sku}`,
   });
 
   const edge = data.inventoryItems.edges[0];
@@ -171,7 +196,7 @@ async function findShopifyInventoryItemBySku(sku) {
   return {
     inventoryItemId: edge.node.id,
     sku: edge.node.sku,
-    tracked: edge.node.tracked
+    tracked: edge.node.tracked,
   };
 }
 
@@ -179,7 +204,7 @@ async function adjustShopifyInventoryBySku({
   sku,
   delta,
   reason = "correction",
-  referenceDocumentUri = "gid://syncamzeby/amazon-order-sync/manual-test"
+  referenceDocumentUri = "gid://syncamzeby/amazon-order-sync/manual",
 }) {
   const found = await findShopifyInventoryItemBySku(sku);
 
@@ -222,13 +247,18 @@ async function adjustShopifyInventoryBySku({
         {
           inventoryItemId: found.inventoryItemId,
           locationId: `gid://shopify/Location/${SHOPIFY_LOCATION_ID}`,
-          delta
-        }
-      ]
-    }
+          delta,
+        },
+      ],
+    },
   };
 
   const data = await shopifyGraphQL(mutation, variables);
+  const userErrors = data?.inventoryAdjustQuantities?.userErrors || [];
+
+  if (userErrors.length) {
+    throw new Error(JSON.stringify(userErrors));
+  }
 
   console.log("SHOPIFY INVENTORY ADJUST RESULT", JSON.stringify(data, null, 2));
 
@@ -237,9 +267,13 @@ async function adjustShopifyInventoryBySku({
     sku,
     delta,
     inventoryItemId: found.inventoryItemId,
-    data
+    data,
   };
 }
+
+// ======================================================
+// AMAZON LISTINGS UPDATE FROM SHOPIFY
+// ======================================================
 
 async function sendPriceQuantityToAmazon({ sku, price, quantity }) {
   try {
@@ -254,9 +288,9 @@ async function sendPriceQuantityToAmazon({ sku, price, quantity }) {
           value: [
             {
               fulfillment_channel_code: "DEFAULT",
-              quantity: quantity
-            }
-          ]
+              quantity: Number(quantity),
+            },
+          ],
         },
         {
           op: "replace",
@@ -269,337 +303,511 @@ async function sendPriceQuantityToAmazon({ sku, price, quantity }) {
                 {
                   schedule: [
                     {
-                      value_with_tax: price
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-      ]
+                      value_with_tax: Number(price),
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
     };
 
-    const url =
-      "https://sellingpartnerapi-eu.amazon.com/listings/2021-08-01/items/" +
-      AMAZON_SELLER_ID +
-      "/" +
-      encodeURIComponent(sku) +
-      "?marketplaceIds=" +
-      encodeURIComponent(AMAZON_MARKETPLACE_ID) +
-      "&issueLocale=it_IT";
+    const path = `/listings/2021-08-01/items/${encodeURIComponent(
+      AMAZON_SELLER_ID
+    )}/${encodeURIComponent(sku)}`;
 
-    const response = await axios.patch(url, body, {
-      headers: {
-        "x-amz-access-token": token,
-        "Content-Type": "application/json"
-      }
+    const response = await amazonPatch(path, token, body, {
+      marketplaceIds: AMAZON_MARKETPLACE_ID,
+      issueLocale: "it_IT",
     });
 
-    console.log("AMAZON UPDATE SUCCESS", response.data);
-    return response.data;
+    console.log("AMAZON UPDATE SUCCESS", JSON.stringify(response, null, 2));
+    return response;
   } catch (error) {
     console.log("AMAZON UPDATE ERROR");
 
     if (error.response) {
-      console.log(error.response.data);
-      return error.response.data;
-    } else {
-      console.log(error.message);
-      return { error: error.message };
+      console.log(JSON.stringify(error.response.data, null, 2));
+      return { ok: false, error: error.response.data };
     }
+
+    console.log(error.message);
+    return { ok: false, error: error.message };
   }
 }
 
-async function getRecentAmazonOrders() {
-  const token = await getAmazonAccessToken();
-
-  const createdAfter = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-
-  const url =
-    "https://sellingpartnerapi-eu.amazon.com/orders/v0/orders" +
-    "?MarketplaceIds=" +
-    encodeURIComponent(AMAZON_MARKETPLACE_ID) +
-    "&CreatedAfter=" +
-    encodeURIComponent(createdAfter) +
-    "&OrderStatuses=Unshipped,PartiallyShipped,Shipped";
-
-  const response = await axios.get(url, {
-    headers: {
-      "x-amz-access-token": token,
-      "Content-Type": "application/json"
-    }
-  });
-
-  return response.data;
-}
+// ======================================================
+// AMAZON ORDERS
+// ======================================================
 
 async function getAmazonOrderItems(orderId) {
   const token = await getAmazonAccessToken();
 
-  const url =
-    "https://sellingpartnerapi-eu.amazon.com/orders/v0/orders/" +
-    encodeURIComponent(orderId) +
-    "/orderItems";
-
-  const response = await axios.get(url, {
-    headers: {
-      "x-amz-access-token": token,
-      "Content-Type": "application/json"
-    }
-  });
-
-  return response.data;
+  return amazonGet(
+    `/orders/v0/orders/${encodeURIComponent(orderId)}/orderItems`,
+    token
+  );
 }
 
-async function processRecentAmazonOrders() {
-  const ordersData = await getRecentAmazonOrders();
-  const orders = ordersData?.payload?.Orders || [];
+async function processAmazonOrderById(orderId) {
+  if (!orderId) {
+    return { ok: false, error: "missing orderId" };
+  }
 
-  console.log("AMAZON RECENT ORDERS FOUND", orders.length);
+  if (processedAmazonOrderEvents.has(orderId)) {
+    return { ok: true, skipped: true, reason: "already_processed", orderId };
+  }
 
-  let processedCount = 0;
+  const itemsData = await getAmazonOrderItems(orderId);
+  const items = itemsData?.payload?.OrderItems || [];
 
-  for (const order of orders) {
-    const orderId = order.AmazonOrderId;
+  console.log("PROCESS AMAZON ORDER", orderId, "ITEMS", items.length);
 
-    if (!orderId) continue;
+  for (const item of items) {
+    const sku = item.SellerSKU;
+    const qty = Number(item.QuantityOrdered || 0);
 
-    const alreadyProcessed = await isAmazonOrderProcessed(orderId);
-    if (alreadyProcessed) {
-      console.log("AMAZON ORDER ALREADY PROCESSED", orderId);
-      continue;
+    if (!sku || qty <= 0) continue;
+
+    console.log("AMAZON ORDER ITEM", { orderId, sku, qty });
+
+    await adjustShopifyInventoryBySku({
+      sku,
+      delta: -Math.abs(qty),
+      reason: "correction",
+      referenceDocumentUri: `gid://syncamzeby/amazon-order/${orderId}`,
+    });
+  }
+
+  processedAmazonOrderEvents.add(orderId);
+
+  return { ok: true, orderId, itemCount: items.length };
+}
+
+// ======================================================
+// AMAZON NOTIFICATIONS SETUP
+// ======================================================
+
+async function listAmazonDestinations() {
+  const token = await getAmazonGrantlessNotificationsToken();
+  return amazonGet("/notifications/v1/destinations", token);
+}
+
+async function createAmazonDestination() {
+  const token = await getAmazonGrantlessNotificationsToken();
+
+  const body = {
+    resourceSpecification: {
+      sqs: {
+        arn: AMAZON_SQS_QUEUE_ARN,
+      },
+    },
+    name: "syncamzeby-order-change-destination",
+  };
+
+  return amazonPost("/notifications/v1/destinations", token, body);
+}
+
+async function createOrderChangeSubscription(destinationId) {
+  const token = await getAmazonAccessToken();
+
+  const body = {
+    payloadVersion: "1.0",
+    destinationId,
+    processingDirective: {
+      eventFilterType: "ORDER_CHANGE",
+      eventFilter: {
+        orderChangeTypes: [
+          "OrderStatusChange",
+          "BuyerRequestedChange"
+        ],
+      },
+    },
+  };
+
+  return amazonPost("/notifications/v1/subscriptions/ORDER_CHANGE", token, body);
+}
+
+async function ensureAmazonOrderChangeSubscription() {
+  const destinationResponse = await createAmazonDestination();
+
+  const destinationId =
+    destinationResponse?.payload?.destinationId ||
+    destinationResponse?.destinationId;
+
+  if (!destinationId) {
+    throw new Error(
+      `Unable to resolve destinationId from createDestination response: ${JSON.stringify(destinationResponse)}`
+    );
+  }
+
+  const subscriptionResponse = await createOrderChangeSubscription(destinationId);
+
+  return {
+    destinationResponse,
+    destinationId,
+    subscriptionResponse,
+  };
+}
+
+// ======================================================
+// SQS MESSAGE HANDLING
+// ======================================================
+
+function extractOrderIdFromSqsBody(bodyString) {
+  let parsed;
+  try {
+    parsed = JSON.parse(bodyString);
+  } catch {
+    return null;
+  }
+
+  // Direct notification
+  if (parsed?.Payload?.OrderChangeNotification?.AmazonOrderId) {
+    return parsed.Payload.OrderChangeNotification.AmazonOrderId;
+  }
+
+  // Common alternative casing
+  if (parsed?.payload?.OrderChangeNotification?.AmazonOrderId) {
+    return parsed.payload.OrderChangeNotification.AmazonOrderId;
+  }
+
+  // SNS -> SQS wrapped message
+  if (parsed?.Message) {
+    try {
+      const inner = JSON.parse(parsed.Message);
+
+      if (inner?.Payload?.OrderChangeNotification?.AmazonOrderId) {
+        return inner.Payload.OrderChangeNotification.AmazonOrderId;
+      }
+
+      if (inner?.payload?.OrderChangeNotification?.AmazonOrderId) {
+        return inner.payload.OrderChangeNotification.AmazonOrderId;
+      }
+    } catch {
+      return null;
     }
+  }
 
-    const itemsData = await getAmazonOrderItems(orderId);
-    const items = itemsData?.payload?.OrderItems || [];
+  return null;
+}
 
-    console.log("PROCESS AMAZON ORDER", orderId, "ITEMS", items.length);
+async function pollSqsOnce() {
+  const receiveResponse = await sqsClient.send(
+    new ReceiveMessageCommand({
+      QueueUrl: AMAZON_SQS_QUEUE_URL,
+      MaxNumberOfMessages: 10,
+      WaitTimeSeconds: 10,
+      VisibilityTimeout: 30,
+      MessageAttributeNames: ["All"],
+      AttributeNames: ["All"],
+    })
+  );
 
-    for (const item of items) {
-      const sku = item.SellerSKU;
-      const qty = Number(item.QuantityOrdered || 0);
+  const messages = receiveResponse.Messages || [];
+  const results = [];
 
-      if (!sku || qty <= 0) {
+  for (const message of messages) {
+    const receiptHandle = message.ReceiptHandle;
+    const body = message.Body || "";
+    const orderId = extractOrderIdFromSqsBody(body);
+
+    try {
+      if (!orderId) {
+        console.log("SQS MESSAGE WITHOUT ORDER ID", body);
+
+        if (receiptHandle) {
+          await sqsClient.send(
+            new DeleteMessageCommand({
+              QueueUrl: AMAZON_SQS_QUEUE_URL,
+              ReceiptHandle: receiptHandle,
+            })
+          );
+        }
+
+        results.push({
+          ok: true,
+          skipped: true,
+          reason: "no_order_id",
+        });
         continue;
       }
 
-      console.log("AMAZON ORDER ITEM", { orderId, sku, qty });
+      const result = await processAmazonOrderById(orderId);
 
-      await adjustShopifyInventoryBySku({
-        sku,
-        delta: -Math.abs(qty),
-        reason: "correction",
-        referenceDocumentUri: `gid://syncamzeby/amazon-order/${orderId}`
+      if (receiptHandle) {
+        await sqsClient.send(
+          new DeleteMessageCommand({
+            QueueUrl: AMAZON_SQS_QUEUE_URL,
+            ReceiptHandle: receiptHandle,
+          })
+        );
+      }
+
+      results.push(result);
+    } catch (error) {
+      console.log("SQS PROCESS ERROR", error.message);
+
+      results.push({
+        ok: false,
+        error: error.message,
       });
     }
-
-    await markAmazonOrderProcessed(orderId);
-    processedCount += 1;
   }
 
-  return { found: orders.length, processed: processedCount };
+  return {
+    ok: true,
+    received: messages.length,
+    results,
+  };
 }
+
+// ======================================================
+// ROUTES
+// ======================================================
 
 app.get("/", (req, res) => {
   res.send("SyncAmzEby running");
 });
 
-app.get("/setup/amazon-notifications", async (req, res) => {
+app.get("/health", async (req, res) => {
   try {
-    const token = await getAmazonAccessToken();
+    validateEnv();
 
-    const destinationRes = await axios.post(
-      "https://sellingpartnerapi-eu.amazon.com/notifications/v1/destinations",
-      {
-        name: "SyncAmzEby SQS Destination",
-        resourceSpecification: {
-          sqs: {
-            arn: "arn:aws:sqs:us-east-1:730335601952:syncamzeby-order-change"
-          }
-        }
-      },
-      {
-        headers: {
-          "x-amz-access-token": token,
-          "Content-Type": "application/json"
-        }
-      }
+    const attrs = await sqsClient.send(
+      new GetQueueAttributesCommand({
+        QueueUrl: AMAZON_SQS_QUEUE_URL,
+        AttributeNames: ["QueueArn"],
+      })
     );
-
-    const destinationId = destinationRes.data.payload.destinationId;
-    console.log("DESTINATION CREATED:", destinationId);
-
-    const subRes = await axios.post(
-      "https://sellingpartnerapi-eu.amazon.com/notifications/v1/subscriptions/ORDER_CHANGE",
-      {
-        payloadVersion: "1.0",
-        destinationId: destinationId
-      },
-      {
-        headers: {
-          "x-amz-access-token": token,
-          "Content-Type": "application/json"
-        }
-      }
-    );
-
-    console.log("SUBSCRIPTION CREATED", subRes.data);
 
     res.json({
       ok: true,
-      destinationId,
-      subscription: subRes.data
+      queueArn: attrs.Attributes?.QueueArn || null,
+      autoPoll: AUTO_POLL_SQS,
+      pollIntervalMs: SQS_POLL_INTERVAL_MS,
     });
   } catch (error) {
-    console.log("AMAZON NOTIFICATION SETUP ERROR");
-
-    if (error.response) {
-      console.log(error.response.data);
-      return res.status(500).json(error.response.data);
-    }
-
-    return res.status(500).json({ error: error.message });
+    res.status(500).json({ ok: false, error: error.message });
   }
 });
 
-app.get("/amazon/test-orders", async (req, res) => {
+app.get("/amazon/notifications/setup", async (req, res) => {
   try {
-    const orders = await getRecentAmazonOrders();
-    res.json(orders);
-  } catch (error) {
-    if (error.response) {
-      res.status(500).json(error.response.data);
-    } else {
-      res.status(500).json({ error: error.message });
-    }
-  }
-});
-
-app.get("/amazon/process-orders", async (req, res) => {
-  try {
-    const result = await processRecentAmazonOrders();
+    const result = await ensureAmazonOrderChangeSubscription();
     res.json({ ok: true, ...result });
   } catch (error) {
     if (error.response) {
-      res.status(500).json(error.response.data);
-    } else {
-      res.status(500).json({ error: error.message });
+      return res.status(500).json({
+        ok: false,
+        error: error.response.data,
+      });
     }
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/amazon/notifications/destinations", async (req, res) => {
+  try {
+    const result = await listAmazonDestinations();
+    res.json({ ok: true, result });
+  } catch (error) {
+    if (error.response) {
+      return res.status(500).json({
+        ok: false,
+        error: error.response.data,
+      });
+    }
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/amazon/notifications/pull", async (req, res) => {
+  try {
+    const result = await pollSqsOnce();
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/amazon/order-items", async (req, res) => {
+  try {
+    const orderId = String(req.query.orderId || "");
+    if (!orderId) {
+      return res.status(400).json({ ok: false, error: "missing orderId" });
+    }
+
+    const result = await getAmazonOrderItems(orderId);
+    return res.json({ ok: true, result });
+  } catch (error) {
+    if (error.response) {
+      return res.status(500).json({
+        ok: false,
+        error: error.response.data,
+      });
+    }
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
   }
 });
 
 app.get("/shopify/test-adjust", async (req, res) => {
   try {
-    const sku = req.query.sku;
+    const sku = String(req.query.sku || "");
     const qty = Number(req.query.qty || 1);
 
     if (!sku) {
-      return res.status(400).json({ error: "missing sku" });
+      return res.status(400).json({ ok: false, error: "missing sku" });
     }
 
     const result = await adjustShopifyInventoryBySku({
       sku,
       delta: -Math.abs(qty),
       reason: "correction",
-      referenceDocumentUri: `gid://syncamzeby/manual-adjust/${sku}`
+      referenceDocumentUri: `gid://syncamzeby/manual-adjust/${sku}`,
     });
 
-    res.json({ ok: true, result });
+    return res.json({ ok: true, result });
   } catch (error) {
     if (error.response) {
-      console.log("SHOPIFY TEST ADJUST ERROR RESPONSE", error.response.data);
-      return res.status(500).json(error.response.data);
+      return res.status(500).json({
+        ok: false,
+        error: error.response.data,
+      });
     }
 
-    console.log("SHOPIFY TEST ADJUST ERROR", error.message);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
   }
 });
 
-app.post("/webhooks/products", express.raw({ type: "*/*" }), (req, res) => {
-  const payload = JSON.parse(req.body.toString());
+app.post("/webhooks/products", express.raw({ type: "*/*" }), async (req, res) => {
+  try {
+    const payload = JSON.parse(req.body.toString());
 
-  payload.variants.forEach((variant) => {
-    const existing = inventoryMap.get(String(variant.inventory_item_id)) || {};
+    for (const variant of payload.variants || []) {
+      const existing = inventoryMap.get(String(variant.inventory_item_id)) || {};
 
-    inventoryMap.set(String(variant.inventory_item_id), {
-      sku: variant.sku,
-      price: variant.price,
-      quantity: existing.quantity || variant.inventory_quantity
-    });
-
-    if (existing.quantity !== undefined) {
-      console.log("SYNC TO AMAZON", {
+      inventoryMap.set(String(variant.inventory_item_id), {
         sku: variant.sku,
         price: variant.price,
-        quantity: existing.quantity
+        quantity: existing.quantity ?? variant.inventory_quantity ?? 0,
       });
 
-      sendPriceQuantityToAmazon({
-        sku: variant.sku,
-        price: variant.price,
-        quantity: existing.quantity
-      });
+      if (existing.quantity !== undefined && variant.sku) {
+        console.log("SYNC TO AMAZON FROM PRODUCT WEBHOOK", {
+          sku: variant.sku,
+          price: variant.price,
+          quantity: existing.quantity,
+        });
+
+        await sendPriceQuantityToAmazon({
+          sku: variant.sku,
+          price: variant.price,
+          quantity: existing.quantity,
+        });
+      }
     }
-  });
 
-  console.log("=== PRODUCT WEBHOOK OK ===");
-  console.log(
-    JSON.stringify(
-      payload.variants.map((variant) => ({
-        sku: variant.sku,
-        price: variant.price,
-        inventory_item_id: variant.inventory_item_id,
-        inventory_quantity: variant.inventory_quantity
-      })),
-      null,
-      2
-    )
-  );
-
-  res.sendStatus(200);
+    console.log("=== PRODUCT WEBHOOK OK ===");
+    return res.sendStatus(200);
+  } catch (error) {
+    console.log("PRODUCT WEBHOOK ERROR", error.message);
+    return res.status(500).send("error");
+  }
 });
 
 app.post("/webhooks/inventory", express.raw({ type: "*/*" }), async (req, res) => {
-  const payload = JSON.parse(req.body.toString());
+  try {
+    const payload = JSON.parse(req.body.toString());
 
-  console.log("=== INVENTORY WEBHOOK RAW ===");
-  console.log(JSON.stringify(payload, null, 2));
+    console.log("=== INVENTORY WEBHOOK RAW ===");
+    console.log(JSON.stringify(payload, null, 2));
 
-  let mapped = inventoryMap.get(String(payload.inventory_item_id));
+    let mapped = inventoryMap.get(String(payload.inventory_item_id));
 
-  if (!mapped) {
-    inventoryMap.set(String(payload.inventory_item_id), {
-      quantity: payload.available
-    });
+    if (!mapped) {
+      inventoryMap.set(String(payload.inventory_item_id), {
+        quantity: payload.available,
+      });
 
-    console.log("WAITING PRODUCT DATA FOR", payload.inventory_item_id);
+      console.log("WAITING PRODUCT DATA FOR", payload.inventory_item_id);
+      return res.sendStatus(200);
+    }
+
+    mapped.quantity = payload.available;
+
+    const sku = mapped.sku;
+    const price = mapped.price;
+    const quantity = payload.available;
+
+    if (!sku) {
+      console.log("NO SKU MAPPED FOR INVENTORY ITEM", payload.inventory_item_id);
+      return res.sendStatus(200);
+    }
+
+    console.log("SYNC TO AMAZON FROM INVENTORY WEBHOOK", { sku, price, quantity });
+
+    await sendPriceQuantityToAmazon({ sku, price, quantity });
+
     return res.sendStatus(200);
+  } catch (error) {
+    console.log("INVENTORY WEBHOOK ERROR", error.message);
+    return res.status(500).send("error");
   }
-
-  mapped.quantity = payload.available;
-
-  const sku = mapped.sku;
-  const price = mapped.price;
-  const quantity = payload.available;
-
-  console.log("SYNC TO AMAZON", { sku, price, quantity });
-
-  await sendPriceQuantityToAmazon({ sku, price, quantity });
-
-  res.sendStatus(200);
 });
 
-const PORT = process.env.PORT || 3000;
+// ======================================================
+// START
+// ======================================================
 
-initDb()
-  .then(() => {
+async function start() {
+  try {
+    validateEnv();
+
     app.listen(PORT, () => {
-      console.log("Server running on port " + PORT);
+      console.log(`SyncAmzEby listening on port ${PORT}`);
     });
-  })
-  .catch((error) => {
-    console.log("DB INIT ERROR", error.message);
+
+    if (AUTO_POLL_SQS) {
+      console.log(
+        `AUTO_POLL_SQS enabled - polling every ${SQS_POLL_INTERVAL_MS} ms`
+      );
+
+      setInterval(async () => {
+        try {
+          const result = await pollSqsOnce();
+          if (result.received > 0) {
+            console.log("AUTO POLL RESULT", JSON.stringify(result, null, 2));
+          }
+        } catch (error) {
+          console.log("AUTO POLL ERROR", error.message);
+        }
+      }, SQS_POLL_INTERVAL_MS);
+    }
+  } catch (error) {
+    console.error("STARTUP ERROR:", error.message);
     process.exit(1);
-  });
+  }
+}
+
+start();
