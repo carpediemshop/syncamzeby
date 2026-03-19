@@ -8,12 +8,11 @@ import {
 } from "@aws-sdk/client-sqs";
 
 const app = express();
-
 const PORT = Number(process.env.PORT || 3000);
 
-// ======================================================
+// =========================
 // ENV
-// ======================================================
+// =========================
 
 // Amazon
 const AMAZON_MARKETPLACE_ID = process.env.AMAZON_MARKETPLACE_ID;
@@ -26,28 +25,21 @@ const AMAZON_SQS_QUEUE_ARN = process.env.AMAZON_SQS_QUEUE_ARN;
 
 // Shopify
 const SHOPIFY_SHOP_DOMAIN = process.env.SHOPIFY_SHOP_DOMAIN;
-const SHOPIFY_ADMIN_ACCESS_TOKEN = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
 const SHOPIFY_LOCATION_ID = process.env.SHOPIFY_LOCATION_ID;
 
 // Polling
 const AUTO_POLL_SQS = String(process.env.AUTO_POLL_SQS || "false") === "true";
 const SQS_POLL_INTERVAL_MS = Number(process.env.SQS_POLL_INTERVAL_MS || 20000);
 
-// Amazon endpoint EU
 const AMAZON_SP_API_BASE = "https://sellingpartnerapi-eu.amazon.com";
 
-// In-memory maps
 const inventoryMap = new Map();
 const processedAmazonOrderEvents = new Set();
 
-// AWS SQS client
 const sqsClient = new SQSClient({
-  region: process.env.AWS_REGION || "us-east-1",
+  region: "us-east-1",
 });
-
-// ======================================================
-// VALIDATION
-// ======================================================
 
 function requireEnv(name, value) {
   if (!value) {
@@ -65,13 +57,13 @@ function validateEnv() {
   requireEnv("AMAZON_SQS_QUEUE_ARN", AMAZON_SQS_QUEUE_ARN);
 
   requireEnv("SHOPIFY_SHOP_DOMAIN", SHOPIFY_SHOP_DOMAIN);
-  requireEnv("SHOPIFY_ADMIN_ACCESS_TOKEN", SHOPIFY_ADMIN_ACCESS_TOKEN);
+  requireEnv("SHOPIFY_ACCESS_TOKEN", SHOPIFY_ACCESS_TOKEN);
   requireEnv("SHOPIFY_LOCATION_ID", SHOPIFY_LOCATION_ID);
 }
 
-// ======================================================
-// AMAZON AUTH
-// ======================================================
+// =========================
+// AMAZON TOKEN
+// =========================
 
 async function getAmazonAccessToken() {
   const response = await axios.post(
@@ -111,15 +103,10 @@ async function getAmazonGrantlessNotificationsToken() {
   return response.data.access_token;
 }
 
-// ======================================================
-// AMAZON LOW LEVEL HELPERS
-// ======================================================
-
 function amazonHeaders(accessToken) {
   return {
     "x-amz-access-token": accessToken,
-    "x-amz-date": new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z"),
-    "user-agent": "SyncAmzEby/1.0 (Language=JavaScript)",
+    "user-agent": "SyncAmzEby/1.0",
     "Content-Type": "application/json",
     Accept: "application/json",
   };
@@ -148,9 +135,9 @@ async function amazonPatch(path, accessToken, body, params = {}) {
   return response.data;
 }
 
-// ======================================================
-// SHOPIFY
-// ======================================================
+// =========================
+// SHOPIFY GRAPHQL
+// =========================
 
 async function shopifyGraphQL(query, variables = {}) {
   const response = await axios.post(
@@ -159,7 +146,7 @@ async function shopifyGraphQL(query, variables = {}) {
     {
       headers: {
         "Content-Type": "application/json",
-        "X-Shopify-Access-Token": SHOPIFY_ADMIN_ACCESS_TOKEN,
+        "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
       },
     }
   );
@@ -260,8 +247,6 @@ async function adjustShopifyInventoryBySku({
     throw new Error(JSON.stringify(userErrors));
   }
 
-  console.log("SHOPIFY INVENTORY ADJUST RESULT", JSON.stringify(data, null, 2));
-
   return {
     ok: true,
     sku,
@@ -271,9 +256,9 @@ async function adjustShopifyInventoryBySku({
   };
 }
 
-// ======================================================
-// AMAZON LISTINGS UPDATE FROM SHOPIFY
-// ======================================================
+// =========================
+// SHOPIFY -> AMAZON
+// =========================
 
 async function sendPriceQuantityToAmazon({ sku, price, quantity }) {
   try {
@@ -338,9 +323,9 @@ async function sendPriceQuantityToAmazon({ sku, price, quantity }) {
   }
 }
 
-// ======================================================
-// AMAZON ORDERS
-// ======================================================
+// =========================
+// AMAZON ORDERS -> SHOPIFY
+// =========================
 
 async function getAmazonOrderItems(orderId) {
   const token = await getAmazonAccessToken();
@@ -386,14 +371,9 @@ async function processAmazonOrderById(orderId) {
   return { ok: true, orderId, itemCount: items.length };
 }
 
-// ======================================================
-// AMAZON NOTIFICATIONS SETUP
-// ======================================================
-
-async function listAmazonDestinations() {
-  const token = await getAmazonGrantlessNotificationsToken();
-  return amazonGet("/notifications/v1/destinations", token);
-}
+// =========================
+// AMAZON NOTIFICATIONS
+// =========================
 
 async function createAmazonDestination() {
   const token = await getAmazonGrantlessNotificationsToken();
@@ -416,15 +396,6 @@ async function createOrderChangeSubscription(destinationId) {
   const body = {
     payloadVersion: "1.0",
     destinationId,
-    processingDirective: {
-      eventFilterType: "ORDER_CHANGE",
-      eventFilter: {
-        orderChangeTypes: [
-          "OrderStatusChange",
-          "BuyerRequestedChange"
-        ],
-      },
-    },
   };
 
   return amazonPost("/notifications/v1/subscriptions/ORDER_CHANGE", token, body);
@@ -439,7 +410,7 @@ async function ensureAmazonOrderChangeSubscription() {
 
   if (!destinationId) {
     throw new Error(
-      `Unable to resolve destinationId from createDestination response: ${JSON.stringify(destinationResponse)}`
+      `Unable to resolve destinationId from response: ${JSON.stringify(destinationResponse)}`
     );
   }
 
@@ -452,29 +423,27 @@ async function ensureAmazonOrderChangeSubscription() {
   };
 }
 
-// ======================================================
-// SQS MESSAGE HANDLING
-// ======================================================
+// =========================
+// SQS
+// =========================
 
 function extractOrderIdFromSqsBody(bodyString) {
   let parsed;
+
   try {
     parsed = JSON.parse(bodyString);
   } catch {
     return null;
   }
 
-  // Direct notification
   if (parsed?.Payload?.OrderChangeNotification?.AmazonOrderId) {
     return parsed.Payload.OrderChangeNotification.AmazonOrderId;
   }
 
-  // Common alternative casing
   if (parsed?.payload?.OrderChangeNotification?.AmazonOrderId) {
     return parsed.payload.OrderChangeNotification.AmazonOrderId;
   }
 
-  // SNS -> SQS wrapped message
   if (parsed?.Message) {
     try {
       const inner = JSON.parse(parsed.Message);
@@ -564,9 +533,9 @@ async function pollSqsOnce() {
   };
 }
 
-// ======================================================
+// =========================
 // ROUTES
-// ======================================================
+// =========================
 
 app.get("/", (req, res) => {
   res.send("SyncAmzEby running");
@@ -598,25 +567,6 @@ app.get("/amazon/notifications/setup", async (req, res) => {
   try {
     const result = await ensureAmazonOrderChangeSubscription();
     res.json({ ok: true, ...result });
-  } catch (error) {
-    if (error.response) {
-      return res.status(500).json({
-        ok: false,
-        error: error.response.data,
-      });
-    }
-
-    return res.status(500).json({
-      ok: false,
-      error: error.message,
-    });
-  }
-});
-
-app.get("/amazon/notifications/destinations", async (req, res) => {
-  try {
-    const result = await listAmazonDestinations();
-    res.json({ ok: true, result });
   } catch (error) {
     if (error.response) {
       return res.status(500).json({
@@ -714,12 +664,6 @@ app.post("/webhooks/products", express.raw({ type: "*/*" }), async (req, res) =>
       });
 
       if (existing.quantity !== undefined && variant.sku) {
-        console.log("SYNC TO AMAZON FROM PRODUCT WEBHOOK", {
-          sku: variant.sku,
-          price: variant.price,
-          quantity: existing.quantity,
-        });
-
         await sendPriceQuantityToAmazon({
           sku: variant.sku,
           price: variant.price,
@@ -728,7 +672,6 @@ app.post("/webhooks/products", express.raw({ type: "*/*" }), async (req, res) =>
       }
     }
 
-    console.log("=== PRODUCT WEBHOOK OK ===");
     return res.sendStatus(200);
   } catch (error) {
     console.log("PRODUCT WEBHOOK ERROR", error.message);
@@ -740,9 +683,6 @@ app.post("/webhooks/inventory", express.raw({ type: "*/*" }), async (req, res) =
   try {
     const payload = JSON.parse(req.body.toString());
 
-    console.log("=== INVENTORY WEBHOOK RAW ===");
-    console.log(JSON.stringify(payload, null, 2));
-
     let mapped = inventoryMap.get(String(payload.inventory_item_id));
 
     if (!mapped) {
@@ -750,7 +690,6 @@ app.post("/webhooks/inventory", express.raw({ type: "*/*" }), async (req, res) =
         quantity: payload.available,
       });
 
-      console.log("WAITING PRODUCT DATA FOR", payload.inventory_item_id);
       return res.sendStatus(200);
     }
 
@@ -761,11 +700,8 @@ app.post("/webhooks/inventory", express.raw({ type: "*/*" }), async (req, res) =
     const quantity = payload.available;
 
     if (!sku) {
-      console.log("NO SKU MAPPED FOR INVENTORY ITEM", payload.inventory_item_id);
       return res.sendStatus(200);
     }
-
-    console.log("SYNC TO AMAZON FROM INVENTORY WEBHOOK", { sku, price, quantity });
 
     await sendPriceQuantityToAmazon({ sku, price, quantity });
 
@@ -776,10 +712,6 @@ app.post("/webhooks/inventory", express.raw({ type: "*/*" }), async (req, res) =
   }
 });
 
-// ======================================================
-// START
-// ======================================================
-
 async function start() {
   try {
     validateEnv();
@@ -789,9 +721,7 @@ async function start() {
     });
 
     if (AUTO_POLL_SQS) {
-      console.log(
-        `AUTO_POLL_SQS enabled - polling every ${SQS_POLL_INTERVAL_MS} ms`
-      );
+      console.log(`AUTO_POLL_SQS enabled every ${SQS_POLL_INTERVAL_MS} ms`);
 
       setInterval(async () => {
         try {
