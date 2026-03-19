@@ -1,10 +1,11 @@
 import express from "express";
 import axios from "axios";
+import pkg from "pg";
 
+const { Pool } = pkg;
 const app = express();
 
 const inventoryMap = new Map();
-const processedAmazonOrders = new Set();
 
 // Amazon
 const AMAZON_MARKETPLACE_ID = process.env.AMAZON_MARKETPLACE_ID;
@@ -19,6 +20,55 @@ const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID;
 const SHOPIFY_CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET;
 const SHOPIFY_LOCATION_ID = process.env.SHOPIFY_LOCATION_ID;
 
+// Database
+const DATABASE_URL = process.env.DATABASE_URL;
+const pool = DATABASE_URL
+  ? new Pool({
+      connectionString: DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    })
+  : null;
+
+async function initDb() {
+  if (!pool) {
+    console.log("DATABASE_URL missing");
+    return;
+  }
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS processed_amazon_orders (
+      amazon_order_id TEXT PRIMARY KEY,
+      processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  console.log("DB READY");
+}
+
+async function isAmazonOrderProcessed(orderId) {
+  if (!pool) return false;
+
+  const result = await pool.query(
+    `SELECT 1 FROM processed_amazon_orders WHERE amazon_order_id = $1 LIMIT 1`,
+    [orderId]
+  );
+
+  return result.rowCount > 0;
+}
+
+async function markAmazonOrderProcessed(orderId) {
+  if (!pool) return;
+
+  await pool.query(
+    `
+      INSERT INTO processed_amazon_orders (amazon_order_id)
+      VALUES ($1)
+      ON CONFLICT (amazon_order_id) DO NOTHING
+    `,
+    [orderId]
+  );
+}
+
 async function getAmazonAccessToken() {
   const response = await axios.post(
     "https://api.amazon.com/auth/o2/token",
@@ -26,12 +76,12 @@ async function getAmazonAccessToken() {
       grant_type: "refresh_token",
       refresh_token: AMAZON_REFRESH_TOKEN,
       client_id: AMAZON_CLIENT_ID,
-      client_secret: AMAZON_CLIENT_SECRET,
+      client_secret: AMAZON_CLIENT_SECRET
     }),
     {
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
+        "Content-Type": "application/x-www-form-urlencoded"
+      }
     }
   );
 
@@ -45,13 +95,13 @@ async function getShopifyAccessToken() {
       new URLSearchParams({
         client_id: SHOPIFY_CLIENT_ID,
         client_secret: SHOPIFY_CLIENT_SECRET,
-        grant_type: "client_credentials",
+        grant_type: "client_credentials"
       }),
       {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
-          Accept: "application/json",
-        },
+          Accept: "application/json"
+        }
       }
     );
 
@@ -78,8 +128,8 @@ async function shopifyGraphQL(query, variables = {}) {
     {
       headers: {
         "Content-Type": "application/json",
-        "X-Shopify-Access-Token": token,
-      },
+        "X-Shopify-Access-Token": token
+      }
     }
   );
 
@@ -112,7 +162,7 @@ async function findShopifyInventoryItemBySku(sku) {
   `;
 
   const data = await shopifyGraphQL(query, {
-    query: `sku:${sku}`,
+    query: `sku:${sku}`
   });
 
   const edge = data.inventoryItems.edges[0];
@@ -121,7 +171,7 @@ async function findShopifyInventoryItemBySku(sku) {
   return {
     inventoryItemId: edge.node.id,
     sku: edge.node.sku,
-    tracked: edge.node.tracked,
+    tracked: edge.node.tracked
   };
 }
 
@@ -129,7 +179,7 @@ async function adjustShopifyInventoryBySku({
   sku,
   delta,
   reason = "correction",
-  referenceDocumentUri = "gid://syncamzeby/amazon-order-sync/manual-test",
+  referenceDocumentUri = "gid://syncamzeby/amazon-order-sync/manual-test"
 }) {
   const found = await findShopifyInventoryItemBySku(sku);
 
@@ -172,10 +222,10 @@ async function adjustShopifyInventoryBySku({
         {
           inventoryItemId: found.inventoryItemId,
           locationId: `gid://shopify/Location/${SHOPIFY_LOCATION_ID}`,
-          delta,
-        },
-      ],
-    },
+          delta
+        }
+      ]
+    }
   };
 
   const data = await shopifyGraphQL(mutation, variables);
@@ -187,7 +237,7 @@ async function adjustShopifyInventoryBySku({
     sku,
     delta,
     inventoryItemId: found.inventoryItemId,
-    data,
+    data
   };
 }
 
@@ -204,9 +254,9 @@ async function sendPriceQuantityToAmazon({ sku, price, quantity }) {
           value: [
             {
               fulfillment_channel_code: "DEFAULT",
-              quantity: quantity,
-            },
-          ],
+              quantity: quantity
+            }
+          ]
         },
         {
           op: "replace",
@@ -219,15 +269,15 @@ async function sendPriceQuantityToAmazon({ sku, price, quantity }) {
                 {
                   schedule: [
                     {
-                      value_with_tax: price,
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      ],
+                      value_with_tax: price
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
     };
 
     const url =
@@ -242,8 +292,8 @@ async function sendPriceQuantityToAmazon({ sku, price, quantity }) {
     const response = await axios.patch(url, body, {
       headers: {
         "x-amz-access-token": token,
-        "Content-Type": "application/json",
-      },
+        "Content-Type": "application/json"
+      }
     });
 
     console.log("AMAZON UPDATE SUCCESS", response.data);
@@ -264,7 +314,7 @@ async function sendPriceQuantityToAmazon({ sku, price, quantity }) {
 async function getRecentAmazonOrders() {
   const token = await getAmazonAccessToken();
 
-  const createdAfter = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const createdAfter = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
 
   const url =
     "https://sellingpartnerapi-eu.amazon.com/orders/v0/orders" +
@@ -277,8 +327,8 @@ async function getRecentAmazonOrders() {
   const response = await axios.get(url, {
     headers: {
       "x-amz-access-token": token,
-      "Content-Type": "application/json",
-    },
+      "Content-Type": "application/json"
+    }
   });
 
   return response.data;
@@ -295,8 +345,8 @@ async function getAmazonOrderItems(orderId) {
   const response = await axios.get(url, {
     headers: {
       "x-amz-access-token": token,
-      "Content-Type": "application/json",
-    },
+      "Content-Type": "application/json"
+    }
   });
 
   return response.data;
@@ -308,10 +358,16 @@ async function processRecentAmazonOrders() {
 
   console.log("AMAZON RECENT ORDERS FOUND", orders.length);
 
+  let processedCount = 0;
+
   for (const order of orders) {
     const orderId = order.AmazonOrderId;
 
-    if (!orderId || processedAmazonOrders.has(orderId)) {
+    if (!orderId) continue;
+
+    const alreadyProcessed = await isAmazonOrderProcessed(orderId);
+    if (alreadyProcessed) {
+      console.log("AMAZON ORDER ALREADY PROCESSED", orderId);
       continue;
     }
 
@@ -334,18 +390,77 @@ async function processRecentAmazonOrders() {
         sku,
         delta: -Math.abs(qty),
         reason: "correction",
-        referenceDocumentUri: `gid://syncamzeby/amazon-order/${orderId}`,
+        referenceDocumentUri: `gid://syncamzeby/amazon-order/${orderId}`
       });
     }
 
-    processedAmazonOrders.add(orderId);
+    await markAmazonOrderProcessed(orderId);
+    processedCount += 1;
   }
 
-  return { count: orders.length };
+  return { found: orders.length, processed: processedCount };
 }
 
 app.get("/", (req, res) => {
   res.send("SyncAmzEby running");
+});
+
+app.get("/setup/amazon-notifications", async (req, res) => {
+  try {
+    const token = await getAmazonAccessToken();
+
+    const destinationRes = await axios.post(
+      "https://sellingpartnerapi-eu.amazon.com/notifications/v1/destinations",
+      {
+        name: "SyncAmzEby SQS Destination",
+        resourceSpecification: {
+          sqs: {
+            arn: "arn:aws:sqs:us-east-1:730335601952:syncamzeby-order-change"
+          }
+        }
+      },
+      {
+        headers: {
+          "x-amz-access-token": token,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    const destinationId = destinationRes.data.payload.destinationId;
+    console.log("DESTINATION CREATED:", destinationId);
+
+    const subRes = await axios.post(
+      "https://sellingpartnerapi-eu.amazon.com/notifications/v1/subscriptions/ORDER_CHANGE",
+      {
+        payloadVersion: "1.0",
+        destinationId: destinationId
+      },
+      {
+        headers: {
+          "x-amz-access-token": token,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    console.log("SUBSCRIPTION CREATED", subRes.data);
+
+    res.json({
+      ok: true,
+      destinationId,
+      subscription: subRes.data
+    });
+  } catch (error) {
+    console.log("AMAZON NOTIFICATION SETUP ERROR");
+
+    if (error.response) {
+      console.log(error.response.data);
+      return res.status(500).json(error.response.data);
+    }
+
+    return res.status(500).json({ error: error.message });
+  }
 });
 
 app.get("/amazon/test-orders", async (req, res) => {
@@ -387,7 +502,7 @@ app.get("/shopify/test-adjust", async (req, res) => {
       sku,
       delta: -Math.abs(qty),
       reason: "correction",
-      referenceDocumentUri: `gid://syncamzeby/manual-adjust/${sku}`,
+      referenceDocumentUri: `gid://syncamzeby/manual-adjust/${sku}`
     });
 
     res.json({ ok: true, result });
@@ -411,20 +526,20 @@ app.post("/webhooks/products", express.raw({ type: "*/*" }), (req, res) => {
     inventoryMap.set(String(variant.inventory_item_id), {
       sku: variant.sku,
       price: variant.price,
-      quantity: existing.quantity || variant.inventory_quantity,
+      quantity: existing.quantity || variant.inventory_quantity
     });
 
     if (existing.quantity !== undefined) {
       console.log("SYNC TO AMAZON", {
         sku: variant.sku,
         price: variant.price,
-        quantity: existing.quantity,
+        quantity: existing.quantity
       });
 
       sendPriceQuantityToAmazon({
         sku: variant.sku,
         price: variant.price,
-        quantity: existing.quantity,
+        quantity: existing.quantity
       });
     }
   });
@@ -436,7 +551,7 @@ app.post("/webhooks/products", express.raw({ type: "*/*" }), (req, res) => {
         sku: variant.sku,
         price: variant.price,
         inventory_item_id: variant.inventory_item_id,
-        inventory_quantity: variant.inventory_quantity,
+        inventory_quantity: variant.inventory_quantity
       })),
       null,
       2
@@ -456,7 +571,7 @@ app.post("/webhooks/inventory", express.raw({ type: "*/*" }), async (req, res) =
 
   if (!mapped) {
     inventoryMap.set(String(payload.inventory_item_id), {
-      quantity: payload.available,
+      quantity: payload.available
     });
 
     console.log("WAITING PRODUCT DATA FOR", payload.inventory_item_id);
@@ -478,6 +593,13 @@ app.post("/webhooks/inventory", express.raw({ type: "*/*" }), async (req, res) =
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
-});
+initDb()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log("Server running on port " + PORT);
+    });
+  })
+  .catch((error) => {
+    console.log("DB INIT ERROR", error.message);
+    process.exit(1);
+  });
