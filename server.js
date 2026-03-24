@@ -487,12 +487,8 @@ async function createOrderChangeSubscription(destinationId) {
     payloadVersion: "1.0",
     destinationId,
     processingDirective: {
-      eventFilterType: "ORDER_CHANGE",
       eventFilter: {
-        orderChangeTypes: [
-          "OrderStatusChange",
-          "BuyerRequestedChange"
-        ]
+        eventFilterType: "ORDER_CHANGE"
       }
     }
   };
