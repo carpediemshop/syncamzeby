@@ -38,7 +38,7 @@ const inventoryMap = new Map();
 const processedAmazonOrderEvents = new Set();
 
 const sqsClient = new SQSClient({
-  region: "us-east-1",
+  region: process.env.AWS_REGION || "us-east-1",
 });
 
 function requireEnv(name, value) {
@@ -395,21 +395,36 @@ async function listAmazonDestinations() {
   return amazonGet("/notifications/v1/destinations", token);
 }
 
-function extractDestinationIdFromList(destinationsResponse) {
-  const payload = destinationsResponse?.payload || {};
-  const destinations = payload?.destinations || [];
+function getDestinationsArray(destinationsResponse) {
+  if (Array.isArray(destinationsResponse?.payload)) {
+    return destinationsResponse.payload;
+  }
 
-  const found = destinations.find((destination) => {
-    const arn =
-      destination?.resource?.sqs?.arn ||
-      destination?.resourceSpecification?.sqs?.arn ||
-      destination?.resource?.eventBridge?.arn ||
-      destination?.resource?.arn;
+  if (Array.isArray(destinationsResponse?.payload?.destinations)) {
+    return destinationsResponse.payload.destinations;
+  }
 
-    return arn === AMAZON_SQS_QUEUE_ARN;
-  });
+  if (Array.isArray(destinationsResponse?.destinations)) {
+    return destinationsResponse.destinations;
+  }
 
-  return found?.destinationId || null;
+  return [];
+}
+
+function findDestinationByArn(destinationsResponse, arnToFind) {
+  const destinations = getDestinationsArray(destinationsResponse);
+
+  return (
+    destinations.find((destination) => {
+      const arn =
+        destination?.resource?.sqs?.arn ||
+        destination?.resourceSpecification?.sqs?.arn ||
+        destination?.resource?.arn ||
+        null;
+
+      return arn === arnToFind;
+    }) || null
+  );
 }
 
 async function getOrCreateAmazonDestination() {
@@ -442,11 +457,18 @@ async function getOrCreateAmazonDestination() {
     console.log("DESTINATION ALREADY EXISTS, REUSING EXISTING ONE");
 
     const destinationsResponse = await listAmazonDestinations();
-    const destinationId = extractDestinationIdFromList(destinationsResponse);
+    const existingDestination = findDestinationByArn(
+      destinationsResponse,
+      AMAZON_SQS_QUEUE_ARN
+    );
+
+    const destinationId = existingDestination?.destinationId || null;
 
     if (!destinationId) {
       throw new Error(
-        `Destination exists but could not be found in list: ${JSON.stringify(destinationsResponse)}`
+        `Destination exists but could not be found in list: ${JSON.stringify(
+          destinationsResponse
+        )}`
       );
     }
 
@@ -469,10 +491,43 @@ async function createOrderChangeSubscription(destinationId) {
   return amazonPost("/notifications/v1/subscriptions/ORDER_CHANGE", token, body);
 }
 
+async function getOrderChangeSubscription() {
+  const token = await getAmazonAccessToken();
+  return amazonGet("/notifications/v1/subscriptions/ORDER_CHANGE", token);
+}
+
+async function getOrCreateOrderChangeSubscription(destinationId) {
+  try {
+    const created = await createOrderChangeSubscription(destinationId);
+
+    return {
+      mode: "created",
+      subscriptionResponse: created,
+    };
+  } catch (error) {
+    const amazonError = error?.response?.data;
+    const errors = amazonError?.errors || [];
+    const hasConflict = errors.some((e) => e?.code === "Conflict");
+
+    if (!hasConflict) {
+      throw error;
+    }
+
+    console.log("ORDER_CHANGE SUBSCRIPTION ALREADY EXISTS, REUSING IT");
+
+    const existing = await getOrderChangeSubscription();
+
+    return {
+      mode: "reused",
+      subscriptionResponse: existing,
+    };
+  }
+}
+
 async function ensureAmazonOrderChangeSubscription() {
   const destinationData = await getOrCreateAmazonDestination();
 
-  const subscriptionResponse = await createOrderChangeSubscription(
+  const subscriptionData = await getOrCreateOrderChangeSubscription(
     destinationData.destinationId
   );
 
@@ -480,16 +535,8 @@ async function ensureAmazonOrderChangeSubscription() {
     destinationMode: destinationData.mode,
     destinationId: destinationData.destinationId,
     destinationResponse: destinationData.destinationResponse,
-    subscriptionResponse,
-  };
-}
-
-  const subscriptionResponse = await createOrderChangeSubscription(destinationId);
-
-  return {
-    destinationResponse,
-    destinationId,
-    subscriptionResponse,
+    subscriptionMode: subscriptionData.mode,
+    subscriptionResponse: subscriptionData.subscriptionResponse,
   };
 }
 
@@ -514,6 +561,14 @@ function extractOrderIdFromSqsBody(bodyString) {
     return parsed.payload.OrderChangeNotification.AmazonOrderId;
   }
 
+  if (parsed?.NotificationPayload?.AmazonOrderId) {
+    return parsed.NotificationPayload.AmazonOrderId;
+  }
+
+  if (parsed?.notificationPayload?.AmazonOrderId) {
+    return parsed.notificationPayload.AmazonOrderId;
+  }
+
   if (parsed?.Message) {
     try {
       const inner = JSON.parse(parsed.Message);
@@ -524,6 +579,14 @@ function extractOrderIdFromSqsBody(bodyString) {
 
       if (inner?.payload?.OrderChangeNotification?.AmazonOrderId) {
         return inner.payload.OrderChangeNotification.AmazonOrderId;
+      }
+
+      if (inner?.NotificationPayload?.AmazonOrderId) {
+        return inner.NotificationPayload.AmazonOrderId;
+      }
+
+      if (inner?.notificationPayload?.AmazonOrderId) {
+        return inner.notificationPayload.AmazonOrderId;
       }
     } catch {
       return null;
@@ -573,6 +636,8 @@ async function pollSqsOnce() {
         });
         continue;
       }
+
+      console.log("SQS ORDER EVENT RECEIVED", orderId);
 
       const result = await processAmazonOrderById(orderId);
 
@@ -637,6 +702,44 @@ app.get("/amazon/notifications/setup", async (req, res) => {
   try {
     const result = await ensureAmazonOrderChangeSubscription();
     res.json({ ok: true, ...result });
+  } catch (error) {
+    if (error.response) {
+      return res.status(500).json({
+        ok: false,
+        error: error.response.data,
+      });
+    }
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/amazon/notifications/destinations", async (req, res) => {
+  try {
+    const result = await listAmazonDestinations();
+    res.json({ ok: true, result });
+  } catch (error) {
+    if (error.response) {
+      return res.status(500).json({
+        ok: false,
+        error: error.response.data,
+      });
+    }
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/amazon/notifications/subscription", async (req, res) => {
+  try {
+    const result = await getOrderChangeSubscription();
+    res.json({ ok: true, result });
   } catch (error) {
     if (error.response) {
       return res.status(500).json({
