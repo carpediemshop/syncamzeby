@@ -390,6 +390,74 @@ async function createAmazonDestination() {
   return amazonPost("/notifications/v1/destinations", token, body);
 }
 
+async function listAmazonDestinations() {
+  const token = await getAmazonGrantlessNotificationsToken();
+  return amazonGet("/notifications/v1/destinations", token);
+}
+
+function extractDestinationIdFromList(destinationsResponse) {
+  const payload = destinationsResponse?.payload || {};
+  const destinations = payload?.destinations || [];
+
+  const found = destinations.find((destination) => {
+    const arn =
+      destination?.resource?.sqs?.arn ||
+      destination?.resourceSpecification?.sqs?.arn ||
+      destination?.resource?.eventBridge?.arn ||
+      destination?.resource?.arn;
+
+    return arn === AMAZON_SQS_QUEUE_ARN;
+  });
+
+  return found?.destinationId || null;
+}
+
+async function getOrCreateAmazonDestination() {
+  try {
+    const created = await createAmazonDestination();
+
+    const destinationId =
+      created?.payload?.destinationId || created?.destinationId || null;
+
+    if (!destinationId) {
+      throw new Error(
+        `Destination created but destinationId missing: ${JSON.stringify(created)}`
+      );
+    }
+
+    return {
+      mode: "created",
+      destinationId,
+      destinationResponse: created,
+    };
+  } catch (error) {
+    const amazonError = error?.response?.data;
+    const errors = amazonError?.errors || [];
+    const hasConflict = errors.some((e) => e?.code === "Conflict");
+
+    if (!hasConflict) {
+      throw error;
+    }
+
+    console.log("DESTINATION ALREADY EXISTS, REUSING EXISTING ONE");
+
+    const destinationsResponse = await listAmazonDestinations();
+    const destinationId = extractDestinationIdFromList(destinationsResponse);
+
+    if (!destinationId) {
+      throw new Error(
+        `Destination exists but could not be found in list: ${JSON.stringify(destinationsResponse)}`
+      );
+    }
+
+    return {
+      mode: "reused",
+      destinationId,
+      destinationResponse: destinationsResponse,
+    };
+  }
+}
+
 async function createOrderChangeSubscription(destinationId) {
   const token = await getAmazonAccessToken();
 
@@ -402,17 +470,19 @@ async function createOrderChangeSubscription(destinationId) {
 }
 
 async function ensureAmazonOrderChangeSubscription() {
-  const destinationResponse = await createAmazonDestination();
+  const destinationData = await getOrCreateAmazonDestination();
 
-  const destinationId =
-    destinationResponse?.payload?.destinationId ||
-    destinationResponse?.destinationId;
+  const subscriptionResponse = await createOrderChangeSubscription(
+    destinationData.destinationId
+  );
 
-  if (!destinationId) {
-    throw new Error(
-      `Unable to resolve destinationId from response: ${JSON.stringify(destinationResponse)}`
-    );
-  }
+  return {
+    destinationMode: destinationData.mode,
+    destinationId: destinationData.destinationId,
+    destinationResponse: destinationData.destinationResponse,
+    subscriptionResponse,
+  };
+}
 
   const subscriptionResponse = await createOrderChangeSubscription(destinationId);
 
