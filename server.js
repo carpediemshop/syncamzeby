@@ -486,6 +486,15 @@ async function createOrderChangeSubscription(destinationId) {
   const body = {
     payloadVersion: "1.0",
     destinationId,
+    processingDirective: {
+      eventFilterType: "ORDER_CHANGE",
+      eventFilter: {
+        orderChangeTypes: [
+          "OrderStatusChange",
+          "BuyerRequestedChange"
+        ]
+      }
+    }
   };
 
   return amazonPost("/notifications/v1/subscriptions/ORDER_CHANGE", token, body);
