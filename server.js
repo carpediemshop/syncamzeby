@@ -57,7 +57,7 @@ function validateEnv() {
   requireEnv("AMAZON_SQS_QUEUE_ARN", AMAZON_SQS_QUEUE_ARN);
 
   requireEnv("SHOPIFY_SHOP_DOMAIN", SHOPIFY_SHOP_DOMAIN);
-  requireEnv("SHOPIFY_ACCESS_TOKEN", SHOPIFY_ACCESS_TOKEN);
+  requireEnv("SHOPIFY_CLIENT_SECRET", SHOPIFY_CLIENT_SECRET);
   requireEnv("SHOPIFY_LOCATION_ID", SHOPIFY_LOCATION_ID);
 }
 
@@ -146,7 +146,7 @@ async function shopifyGraphQL(query, variables = {}) {
     {
       headers: {
         "Content-Type": "application/json",
-        "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
+        "X-Shopify-Client-Secret": SHOPIFY_CLIENT_SECRET,
       },
     }
   );
