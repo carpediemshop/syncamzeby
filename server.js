@@ -25,7 +25,6 @@ const AMAZON_SQS_QUEUE_ARN = process.env.AMAZON_SQS_QUEUE_ARN;
 
 // Shopify
 const SHOPIFY_SHOP_DOMAIN = process.env.SHOPIFY_SHOP_DOMAIN;
-const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID;
 const SHOPIFY_CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET;
 const SHOPIFY_LOCATION_ID = process.env.SHOPIFY_LOCATION_ID;
 
@@ -58,8 +57,7 @@ function validateEnv() {
   requireEnv("AMAZON_SQS_QUEUE_ARN", AMAZON_SQS_QUEUE_ARN);
 
   requireEnv("SHOPIFY_SHOP_DOMAIN", SHOPIFY_SHOP_DOMAIN);
-  requireEnv("SHOPIFY_CLIENT_ID", SHOPIFY_CLIENT_ID);
-  requireEnv("SHOPIFY_CLIENT_SECRET", SHOPIFY_CLIENT_SECRET);
+  requireEnv("SHOPIFY_ACCESS_TOKEN", SHOPIFY_ACCESS_TOKEN);
   requireEnv("SHOPIFY_LOCATION_ID", SHOPIFY_LOCATION_ID);
 }
 
@@ -138,48 +136,17 @@ async function amazonPatch(path, accessToken, body, params = {}) {
 }
 
 // =========================
-// SHOPIFY TOKEN (CLIENT CREDENTIALS GRANT)
-// =========================
-
-async function getShopifyAccessToken() {
-  const response = await axios.post(
-    `https://${SHOPIFY_SHOP_DOMAIN}/admin/oauth/access_token`,
-    new URLSearchParams({
-      client_id: SHOPIFY_CLIENT_ID,
-      client_secret: SHOPIFY_CLIENT_SECRET,
-      grant_type: "client_credentials",
-    }),
-    {
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-      },
-    }
-  );
-
-  if (!response.data?.access_token) {
-    throw new Error(
-      `Missing Shopify access_token in response: ${JSON.stringify(response.data)}`
-    );
-  }
-
-  return response.data.access_token;
-}
-
-// =========================
 // SHOPIFY GRAPHQL
 // =========================
 
 async function shopifyGraphQL(query, variables = {}) {
-  const token = await getShopifyAccessToken();
-
   const response = await axios.post(
     `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2026-01/graphql.json`,
     { query, variables },
     {
       headers: {
         "Content-Type": "application/json",
-        "X-Shopify-Access-Token": token,
+        "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
       },
     }
   );
@@ -429,9 +396,18 @@ async function listAmazonDestinations() {
 }
 
 function getDestinationsArray(destinationsResponse) {
-  if (Array.isArray(destinationsResponse?.payload)) return destinationsResponse.payload;
-  if (Array.isArray(destinationsResponse?.payload?.destinations)) return destinationsResponse.payload.destinations;
-  if (Array.isArray(destinationsResponse?.destinations)) return destinationsResponse.destinations;
+  if (Array.isArray(destinationsResponse?.payload)) {
+    return destinationsResponse.payload;
+  }
+
+  if (Array.isArray(destinationsResponse?.payload?.destinations)) {
+    return destinationsResponse.payload.destinations;
+  }
+
+  if (Array.isArray(destinationsResponse?.destinations)) {
+    return destinationsResponse.destinations;
+  }
+
   return [];
 }
 
@@ -474,7 +450,9 @@ async function getOrCreateAmazonDestination() {
     const errors = amazonError?.errors || [];
     const hasConflict = errors.some((e) => e?.code === "Conflict");
 
-    if (!hasConflict) throw error;
+    if (!hasConflict) {
+      throw error;
+    }
 
     console.log("DESTINATION ALREADY EXISTS, REUSING EXISTING ONE");
 
@@ -536,7 +514,9 @@ async function getOrCreateOrderChangeSubscription(destinationId) {
     const errors = amazonError?.errors || [];
     const hasConflict = errors.some((e) => e?.code === "Conflict");
 
-    if (!hasConflict) throw error;
+    if (!hasConflict) {
+      throw error;
+    }
 
     console.log("ORDER_CHANGE SUBSCRIPTION ALREADY EXISTS, REUSING IT");
 
@@ -551,6 +531,7 @@ async function getOrCreateOrderChangeSubscription(destinationId) {
 
 async function ensureAmazonOrderChangeSubscription() {
   const destinationData = await getOrCreateAmazonDestination();
+
   const subscriptionData = await getOrCreateOrderChangeSubscription(
     destinationData.destinationId
   );
@@ -938,10 +919,3 @@ async function start() {
 }
 
 start();
-
-fai tu la modifica con tutto il codice necessario
-Dimmi però cosa cambia in render , se serve.
-Nutile che giri attorno. Adesso scrivimi il file completo funzionante.
-લ
-
-::contentReference[oaicite:3]{index=3}
