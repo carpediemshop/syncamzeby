@@ -25,6 +25,7 @@ const AMAZON_SQS_QUEUE_ARN = process.env.AMAZON_SQS_QUEUE_ARN;
 
 // Shopify
 const SHOPIFY_SHOP_DOMAIN = process.env.SHOPIFY_SHOP_DOMAIN;
+const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID;
 const SHOPIFY_CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET;
 const SHOPIFY_LOCATION_ID = process.env.SHOPIFY_LOCATION_ID;
 
@@ -57,6 +58,7 @@ function validateEnv() {
   requireEnv("AMAZON_SQS_QUEUE_ARN", AMAZON_SQS_QUEUE_ARN);
 
   requireEnv("SHOPIFY_SHOP_DOMAIN", SHOPIFY_SHOP_DOMAIN);
+  requireEnv("SHOPIFY_CLIENT_ID", SHOPIFY_CLIENT_ID);
   requireEnv("SHOPIFY_CLIENT_SECRET", SHOPIFY_CLIENT_SECRET);
   requireEnv("SHOPIFY_LOCATION_ID", SHOPIFY_LOCATION_ID);
 }
@@ -136,17 +138,49 @@ async function amazonPatch(path, accessToken, body, params = {}) {
 }
 
 // =========================
+// SHOPIFY TOKEN
+// =========================
+
+async function getShopifyAccessToken() {
+  const response = await axios.post(
+    `https://${SHOPIFY_SHOP_DOMAIN}/admin/oauth/access_token`,
+    new URLSearchParams({
+      client_id: SHOPIFY_CLIENT_ID,
+      client_secret: SHOPIFY_CLIENT_SECRET,
+      grant_type: "client_credentials",
+    }),
+    {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+      },
+    }
+  );
+
+  const token = response.data?.access_token;
+  if (!token) {
+    throw new Error(
+      `Missing Shopify access token: ${JSON.stringify(response.data)}`
+    );
+  }
+
+  return token;
+}
+
+// =========================
 // SHOPIFY GRAPHQL
 // =========================
 
 async function shopifyGraphQL(query, variables = {}) {
+  const token = await getShopifyAccessToken();
+
   const response = await axios.post(
     `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2026-01/graphql.json`,
     { query, variables },
     {
       headers: {
         "Content-Type": "application/json",
-        "X-Shopify-Client-Secret": SHOPIFY_CLIENT_SECRET,
+        "X-Shopify-Access-Token": token,
       },
     }
   );
@@ -488,9 +522,9 @@ async function createOrderChangeSubscription(destinationId) {
     destinationId,
     processingDirective: {
       eventFilter: {
-        eventFilterType: "ORDER_CHANGE"
-      }
-    }
+        eventFilterType: "ORDER_CHANGE",
+      },
+    },
   };
 
   return amazonPost("/notifications/v1/subscriptions/ORDER_CHANGE", token, body);
@@ -531,7 +565,6 @@ async function getOrCreateOrderChangeSubscription(destinationId) {
 
 async function ensureAmazonOrderChangeSubscription() {
   const destinationData = await getOrCreateAmazonDestination();
-
   const subscriptionData = await getOrCreateOrderChangeSubscription(
     destinationData.destinationId
   );
