@@ -1,5 +1,6 @@
 import express from "express";
 import axios from "axios";
+import crypto from "node:crypto";
 import {
   SQSClient,
   ReceiveMessageCommand,
@@ -29,18 +30,62 @@ const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID;
 const SHOPIFY_CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET;
 const SHOPIFY_LOCATION_ID = process.env.SHOPIFY_LOCATION_ID;
 
+// eBay
+const EBAY_ENABLED = String(process.env.EBAY_ENABLED || "false") === "true";
+const EBAY_ENVIRONMENT = String(process.env.EBAY_ENVIRONMENT || "production").toLowerCase();
+const EBAY_CLIENT_ID = process.env.EBAY_CLIENT_ID || "";
+const EBAY_CLIENT_SECRET = process.env.EBAY_CLIENT_SECRET || "";
+const EBAY_RU_NAME = process.env.EBAY_RU_NAME || "";
+const EBAY_REDIRECT_URI = process.env.EBAY_REDIRECT_URI || "";
+const EBAY_SCOPES =
+  process.env.EBAY_SCOPES ||
+  "https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.account https://api.ebay.com/oauth/api_scope/sell.fulfillment";
+
 // Polling
 const AUTO_POLL_SQS = String(process.env.AUTO_POLL_SQS || "false") === "true";
 const SQS_POLL_INTERVAL_MS = Number(process.env.SQS_POLL_INTERVAL_MS || 20000);
 
 const AMAZON_SP_API_BASE = "https://sellingpartnerapi-eu.amazon.com";
 
+const EBAY_AUTH_BASE =
+  EBAY_ENVIRONMENT === "sandbox"
+    ? "https://auth.sandbox.ebay.com"
+    : "https://auth.ebay.com";
+
+const EBAY_API_BASE =
+  EBAY_ENVIRONMENT === "sandbox"
+    ? "https://api.sandbox.ebay.com"
+    : "https://api.ebay.com";
+
+// =========================
+// IN-MEMORY STATE
+// =========================
+
 const inventoryMap = new Map();
 const processedAmazonOrderEvents = new Set();
+
+// STEP 1 eBay: stato temporaneo in memoria
+const ebayOAuthStates = new Map();
+const ebayConnectionStore = {
+  connected: false,
+  connectedAt: null,
+  environment: EBAY_ENVIRONMENT,
+  accessToken: null,
+  refreshToken: null,
+  accessTokenExpiresAt: null,
+  refreshTokenExpiresAt: null,
+  tokenType: null,
+  scope: null,
+  userInfo: null,
+};
 
 const sqsClient = new SQSClient({
   region: process.env.AWS_REGION || "us-east-1",
 });
+
+// =========================
+// GENERIC HELPERS
+// =========================
 
 function requireEnv(name, value) {
   if (!value) {
@@ -48,7 +93,7 @@ function requireEnv(name, value) {
   }
 }
 
-function validateEnv() {
+function validateBaseEnv() {
   requireEnv("AMAZON_MARKETPLACE_ID", AMAZON_MARKETPLACE_ID);
   requireEnv("AMAZON_LWA_CLIENT_ID", AMAZON_CLIENT_ID);
   requireEnv("AMAZON_LWA_CLIENT_SECRET", AMAZON_CLIENT_SECRET);
@@ -61,6 +106,178 @@ function validateEnv() {
   requireEnv("SHOPIFY_CLIENT_ID", SHOPIFY_CLIENT_ID);
   requireEnv("SHOPIFY_CLIENT_SECRET", SHOPIFY_CLIENT_SECRET);
   requireEnv("SHOPIFY_LOCATION_ID", SHOPIFY_LOCATION_ID);
+}
+
+function validateEbayEnv() {
+  if (!EBAY_ENABLED) {
+    throw new Error("eBay module disabled. Set EBAY_ENABLED=true");
+  }
+
+  if (!["production", "sandbox"].includes(EBAY_ENVIRONMENT)) {
+    throw new Error("EBAY_ENVIRONMENT must be 'production' or 'sandbox'");
+  }
+
+  requireEnv("EBAY_CLIENT_ID", EBAY_CLIENT_ID);
+  requireEnv("EBAY_CLIENT_SECRET", EBAY_CLIENT_SECRET);
+  requireEnv("EBAY_RU_NAME", EBAY_RU_NAME);
+  requireEnv("EBAY_REDIRECT_URI", EBAY_REDIRECT_URI);
+}
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function futureIsoFromSeconds(seconds) {
+  return new Date(Date.now() + Number(seconds || 0) * 1000).toISOString();
+}
+
+function sanitizeEbayConnectionForResponse() {
+  return {
+    connected: ebayConnectionStore.connected,
+    connectedAt: ebayConnectionStore.connectedAt,
+    environment: ebayConnectionStore.environment,
+    accessTokenExpiresAt: ebayConnectionStore.accessTokenExpiresAt,
+    refreshTokenExpiresAt: ebayConnectionStore.refreshTokenExpiresAt,
+    tokenType: ebayConnectionStore.tokenType,
+    scope: ebayConnectionStore.scope,
+    userInfo: ebayConnectionStore.userInfo,
+    hasAccessToken: Boolean(ebayConnectionStore.accessToken),
+    hasRefreshToken: Boolean(ebayConnectionStore.refreshToken),
+  };
+}
+
+function buildEbayBasicAuthHeader() {
+  const raw = `${EBAY_CLIENT_ID}:${EBAY_CLIENT_SECRET}`;
+  return `Basic ${Buffer.from(raw).toString("base64")}`;
+}
+
+function buildEbayHeaders(extra = {}) {
+  return {
+    Accept: "application/json",
+    ...extra,
+  };
+}
+
+function buildEbayOAuthStartUrl(state) {
+  const params = new URLSearchParams({
+    client_id: EBAY_CLIENT_ID,
+    redirect_uri: EBAY_RU_NAME,
+    response_type: "code",
+    scope: EBAY_SCOPES,
+    state,
+  });
+
+  return `${EBAY_AUTH_BASE}/oauth2/authorize?${params.toString()}`;
+}
+
+async function ebayTokenRequest(bodyParams) {
+  const response = await axios.post(
+    `${EBAY_API_BASE}/identity/v1/oauth2/token`,
+    new URLSearchParams(bodyParams),
+    {
+      headers: {
+        Authorization: buildEbayBasicAuthHeader(),
+        "Content-Type": "application/x-www-form-urlencoded",
+        ...buildEbayHeaders(),
+      },
+    }
+  );
+
+  return response.data;
+}
+
+async function exchangeEbayCodeForTokens(code) {
+  return ebayTokenRequest({
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: EBAY_RU_NAME,
+  });
+}
+
+async function refreshEbayAccessToken() {
+  if (!ebayConnectionStore.refreshToken) {
+    throw new Error("No eBay refresh token stored");
+  }
+
+  const tokenData = await ebayTokenRequest({
+    grant_type: "refresh_token",
+    refresh_token: ebayConnectionStore.refreshToken,
+    scope: EBAY_SCOPES,
+  });
+
+  ebayConnectionStore.connected = true;
+  ebayConnectionStore.connectedAt = ebayConnectionStore.connectedAt || nowIso();
+  ebayConnectionStore.environment = EBAY_ENVIRONMENT;
+  ebayConnectionStore.accessToken = tokenData.access_token || null;
+  ebayConnectionStore.accessTokenExpiresAt = futureIsoFromSeconds(
+    tokenData.expires_in || 7200
+  );
+  ebayConnectionStore.tokenType = tokenData.token_type || "User Access Token";
+  ebayConnectionStore.scope = tokenData.scope || EBAY_SCOPES;
+
+  if (tokenData.refresh_token) {
+    ebayConnectionStore.refreshToken = tokenData.refresh_token;
+  }
+
+  if (tokenData.refresh_token_expires_in) {
+    ebayConnectionStore.refreshTokenExpiresAt = futureIsoFromSeconds(
+      tokenData.refresh_token_expires_in
+    );
+  }
+
+  return sanitizeEbayConnectionForResponse();
+}
+
+function saveEbayTokens(tokenData) {
+  ebayConnectionStore.connected = true;
+  ebayConnectionStore.connectedAt = nowIso();
+  ebayConnectionStore.environment = EBAY_ENVIRONMENT;
+  ebayConnectionStore.accessToken = tokenData.access_token || null;
+  ebayConnectionStore.refreshToken = tokenData.refresh_token || null;
+  ebayConnectionStore.accessTokenExpiresAt = futureIsoFromSeconds(
+    tokenData.expires_in || 7200
+  );
+  ebayConnectionStore.refreshTokenExpiresAt = tokenData.refresh_token_expires_in
+    ? futureIsoFromSeconds(tokenData.refresh_token_expires_in)
+    : null;
+  ebayConnectionStore.tokenType = tokenData.token_type || "User Access Token";
+  ebayConnectionStore.scope = tokenData.scope || EBAY_SCOPES;
+}
+
+async function getEbayUserInfo(accessToken) {
+  try {
+    const response = await axios.get(`${EBAY_API_BASE}/commerce/identity/v1/user/`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        ...buildEbayHeaders(),
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    console.log("EBAY USER INFO ERROR", error.response?.data || error.message);
+    return null;
+  }
+}
+
+async function ensureValidEbayAccessToken() {
+  validateEbayEnv();
+
+  if (!ebayConnectionStore.connected || !ebayConnectionStore.accessToken) {
+    throw new Error("eBay account not connected");
+  }
+
+  const expiresAt = ebayConnectionStore.accessTokenExpiresAt
+    ? new Date(ebayConnectionStore.accessTokenExpiresAt).getTime()
+    : 0;
+
+  const willExpireSoon = Date.now() > expiresAt - 60 * 1000;
+
+  if (willExpireSoon) {
+    await refreshEbayAccessToken();
+  }
+
+  return ebayConnectionStore.accessToken;
 }
 
 // =========================
@@ -716,7 +933,7 @@ app.get("/", (req, res) => {
 
 app.get("/health", async (req, res) => {
   try {
-    validateEnv();
+    validateBaseEnv();
 
     const attrs = await sqsClient.send(
       new GetQueueAttributesCommand({
@@ -730,11 +947,199 @@ app.get("/health", async (req, res) => {
       queueArn: attrs.Attributes?.QueueArn || null,
       autoPoll: AUTO_POLL_SQS,
       pollIntervalMs: SQS_POLL_INTERVAL_MS,
+      ebay: {
+        enabled: EBAY_ENABLED,
+        environment: EBAY_ENVIRONMENT,
+        connected: ebayConnectionStore.connected,
+      },
     });
   } catch (error) {
     res.status(500).json({ ok: false, error: error.message });
   }
 });
+
+// =========================
+// EBAY ROUTES - STEP 1
+// =========================
+
+app.get("/ebay/health", async (req, res) => {
+  try {
+    validateEbayEnv();
+
+    return res.json({
+      ok: true,
+      enabled: EBAY_ENABLED,
+      environment: EBAY_ENVIRONMENT,
+      authBase: EBAY_AUTH_BASE,
+      apiBase: EBAY_API_BASE,
+      scopes: EBAY_SCOPES.split(" "),
+      redirectUri: EBAY_REDIRECT_URI,
+      ruName: EBAY_RU_NAME,
+      connection: sanitizeEbayConnectionForResponse(),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/ebay/oauth/start", async (req, res) => {
+  try {
+    validateEbayEnv();
+
+    const state = crypto.randomBytes(24).toString("hex");
+
+    ebayOAuthStates.set(state, {
+      createdAt: Date.now(),
+      ip: req.ip,
+    });
+
+    const url = buildEbayOAuthStartUrl(state);
+
+    return res.redirect(url);
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/ebay/oauth/callback", async (req, res) => {
+  try {
+    validateEbayEnv();
+
+    const code = String(req.query.code || "");
+    const state = String(req.query.state || "");
+    const errorName = String(req.query.error || "");
+    const errorDescription = String(req.query.error_description || "");
+
+    if (errorName) {
+      return res.status(400).json({
+        ok: false,
+        error: "eBay returned an authorization error",
+        ebayError: errorName,
+        ebayErrorDescription: errorDescription || null,
+      });
+    }
+
+    if (!code) {
+      return res.status(400).json({
+        ok: false,
+        error: "missing code",
+      });
+    }
+
+    if (!state || !ebayOAuthStates.has(state)) {
+      return res.status(400).json({
+        ok: false,
+        error: "invalid or expired state",
+      });
+    }
+
+    ebayOAuthStates.delete(state);
+
+    const tokenData = await exchangeEbayCodeForTokens(code);
+    saveEbayTokens(tokenData);
+
+    const userInfo = await getEbayUserInfo(ebayConnectionStore.accessToken);
+    ebayConnectionStore.userInfo = userInfo;
+
+    return res.json({
+      ok: true,
+      message: "eBay account connected successfully",
+      connection: sanitizeEbayConnectionForResponse(),
+    });
+  } catch (error) {
+    if (error.response) {
+      return res.status(500).json({
+        ok: false,
+        error: error.response.data,
+      });
+    }
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/ebay/connection", async (req, res) => {
+  try {
+    validateEbayEnv();
+
+    return res.json({
+      ok: true,
+      connection: sanitizeEbayConnectionForResponse(),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/ebay/token/refresh", async (req, res) => {
+  try {
+    const result = await refreshEbayAccessToken();
+
+    const accessToken = await ensureValidEbayAccessToken();
+    const userInfo = await getEbayUserInfo(accessToken);
+    ebayConnectionStore.userInfo = userInfo;
+
+    return res.json({
+      ok: true,
+      message: "eBay token refreshed successfully",
+      connection: result,
+    });
+  } catch (error) {
+    if (error.response) {
+      return res.status(500).json({
+        ok: false,
+        error: error.response.data,
+      });
+    }
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/ebay/disconnect", async (req, res) => {
+  try {
+    validateEbayEnv();
+
+    ebayConnectionStore.connected = false;
+    ebayConnectionStore.connectedAt = null;
+    ebayConnectionStore.accessToken = null;
+    ebayConnectionStore.refreshToken = null;
+    ebayConnectionStore.accessTokenExpiresAt = null;
+    ebayConnectionStore.refreshTokenExpiresAt = null;
+    ebayConnectionStore.tokenType = null;
+    ebayConnectionStore.scope = null;
+    ebayConnectionStore.userInfo = null;
+
+    return res.json({
+      ok: true,
+      message: "eBay connection cleared from memory",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+// =========================
+// AMAZON ROUTES
+// =========================
 
 app.get("/amazon/notifications/setup", async (req, res) => {
   try {
@@ -829,6 +1234,10 @@ app.get("/amazon/order-items", async (req, res) => {
   }
 });
 
+// =========================
+// SHOPIFY UTILITY ROUTES
+// =========================
+
 app.get("/shopify/test-adjust", async (req, res) => {
   try {
     const sku = String(req.query.sku || "");
@@ -860,6 +1269,10 @@ app.get("/shopify/test-adjust", async (req, res) => {
     });
   }
 });
+
+// =========================
+// SHOPIFY WEBHOOKS
+// =========================
 
 app.post("/webhooks/products", express.raw({ type: "*/*" }), async (req, res) => {
   try {
@@ -923,12 +1336,18 @@ app.post("/webhooks/inventory", express.raw({ type: "*/*" }), async (req, res) =
   }
 });
 
+// =========================
+// STARTUP
+// =========================
+
 async function start() {
   try {
-    validateEnv();
+    validateBaseEnv();
 
     app.listen(PORT, () => {
       console.log(`SyncAmzEby listening on port ${PORT}`);
+      console.log(`eBay module enabled: ${EBAY_ENABLED}`);
+      console.log(`eBay environment: ${EBAY_ENVIRONMENT}`);
     });
 
     if (AUTO_POLL_SQS) {
