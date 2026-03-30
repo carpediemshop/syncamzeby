@@ -39,6 +39,7 @@ const EBAY_CLIENT_ID = process.env.EBAY_CLIENT_ID || "";
 const EBAY_CLIENT_SECRET = process.env.EBAY_CLIENT_SECRET || "";
 const EBAY_RU_NAME = process.env.EBAY_RU_NAME || "";
 const EBAY_REDIRECT_URI = process.env.EBAY_REDIRECT_URI || "";
+const EBAY_VERIFICATION_TOKEN = process.env.EBAY_VERIFICATION_TOKEN || "";
 const EBAY_SCOPES =
   process.env.EBAY_SCOPES ||
   "https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.account https://api.ebay.com/oauth/api_scope/sell.fulfillment";
@@ -467,7 +468,6 @@ async function getAllEbayPolicies(marketplaceId) {
 
 async function getEbayInventoryLocations() {
   const accessToken = await ensureValidEbayAccessToken();
-
   return ebayGet("/sell/inventory/v1/location", accessToken);
 }
 
@@ -514,14 +514,10 @@ async function bootstrapEbaySellerSetup({ marketplaceId }) {
   let locationAfterCreate;
   let enableResult = null;
 
-  try {
-    createResult = await createOrReplaceEbayInventoryLocation({
-      merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
-      locationPayload,
-    });
-  } catch (error) {
-    throw error;
-  }
+  createResult = await createOrReplaceEbayInventoryLocation({
+    merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
+    locationPayload,
+  });
 
   try {
     enableResult = await enableEbayInventoryLocation(EBAY_MERCHANT_LOCATION_KEY);
@@ -534,7 +530,9 @@ async function bootstrapEbaySellerSetup({ marketplaceId }) {
   }
 
   try {
-    locationAfterCreate = await getEbayInventoryLocation(EBAY_MERCHANT_LOCATION_KEY);
+    locationAfterCreate = await getEbayInventoryLocation(
+      EBAY_MERCHANT_LOCATION_KEY
+    );
   } catch (error) {
     locationAfterCreate = {
       warning: "location created/enabled but could not be re-read",
@@ -1205,23 +1203,6 @@ app.get("/", (req, res) => {
   res.send("SyncAmzEby running");
 });
 
-// =========================
-// EBAY NOTIFICATION (REQUIRED FOR PRODUCTION)
-// =========================
-
-app.post("/ebay/notifications", express.json(), async (req, res) => {
-  try {
-    console.log("EBAY NOTIFICATION RECEIVED:");
-    console.log(JSON.stringify(req.body, null, 2));
-
-    // eBay vuole solo HTTP 200
-    return res.status(200).send("OK");
-  } catch (error) {
-    console.log("EBAY NOTIFICATION ERROR", error.message);
-    return res.status(500).send("error");
-  }
-});
-
 app.get("/health", async (req, res) => {
   try {
     validateBaseEnv();
@@ -1252,7 +1233,7 @@ app.get("/health", async (req, res) => {
 });
 
 // =========================
-// EBAY ROUTES - STEP 1
+// EBAY ROUTES
 // =========================
 
 app.get("/ebay/health", async (req, res) => {
@@ -1270,6 +1251,7 @@ app.get("/ebay/health", async (req, res) => {
       ruName: EBAY_RU_NAME,
       defaultMarketplaceId: EBAY_DEFAULT_MARKETPLACE_ID,
       merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
+      hasVerificationToken: Boolean(EBAY_VERIFICATION_TOKEN),
       connection: sanitizeEbayConnectionForResponse(),
     });
   } catch (error) {
@@ -1431,10 +1413,6 @@ app.get("/ebay/disconnect", async (req, res) => {
     });
   }
 });
-
-// =========================
-// EBAY ROUTES - STEP 2
-// =========================
 
 app.get("/ebay/account/policies", async (req, res) => {
   try {
@@ -1698,6 +1676,45 @@ app.get("/ebay/setup/bootstrap", async (req, res) => {
 });
 
 // =========================
+// EBAY NOTIFICATIONS
+// =========================
+
+app.get("/ebay/notifications", (req, res) => {
+  return res.status(200).send("SyncAmzEby eBay notifications endpoint OK");
+});
+
+app.post("/ebay/notifications", express.json({ type: "*/*" }), (req, res) => {
+  try {
+    const challengeCode = String(req.query.challenge_code || "");
+
+    if (challengeCode) {
+      return res.status(200).send(challengeCode);
+    }
+
+    const headerToken = String(
+      req.headers["x-ebay-verification-token"] || ""
+    );
+
+    if (EBAY_VERIFICATION_TOKEN && headerToken !== EBAY_VERIFICATION_TOKEN) {
+      console.log("EBAY NOTIFICATION INVALID TOKEN", {
+        expected: EBAY_VERIFICATION_TOKEN ? "***set***" : "***missing***",
+        received: headerToken ? "***present***" : "***missing***",
+      });
+
+      return res.status(403).send("Invalid verification token");
+    }
+
+    console.log("EBAY NOTIFICATION RECEIVED");
+    console.log(JSON.stringify(req.body, null, 2));
+
+    return res.status(200).send("OK");
+  } catch (error) {
+    console.log("EBAY NOTIFICATION ERROR", error.message);
+    return res.status(500).send("error");
+  }
+});
+
+// =========================
 // AMAZON ROUTES
 // =========================
 
@@ -1908,6 +1925,9 @@ async function start() {
       console.log(`SyncAmzEby listening on port ${PORT}`);
       console.log(`eBay module enabled: ${EBAY_ENABLED}`);
       console.log(`eBay environment: ${EBAY_ENVIRONMENT}`);
+      console.log(
+        `eBay verification token configured: ${Boolean(EBAY_VERIFICATION_TOKEN)}`
+      );
     });
 
     if (AUTO_POLL_SQS) {
