@@ -32,7 +32,9 @@ const SHOPIFY_LOCATION_ID = process.env.SHOPIFY_LOCATION_ID;
 
 // eBay
 const EBAY_ENABLED = String(process.env.EBAY_ENABLED || "false") === "true";
-const EBAY_ENVIRONMENT = String(process.env.EBAY_ENVIRONMENT || "production").toLowerCase();
+const EBAY_ENVIRONMENT = String(
+  process.env.EBAY_ENVIRONMENT || "production"
+).toLowerCase();
 const EBAY_CLIENT_ID = process.env.EBAY_CLIENT_ID || "";
 const EBAY_CLIENT_SECRET = process.env.EBAY_CLIENT_SECRET || "";
 const EBAY_RU_NAME = process.env.EBAY_RU_NAME || "";
@@ -40,6 +42,24 @@ const EBAY_REDIRECT_URI = process.env.EBAY_REDIRECT_URI || "";
 const EBAY_SCOPES =
   process.env.EBAY_SCOPES ||
   "https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.account https://api.ebay.com/oauth/api_scope/sell.fulfillment";
+
+// eBay setup defaults
+const EBAY_DEFAULT_MARKETPLACE_ID =
+  process.env.EBAY_DEFAULT_MARKETPLACE_ID || "EBAY_IT";
+const EBAY_MERCHANT_LOCATION_KEY =
+  process.env.EBAY_MERCHANT_LOCATION_KEY || "SHOPIFY_MAIN";
+const EBAY_LOCATION_NAME =
+  process.env.EBAY_LOCATION_NAME || "SyncAmzEby Main Location";
+const EBAY_LOCATION_PHONE = process.env.EBAY_LOCATION_PHONE || "";
+const EBAY_LOCATION_COUNTRY = process.env.EBAY_LOCATION_COUNTRY || "IT";
+const EBAY_LOCATION_POSTAL_CODE =
+  process.env.EBAY_LOCATION_POSTAL_CODE || "";
+const EBAY_LOCATION_CITY = process.env.EBAY_LOCATION_CITY || "";
+const EBAY_LOCATION_STATE = process.env.EBAY_LOCATION_STATE || "";
+const EBAY_LOCATION_ADDRESS_LINE1 =
+  process.env.EBAY_LOCATION_ADDRESS_LINE1 || "";
+const EBAY_LOCATION_ADDRESS_LINE2 =
+  process.env.EBAY_LOCATION_ADDRESS_LINE2 || "";
 
 // Polling
 const AUTO_POLL_SQS = String(process.env.AUTO_POLL_SQS || "false") === "true";
@@ -64,7 +84,6 @@ const EBAY_API_BASE =
 const inventoryMap = new Map();
 const processedAmazonOrderEvents = new Set();
 
-// STEP 1 eBay: stato temporaneo in memoria
 const ebayOAuthStates = new Map();
 const ebayConnectionStore = {
   connected: false,
@@ -123,6 +142,15 @@ function validateEbayEnv() {
   requireEnv("EBAY_REDIRECT_URI", EBAY_REDIRECT_URI);
 }
 
+function validateEbayLocationEnv() {
+  requireEnv("EBAY_MERCHANT_LOCATION_KEY", EBAY_MERCHANT_LOCATION_KEY);
+  requireEnv("EBAY_LOCATION_NAME", EBAY_LOCATION_NAME);
+  requireEnv("EBAY_LOCATION_COUNTRY", EBAY_LOCATION_COUNTRY);
+  requireEnv("EBAY_LOCATION_POSTAL_CODE", EBAY_LOCATION_POSTAL_CODE);
+  requireEnv("EBAY_LOCATION_CITY", EBAY_LOCATION_CITY);
+  requireEnv("EBAY_LOCATION_ADDRESS_LINE1", EBAY_LOCATION_ADDRESS_LINE1);
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -151,13 +179,6 @@ function buildEbayBasicAuthHeader() {
   return `Basic ${Buffer.from(raw).toString("base64")}`;
 }
 
-function buildEbayHeaders(extra = {}) {
-  return {
-    Accept: "application/json",
-    ...extra,
-  };
-}
-
 function buildEbayOAuthStartUrl(state) {
   const params = new URLSearchParams({
     client_id: EBAY_CLIENT_ID,
@@ -170,6 +191,28 @@ function buildEbayOAuthStartUrl(state) {
   return `${EBAY_AUTH_BASE}/oauth2/authorize?${params.toString()}`;
 }
 
+function buildEbayApiHeaders(accessToken, extra = {}) {
+  return {
+    Authorization: `Bearer ${accessToken}`,
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    ...extra,
+  };
+}
+
+function getQueryString(params = {}) {
+  const sp = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && String(value) !== "") {
+      sp.set(key, String(value));
+    }
+  }
+
+  const qs = sp.toString();
+  return qs ? `?${qs}` : "";
+}
+
 async function ebayTokenRequest(bodyParams) {
   const response = await axios.post(
     `${EBAY_API_BASE}/identity/v1/oauth2/token`,
@@ -178,7 +221,7 @@ async function ebayTokenRequest(bodyParams) {
       headers: {
         Authorization: buildEbayBasicAuthHeader(),
         "Content-Type": "application/x-www-form-urlencoded",
-        ...buildEbayHeaders(),
+        Accept: "application/json",
       },
     }
   );
@@ -246,12 +289,15 @@ function saveEbayTokens(tokenData) {
 
 async function getEbayUserInfo(accessToken) {
   try {
-    const response = await axios.get(`${EBAY_API_BASE}/commerce/identity/v1/user/`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        ...buildEbayHeaders(),
-      },
-    });
+    const response = await axios.get(
+      `${EBAY_API_BASE}/commerce/identity/v1/user/`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/json",
+        },
+      }
+    );
 
     return response.data;
   } catch (error) {
@@ -278,6 +324,234 @@ async function ensureValidEbayAccessToken() {
   }
 
   return ebayConnectionStore.accessToken;
+}
+
+async function ebayGet(path, accessToken, params = {}, extraHeaders = {}) {
+  const response = await axios.get(
+    `${EBAY_API_BASE}${path}${getQueryString(params)}`,
+    {
+      headers: buildEbayApiHeaders(accessToken, extraHeaders),
+    }
+  );
+
+  return response.data;
+}
+
+async function ebayPost(path, accessToken, body, params = {}, extraHeaders = {}) {
+  const response = await axios.post(
+    `${EBAY_API_BASE}${path}${getQueryString(params)}`,
+    body,
+    {
+      headers: buildEbayApiHeaders(accessToken, extraHeaders),
+    }
+  );
+
+  return response.data;
+}
+
+async function ebayPut(path, accessToken, body, params = {}, extraHeaders = {}) {
+  const response = await axios.put(
+    `${EBAY_API_BASE}${path}${getQueryString(params)}`,
+    body,
+    {
+      headers: buildEbayApiHeaders(accessToken, extraHeaders),
+      validateStatus: (status) => status >= 200 && status < 300,
+    }
+  );
+
+  return {
+    status: response.status,
+    data: response.data,
+    headers: response.headers,
+  };
+}
+
+async function ebayPostNoBody(path, accessToken, params = {}, extraHeaders = {}) {
+  const response = await axios.post(
+    `${EBAY_API_BASE}${path}${getQueryString(params)}`,
+    null,
+    {
+      headers: buildEbayApiHeaders(accessToken, extraHeaders),
+      validateStatus: (status) => status >= 200 && status < 300,
+    }
+  );
+
+  return {
+    status: response.status,
+    data: response.data,
+    headers: response.headers,
+  };
+}
+
+function getRequestedMarketplaceId(req) {
+  return String(req.query.marketplaceId || EBAY_DEFAULT_MARKETPLACE_ID);
+}
+
+function buildDefaultEbayLocationPayload() {
+  const payload = {
+    name: EBAY_LOCATION_NAME,
+    merchantLocationStatus: "ENABLED",
+    location: {
+      address: {
+        country: EBAY_LOCATION_COUNTRY,
+        postalCode: EBAY_LOCATION_POSTAL_CODE,
+        city: EBAY_LOCATION_CITY,
+        addressLine1: EBAY_LOCATION_ADDRESS_LINE1,
+      },
+    },
+  };
+
+  if (EBAY_LOCATION_STATE) {
+    payload.location.address.stateOrProvince = EBAY_LOCATION_STATE;
+  }
+
+  if (EBAY_LOCATION_ADDRESS_LINE2) {
+    payload.location.address.addressLine2 = EBAY_LOCATION_ADDRESS_LINE2;
+  }
+
+  if (EBAY_LOCATION_PHONE) {
+    payload.phone = EBAY_LOCATION_PHONE;
+  }
+
+  return payload;
+}
+
+async function getEbayFulfillmentPolicies(marketplaceId) {
+  const accessToken = await ensureValidEbayAccessToken();
+
+  return ebayGet(
+    "/sell/account/v1/fulfillment_policy",
+    accessToken,
+    { marketplace_id: marketplaceId },
+    { "Content-Language": "en-US" }
+  );
+}
+
+async function getEbayPaymentPolicies(marketplaceId) {
+  const accessToken = await ensureValidEbayAccessToken();
+
+  return ebayGet(
+    "/sell/account/v1/payment_policy",
+    accessToken,
+    { marketplace_id: marketplaceId },
+    { "Content-Language": "en-US" }
+  );
+}
+
+async function getEbayReturnPolicies(marketplaceId) {
+  const accessToken = await ensureValidEbayAccessToken();
+
+  return ebayGet(
+    "/sell/account/v1/return_policy",
+    accessToken,
+    { marketplace_id: marketplaceId },
+    { "Content-Language": "en-US" }
+  );
+}
+
+async function getAllEbayPolicies(marketplaceId) {
+  const [fulfillmentPolicies, paymentPolicies, returnPolicies] =
+    await Promise.all([
+      getEbayFulfillmentPolicies(marketplaceId),
+      getEbayPaymentPolicies(marketplaceId),
+      getEbayReturnPolicies(marketplaceId),
+    ]);
+
+  return {
+    marketplaceId,
+    fulfillmentPolicies,
+    paymentPolicies,
+    returnPolicies,
+  };
+}
+
+async function getEbayInventoryLocations() {
+  const accessToken = await ensureValidEbayAccessToken();
+
+  return ebayGet("/sell/inventory/v1/location", accessToken);
+}
+
+async function getEbayInventoryLocation(merchantLocationKey) {
+  const accessToken = await ensureValidEbayAccessToken();
+
+  return ebayGet(
+    `/sell/inventory/v1/location/${encodeURIComponent(merchantLocationKey)}`,
+    accessToken
+  );
+}
+
+async function createOrReplaceEbayInventoryLocation({
+  merchantLocationKey,
+  locationPayload,
+}) {
+  const accessToken = await ensureValidEbayAccessToken();
+
+  return ebayPut(
+    `/sell/inventory/v1/location/${encodeURIComponent(merchantLocationKey)}`,
+    accessToken,
+    locationPayload
+  );
+}
+
+async function enableEbayInventoryLocation(merchantLocationKey) {
+  const accessToken = await ensureValidEbayAccessToken();
+
+  return ebayPostNoBody(
+    `/sell/inventory/v1/location/${encodeURIComponent(
+      merchantLocationKey
+    )}/enable`,
+    accessToken
+  );
+}
+
+async function bootstrapEbaySellerSetup({ marketplaceId }) {
+  validateEbayLocationEnv();
+
+  const policies = await getAllEbayPolicies(marketplaceId);
+  const locationPayload = buildDefaultEbayLocationPayload();
+
+  let createResult;
+  let locationAfterCreate;
+  let enableResult = null;
+
+  try {
+    createResult = await createOrReplaceEbayInventoryLocation({
+      merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
+      locationPayload,
+    });
+  } catch (error) {
+    throw error;
+  }
+
+  try {
+    enableResult = await enableEbayInventoryLocation(EBAY_MERCHANT_LOCATION_KEY);
+  } catch (error) {
+    const ebayError = error?.response?.data;
+    console.log(
+      "EBAY ENABLE LOCATION WARNING",
+      JSON.stringify(ebayError || error.message)
+    );
+  }
+
+  try {
+    locationAfterCreate = await getEbayInventoryLocation(EBAY_MERCHANT_LOCATION_KEY);
+  } catch (error) {
+    locationAfterCreate = {
+      warning: "location created/enabled but could not be re-read",
+      error: error?.response?.data || error.message,
+    };
+  }
+
+  return {
+    ok: true,
+    marketplaceId,
+    merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
+    locationPayload,
+    createResult,
+    enableResult,
+    location: locationAfterCreate,
+    policies,
+  };
 }
 
 // =========================
@@ -951,6 +1225,8 @@ app.get("/health", async (req, res) => {
         enabled: EBAY_ENABLED,
         environment: EBAY_ENVIRONMENT,
         connected: ebayConnectionStore.connected,
+        defaultMarketplaceId: EBAY_DEFAULT_MARKETPLACE_ID,
+        merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
       },
     });
   } catch (error) {
@@ -975,6 +1251,8 @@ app.get("/ebay/health", async (req, res) => {
       scopes: EBAY_SCOPES.split(" "),
       redirectUri: EBAY_REDIRECT_URI,
       ruName: EBAY_RU_NAME,
+      defaultMarketplaceId: EBAY_DEFAULT_MARKETPLACE_ID,
+      merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
       connection: sanitizeEbayConnectionForResponse(),
     });
   } catch (error) {
@@ -1130,6 +1408,271 @@ app.get("/ebay/disconnect", async (req, res) => {
       message: "eBay connection cleared from memory",
     });
   } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+// =========================
+// EBAY ROUTES - STEP 2
+// =========================
+
+app.get("/ebay/account/policies", async (req, res) => {
+  try {
+    const marketplaceId = getRequestedMarketplaceId(req);
+    const result = await getAllEbayPolicies(marketplaceId);
+
+    return res.json({
+      ok: true,
+      marketplaceId,
+      result,
+    });
+  } catch (error) {
+    if (error.response) {
+      return res.status(500).json({
+        ok: false,
+        error: error.response.data,
+      });
+    }
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/ebay/account/payment-policies", async (req, res) => {
+  try {
+    const marketplaceId = getRequestedMarketplaceId(req);
+    const result = await getEbayPaymentPolicies(marketplaceId);
+
+    return res.json({
+      ok: true,
+      marketplaceId,
+      result,
+    });
+  } catch (error) {
+    if (error.response) {
+      return res.status(500).json({
+        ok: false,
+        error: error.response.data,
+      });
+    }
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/ebay/account/return-policies", async (req, res) => {
+  try {
+    const marketplaceId = getRequestedMarketplaceId(req);
+    const result = await getEbayReturnPolicies(marketplaceId);
+
+    return res.json({
+      ok: true,
+      marketplaceId,
+      result,
+    });
+  } catch (error) {
+    if (error.response) {
+      return res.status(500).json({
+        ok: false,
+        error: error.response.data,
+      });
+    }
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/ebay/account/fulfillment-policies", async (req, res) => {
+  try {
+    const marketplaceId = getRequestedMarketplaceId(req);
+    const result = await getEbayFulfillmentPolicies(marketplaceId);
+
+    return res.json({
+      ok: true,
+      marketplaceId,
+      result,
+    });
+  } catch (error) {
+    if (error.response) {
+      return res.status(500).json({
+        ok: false,
+        error: error.response.data,
+      });
+    }
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/ebay/location/default-payload", async (req, res) => {
+  try {
+    validateEbayLocationEnv();
+
+    return res.json({
+      ok: true,
+      merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
+      payload: buildDefaultEbayLocationPayload(),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/ebay/location/list", async (req, res) => {
+  try {
+    const result = await getEbayInventoryLocations();
+
+    return res.json({
+      ok: true,
+      result,
+    });
+  } catch (error) {
+    if (error.response) {
+      return res.status(500).json({
+        ok: false,
+        error: error.response.data,
+      });
+    }
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/ebay/location/get", async (req, res) => {
+  try {
+    const merchantLocationKey = String(
+      req.query.merchantLocationKey || EBAY_MERCHANT_LOCATION_KEY
+    );
+
+    if (!merchantLocationKey) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "missing merchantLocationKey" });
+    }
+
+    const result = await getEbayInventoryLocation(merchantLocationKey);
+
+    return res.json({
+      ok: true,
+      merchantLocationKey,
+      result,
+    });
+  } catch (error) {
+    if (error.response) {
+      return res.status(500).json({
+        ok: false,
+        error: error.response.data,
+      });
+    }
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/ebay/location/create", async (req, res) => {
+  try {
+    validateEbayLocationEnv();
+
+    const payload = buildDefaultEbayLocationPayload();
+
+    const result = await createOrReplaceEbayInventoryLocation({
+      merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
+      locationPayload: payload,
+    });
+
+    return res.json({
+      ok: true,
+      merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
+      payload,
+      result,
+    });
+  } catch (error) {
+    if (error.response) {
+      return res.status(500).json({
+        ok: false,
+        error: error.response.data,
+      });
+    }
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/ebay/location/enable", async (req, res) => {
+  try {
+    const merchantLocationKey = String(
+      req.query.merchantLocationKey || EBAY_MERCHANT_LOCATION_KEY
+    );
+
+    if (!merchantLocationKey) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "missing merchantLocationKey" });
+    }
+
+    const result = await enableEbayInventoryLocation(merchantLocationKey);
+
+    return res.json({
+      ok: true,
+      merchantLocationKey,
+      result,
+    });
+  } catch (error) {
+    if (error.response) {
+      return res.status(500).json({
+        ok: false,
+        error: error.response.data,
+      });
+    }
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.get("/ebay/setup/bootstrap", async (req, res) => {
+  try {
+    const marketplaceId = getRequestedMarketplaceId(req);
+    const result = await bootstrapEbaySellerSetup({ marketplaceId });
+
+    return res.json(result);
+  } catch (error) {
+    if (error.response) {
+      return res.status(500).json({
+        ok: false,
+        error: error.response.data,
+      });
+    }
+
     return res.status(500).json({
       ok: false,
       error: error.message,
