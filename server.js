@@ -45,13 +45,18 @@ const EBAY_NOTIFICATION_ENDPOINT =
   "https://syncamzeby.onrender.com/ebay/notifications";
 const EBAY_SCOPES =
   process.env.EBAY_SCOPES ||
-  "https://api.ebay.com/oauth/api_scope/sell.inventory";
-
-// eBay setup defaults
+  "https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.account https://api.ebay.com/oauth/api_scope/sell.fulfillment";
 const EBAY_DEFAULT_MARKETPLACE_ID =
   process.env.EBAY_DEFAULT_MARKETPLACE_ID || "EBAY_IT";
 const EBAY_MERCHANT_LOCATION_KEY =
-  process.env.EBAY_MERCHANT_LOCATION_KEY || "SHOPIFY_MAIN";
+  process.env.EBAY_MERCHANT_LOCATION_KEY || "Default-EBAY_IT";
+const EBAY_DEFAULT_CURRENCY = process.env.EBAY_DEFAULT_CURRENCY || "EUR";
+const EBAY_DEFAULT_LISTING_DURATION =
+  process.env.EBAY_DEFAULT_LISTING_DURATION || "GTC";
+const EBAY_DEFAULT_CONDITION = process.env.EBAY_DEFAULT_CONDITION || "NEW";
+const EBAY_DEFAULT_FORMAT = process.env.EBAY_DEFAULT_FORMAT || "FIXED_PRICE";
+
+// Legacy location envs retained for debugging
 const EBAY_LOCATION_NAME =
   process.env.EBAY_LOCATION_NAME || "SyncAmzEby Main Location";
 const EBAY_LOCATION_PHONE = process.env.EBAY_LOCATION_PHONE || "";
@@ -144,15 +149,7 @@ function validateEbayEnv() {
   requireEnv("EBAY_CLIENT_SECRET", EBAY_CLIENT_SECRET);
   requireEnv("EBAY_RU_NAME", EBAY_RU_NAME);
   requireEnv("EBAY_REDIRECT_URI", EBAY_REDIRECT_URI);
-}
-
-function validateEbayLocationEnv() {
   requireEnv("EBAY_MERCHANT_LOCATION_KEY", EBAY_MERCHANT_LOCATION_KEY);
-  requireEnv("EBAY_LOCATION_NAME", EBAY_LOCATION_NAME);
-  requireEnv("EBAY_LOCATION_COUNTRY", EBAY_LOCATION_COUNTRY);
-  requireEnv("EBAY_LOCATION_POSTAL_CODE", EBAY_LOCATION_POSTAL_CODE);
-  requireEnv("EBAY_LOCATION_CITY", EBAY_LOCATION_CITY);
-  requireEnv("EBAY_LOCATION_ADDRESS_LINE1", EBAY_LOCATION_ADDRESS_LINE1);
 }
 
 function validateEbayVerificationConfig() {
@@ -243,6 +240,34 @@ function buildEbayChallengeResponse({
   hash.update(verificationToken);
   hash.update(endpoint);
   return hash.digest("hex");
+}
+
+function stripHtml(input = "") {
+  return String(input)
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<\/?[^>]+(>|$)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function firstNonEmpty(...values) {
+  for (const value of values) {
+    const text = String(value || "").trim();
+    if (text) return text;
+  }
+  return "";
+}
+
+function truncateText(value, max = 4000) {
+  const text = String(value || "");
+  if (text.length <= max) return text;
+  return text.slice(0, max - 1) + "…";
+}
+
+function normalizeMoney(value) {
+  const n = Number(value || 0);
+  return Number.isFinite(n) ? Number(n.toFixed(2)) : 0;
 }
 
 async function ebayTokenRequest(bodyParams) {
@@ -419,34 +444,9 @@ function getRequestedMarketplaceId(req) {
   return String(req.query.marketplaceId || EBAY_DEFAULT_MARKETPLACE_ID);
 }
 
-function buildDefaultEbayLocationPayload() {
-  const payload = {
-    name: EBAY_LOCATION_NAME,
-    merchantLocationStatus: "ENABLED",
-    location: {
-      address: {
-        country: EBAY_LOCATION_COUNTRY,
-        postalCode: EBAY_LOCATION_POSTAL_CODE,
-        city: EBAY_LOCATION_CITY,
-        addressLine1: EBAY_LOCATION_ADDRESS_LINE1,
-      },
-    },
-  };
-
-  if (EBAY_LOCATION_STATE) {
-    payload.location.address.stateOrProvince = EBAY_LOCATION_STATE;
-  }
-
-  if (EBAY_LOCATION_ADDRESS_LINE2) {
-    payload.location.address.addressLine2 = EBAY_LOCATION_ADDRESS_LINE2;
-  }
-
-  if (EBAY_LOCATION_PHONE) {
-    payload.phone = EBAY_LOCATION_PHONE;
-  }
-
-  return payload;
-}
+// =========================
+// EBAY ACCOUNT / LOCATION / TAXONOMY
+// =========================
 
 async function getEbayFulfillmentPolicies(marketplaceId) {
   const accessToken = await ensureValidEbayAccessToken();
@@ -497,6 +497,24 @@ async function getAllEbayPolicies(marketplaceId) {
   };
 }
 
+function pickDefaultPolicyIds(policiesData) {
+  const fulfillmentPolicyId =
+    policiesData?.fulfillmentPolicies?.fulfillmentPolicies?.[0]
+      ?.fulfillmentPolicyId || null;
+
+  const paymentPolicyId =
+    policiesData?.paymentPolicies?.paymentPolicies?.[0]?.paymentPolicyId || null;
+
+  const returnPolicyId =
+    policiesData?.returnPolicies?.returnPolicies?.[0]?.returnPolicyId || null;
+
+  return {
+    paymentPolicyId,
+    returnPolicyId,
+    fulfillmentPolicyId,
+  };
+}
+
 async function getEbayInventoryLocations() {
   const accessToken = await ensureValidEbayAccessToken();
   return ebayGet("/sell/inventory/v1/location", accessToken);
@@ -511,75 +529,441 @@ async function getEbayInventoryLocation(merchantLocationKey) {
   );
 }
 
-async function createOrReplaceEbayInventoryLocation({
-  merchantLocationKey,
-  locationPayload,
-}) {
+async function getDefaultCategoryTreeId(marketplaceId) {
   const accessToken = await ensureValidEbayAccessToken();
 
-  return ebayPut(
-    `/sell/inventory/v1/location/${encodeURIComponent(merchantLocationKey)}`,
+  return ebayGet(
+    "/commerce/taxonomy/v1/get_default_category_tree_id",
     accessToken,
-    locationPayload
+    { marketplace_id: marketplaceId }
   );
 }
 
-async function enableEbayInventoryLocation(merchantLocationKey) {
+async function getCategorySuggestions({ categoryTreeId, q }) {
+  const accessToken = await ensureValidEbayAccessToken();
+
+  return ebayGet(
+    `/commerce/taxonomy/v1/category_tree/${encodeURIComponent(
+      categoryTreeId
+    )}/get_category_suggestions`,
+    accessToken,
+    { q }
+  );
+}
+
+async function suggestEbayCategory({
+  marketplaceId,
+  title,
+  shopifyCategory,
+  productType,
+}) {
+  const tree = await getDefaultCategoryTreeId(marketplaceId);
+  const categoryTreeId = tree?.categoryTreeId;
+
+  if (!categoryTreeId) {
+    throw new Error("Could not determine eBay default category tree");
+  }
+
+  const queries = [
+    firstNonEmpty(shopifyCategory),
+    firstNonEmpty(productType),
+    firstNonEmpty(title),
+  ].filter(Boolean);
+
+  for (const q of queries) {
+    const suggestions = await getCategorySuggestions({ categoryTreeId, q });
+    const first =
+      suggestions?.categorySuggestions?.[0] ||
+      suggestions?.categorySuggestions?.[0]?.category;
+
+    if (suggestions?.categorySuggestions?.length) {
+      const best = suggestions.categorySuggestions[0];
+      return {
+        query: q,
+        categoryTreeId,
+        categoryId: best?.category?.categoryId || best?.categoryId || null,
+        categoryName:
+          best?.category?.categoryName || best?.categoryName || null,
+        raw: suggestions,
+      };
+    }
+  }
+
+  return {
+    queryTried: queries,
+    categoryTreeId,
+    categoryId: null,
+    categoryName: null,
+    raw: null,
+  };
+}
+
+// =========================
+// SHOPIFY HELPERS
+// =========================
+
+async function getShopifyAccessToken() {
+  const response = await axios.post(
+    `https://${SHOPIFY_SHOP_DOMAIN}/admin/oauth/access_token`,
+    new URLSearchParams({
+      client_id: SHOPIFY_CLIENT_ID,
+      client_secret: SHOPIFY_CLIENT_SECRET,
+      grant_type: "client_credentials",
+    }),
+    {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+      },
+    }
+  );
+
+  const token = response.data?.access_token;
+  if (!token) {
+    throw new Error(
+      `Missing Shopify access token: ${JSON.stringify(response.data)}`
+    );
+  }
+
+  return token;
+}
+
+async function shopifyGraphQL(query, variables = {}) {
+  const token = await getShopifyAccessToken();
+
+  const response = await axios.post(
+    `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2026-01/graphql.json`,
+    { query, variables },
+    {
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": token,
+      },
+    }
+  );
+
+  if (response.data.errors) {
+    throw new Error(JSON.stringify(response.data.errors));
+  }
+
+  return response.data.data;
+}
+
+async function findShopifyInventoryItemBySku(sku) {
+  const query = `
+    query FindInventoryItemBySku($query: String!) {
+      inventoryItems(first: 1, query: $query) {
+        edges {
+          node {
+            id
+            sku
+            tracked
+          }
+        }
+      }
+    }
+  `;
+
+  const data = await shopifyGraphQL(query, {
+    query: `sku:${sku}`,
+  });
+
+  const edge = data.inventoryItems.edges[0];
+  if (!edge) return null;
+
+  return {
+    inventoryItemId: edge.node.id,
+    sku: edge.node.sku,
+    tracked: edge.node.tracked,
+  };
+}
+
+async function getShopifyVariantBySku(sku) {
+  const query = `
+    query GetVariantBySku($query: String!) {
+      productVariants(first: 1, query: $query) {
+        nodes {
+          id
+          sku
+          price
+          inventoryQuantity
+          title
+          selectedOptions {
+            name
+            value
+          }
+          product {
+            id
+            title
+            descriptionHtml
+            vendor
+            productType
+            category {
+              fullName
+            }
+            images(first: 10) {
+              nodes {
+                url
+                altText
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const data = await shopifyGraphQL(query, {
+    query: `sku:${sku}`,
+  });
+
+  const variant = data?.productVariants?.nodes?.[0] || null;
+  if (!variant) return null;
+
+  const images = (variant.product?.images?.nodes || [])
+    .map((img) => img?.url)
+    .filter(Boolean);
+
+  const descriptionText = truncateText(
+    stripHtml(variant.product?.descriptionHtml || ""),
+    4000
+  );
+
+  return {
+    sku: variant.sku,
+    price: normalizeMoney(variant.price),
+    inventoryQuantity: Number(variant.inventoryQuantity || 0),
+    variantTitle: variant.title || "",
+    selectedOptions: variant.selectedOptions || [],
+    product: {
+      id: variant.product?.id || null,
+      title: variant.product?.title || "",
+      descriptionText,
+      vendor: variant.product?.vendor || "",
+      productType: variant.product?.productType || "",
+      categoryFullName: variant.product?.category?.fullName || "",
+      imageUrls: images,
+    },
+  };
+}
+
+// =========================
+// EBAY INVENTORY / OFFER HELPERS
+// =========================
+
+function buildDefaultAspects(shopifyVariant) {
+  const aspects = {};
+
+  const vendor = firstNonEmpty(shopifyVariant?.product?.vendor, "Generic");
+  aspects.Brand = [vendor];
+
+  const productType = firstNonEmpty(
+    shopifyVariant?.product?.productType,
+    shopifyVariant?.product?.categoryFullName,
+    "General"
+  );
+  aspects.Type = [productType];
+
+  const variantTitle = firstNonEmpty(shopifyVariant?.variantTitle);
+  if (variantTitle && !["Default Title", "Titolo predefinito"].includes(variantTitle)) {
+    aspects.Style = [variantTitle];
+  }
+
+  for (const option of shopifyVariant?.selectedOptions || []) {
+    const name = firstNonEmpty(option?.name);
+    const value = firstNonEmpty(option?.value);
+    if (name && value && !aspects[name]) {
+      aspects[name] = [value];
+    }
+  }
+
+  return aspects;
+}
+
+function buildInventoryItemPayload(shopifyVariant) {
+  const titleBase = firstNonEmpty(shopifyVariant?.product?.title);
+  const variantTitle = firstNonEmpty(shopifyVariant?.variantTitle);
+  const title =
+    variantTitle &&
+    !["Default Title", "Titolo predefinito"].includes(variantTitle)
+      ? `${titleBase} - ${variantTitle}`.slice(0, 80)
+      : titleBase.slice(0, 80);
+
+  const description = firstNonEmpty(
+    shopifyVariant?.product?.descriptionText,
+    titleBase,
+    shopifyVariant?.sku
+  );
+
+  const imageUrls = shopifyVariant?.product?.imageUrls || [];
+  if (!imageUrls.length) {
+    throw new Error("Shopify product has no images. eBay publish requires images.");
+  }
+
+  return {
+    availability: {
+      shipToLocationAvailability: {
+        quantity: Math.max(0, Number(shopifyVariant?.inventoryQuantity || 0)),
+      },
+    },
+    condition: EBAY_DEFAULT_CONDITION,
+    product: {
+      title,
+      description,
+      aspects: buildDefaultAspects(shopifyVariant),
+      imageUrls,
+    },
+  };
+}
+
+async function createOrReplaceInventoryItem({ sku, payload }) {
+  const accessToken = await ensureValidEbayAccessToken();
+
+  return ebayPut(
+    `/sell/inventory/v1/inventory_item/${encodeURIComponent(sku)}`,
+    accessToken,
+    payload
+  );
+}
+
+async function createOffer({ payload }) {
+  const accessToken = await ensureValidEbayAccessToken();
+  return ebayPost("/sell/inventory/v1/offer", accessToken, payload);
+}
+
+async function publishOffer({ offerId }) {
   const accessToken = await ensureValidEbayAccessToken();
 
   return ebayPostNoBody(
-    `/sell/inventory/v1/location/${encodeURIComponent(
-      merchantLocationKey
-    )}/enable`,
+    `/sell/inventory/v1/offer/${encodeURIComponent(offerId)}/publish`,
     accessToken
   );
 }
 
-async function bootstrapEbaySellerSetup({ marketplaceId }) {
-  validateEbayLocationEnv();
-
-  const policies = await getAllEbayPolicies(marketplaceId);
-  const locationPayload = buildDefaultEbayLocationPayload();
-
-  let createResult;
-  let locationAfterCreate;
-  let enableResult = null;
-
-  createResult = await createOrReplaceEbayInventoryLocation({
-    merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
-    locationPayload,
-  });
-
-  try {
-    enableResult = await enableEbayInventoryLocation(EBAY_MERCHANT_LOCATION_KEY);
-  } catch (error) {
-    const ebayError = error?.response?.data;
-    console.log(
-      "EBAY ENABLE LOCATION WARNING",
-      JSON.stringify(ebayError || error.message)
-    );
+function buildOfferPayload({
+  sku,
+  price,
+  quantity,
+  marketplaceId,
+  categoryId,
+  policyIds,
+}) {
+  if (!policyIds?.paymentPolicyId) {
+    throw new Error("Missing paymentPolicyId");
   }
-
-  try {
-    locationAfterCreate = await getEbayInventoryLocation(
-      EBAY_MERCHANT_LOCATION_KEY
-    );
-  } catch (error) {
-    locationAfterCreate = {
-      warning: "location created/enabled but could not be re-read",
-      error: error?.response?.data || error.message,
-    };
+  if (!policyIds?.returnPolicyId) {
+    throw new Error("Missing returnPolicyId");
+  }
+  if (!policyIds?.fulfillmentPolicyId) {
+    throw new Error("Missing fulfillmentPolicyId");
+  }
+  if (!categoryId) {
+    throw new Error("Missing categoryId");
   }
 
   return {
+    sku,
+    marketplaceId,
+    format: EBAY_DEFAULT_FORMAT,
+    availableQuantity: Math.max(0, Number(quantity || 0)),
+    categoryId,
+    merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
+    pricingSummary: {
+      price: {
+        value: String(normalizeMoney(price)),
+        currency: EBAY_DEFAULT_CURRENCY,
+      },
+    },
+    listingPolicies: {
+      paymentPolicyId: policyIds.paymentPolicyId,
+      returnPolicyId: policyIds.returnPolicyId,
+      fulfillmentPolicyId: policyIds.fulfillmentPolicyId,
+    },
+    listingDuration: EBAY_DEFAULT_LISTING_DURATION,
+  };
+}
+
+async function publishSkuToEbay({
+  sku,
+  marketplaceId = EBAY_DEFAULT_MARKETPLACE_ID,
+  categoryIdOverride = "",
+}) {
+  const shopifyVariant = await getShopifyVariantBySku(sku);
+  if (!shopifyVariant) {
+    throw new Error(`Shopify SKU not found: ${sku}`);
+  }
+
+  const categorySuggestion = categoryIdOverride
+    ? {
+        query: "manual_override",
+        categoryId: categoryIdOverride,
+        categoryName: null,
+        categoryTreeId: null,
+        raw: null,
+      }
+    : await suggestEbayCategory({
+        marketplaceId,
+        title: shopifyVariant.product.title,
+        shopifyCategory: shopifyVariant.product.categoryFullName,
+        productType: shopifyVariant.product.productType,
+      });
+
+  if (!categorySuggestion?.categoryId) {
+    throw new Error(
+      `Could not determine eBay category automatically for SKU ${sku}.`
+    );
+  }
+
+  const policies = await getAllEbayPolicies(marketplaceId);
+  const policyIds = pickDefaultPolicyIds(policies);
+
+  const inventoryItemPayload = buildInventoryItemPayload(shopifyVariant);
+  const inventoryItemResult = await createOrReplaceInventoryItem({
+    sku,
+    payload: inventoryItemPayload,
+  });
+
+  const offerPayload = buildOfferPayload({
+    sku,
+    price: shopifyVariant.price,
+    quantity: shopifyVariant.inventoryQuantity,
+    marketplaceId,
+    categoryId: categorySuggestion.categoryId,
+    policyIds,
+  });
+
+  const offerResult = await createOffer({ payload: offerPayload });
+  const offerId = offerResult?.offerId;
+
+  if (!offerId) {
+    throw new Error(
+      `Offer created response missing offerId: ${JSON.stringify(offerResult)}`
+    );
+  }
+
+  const publishResult = await publishOffer({ offerId });
+
+  return {
     ok: true,
+    sku,
     marketplaceId,
     merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
-    locationPayload,
-    createResult,
-    enableResult,
-    location: locationAfterCreate,
-    policies,
+    shopify: {
+      title: shopifyVariant.product.title,
+      price: shopifyVariant.price,
+      inventoryQuantity: shopifyVariant.inventoryQuantity,
+      vendor: shopifyVariant.product.vendor,
+      productType: shopifyVariant.product.productType,
+      categoryFullName: shopifyVariant.product.categoryFullName,
+      imageCount: shopifyVariant.product.imageUrls.length,
+    },
+    categorySuggestion,
+    selectedPolicies: policyIds,
+    inventoryItemPayload,
+    inventoryItemResult,
+    offerPayload,
+    offerResult,
+    publishResult,
   };
 }
 
@@ -658,88 +1042,8 @@ async function amazonPatch(path, accessToken, body, params = {}) {
 }
 
 // =========================
-// SHOPIFY TOKEN
+// SHOPIFY INVENTORY ADJUSTMENT
 // =========================
-
-async function getShopifyAccessToken() {
-  const response = await axios.post(
-    `https://${SHOPIFY_SHOP_DOMAIN}/admin/oauth/access_token`,
-    new URLSearchParams({
-      client_id: SHOPIFY_CLIENT_ID,
-      client_secret: SHOPIFY_CLIENT_SECRET,
-      grant_type: "client_credentials",
-    }),
-    {
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-      },
-    }
-  );
-
-  const token = response.data?.access_token;
-  if (!token) {
-    throw new Error(
-      `Missing Shopify access token: ${JSON.stringify(response.data)}`
-    );
-  }
-
-  return token;
-}
-
-// =========================
-// SHOPIFY GRAPHQL
-// =========================
-
-async function shopifyGraphQL(query, variables = {}) {
-  const token = await getShopifyAccessToken();
-
-  const response = await axios.post(
-    `https://${SHOPIFY_SHOP_DOMAIN}/admin/api/2026-01/graphql.json`,
-    { query, variables },
-    {
-      headers: {
-        "Content-Type": "application/json",
-        "X-Shopify-Access-Token": token,
-      },
-    }
-  );
-
-  if (response.data.errors) {
-    throw new Error(JSON.stringify(response.data.errors));
-  }
-
-  return response.data.data;
-}
-
-async function findShopifyInventoryItemBySku(sku) {
-  const query = `
-    query FindInventoryItemBySku($query: String!) {
-      inventoryItems(first: 1, query: $query) {
-        edges {
-          node {
-            id
-            sku
-            tracked
-          }
-        }
-      }
-    }
-  `;
-
-  const data = await shopifyGraphQL(query, {
-    query: `sku:${sku}`,
-  });
-
-  const edge = data.inventoryItems.edges[0];
-  if (!edge) return null;
-
-  return {
-    inventoryItemId: edge.node.id,
-    sku: edge.node.sku,
-    tracked: edge.node.tracked,
-  };
-}
 
 async function adjustShopifyInventoryBySku({
   sku,
@@ -1548,12 +1852,21 @@ app.get("/ebay/account/fulfillment-policies", async (req, res) => {
 
 app.get("/ebay/location/default-payload", async (req, res) => {
   try {
-    validateEbayLocationEnv();
-
     return res.json({
       ok: true,
       merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
-      payload: buildDefaultEbayLocationPayload(),
+      note: "Using existing eBay location; create is no longer required for this account.",
+      existingLocationKey: EBAY_MERCHANT_LOCATION_KEY,
+      legacyPayloadConfig: {
+        name: EBAY_LOCATION_NAME,
+        phone: EBAY_LOCATION_PHONE,
+        country: EBAY_LOCATION_COUNTRY,
+        postalCode: EBAY_LOCATION_POSTAL_CODE,
+        city: EBAY_LOCATION_CITY,
+        state: EBAY_LOCATION_STATE,
+        addressLine1: EBAY_LOCATION_ADDRESS_LINE1,
+        addressLine2: EBAY_LOCATION_ADDRESS_LINE2,
+      },
     });
   } catch (error) {
     return res.status(500).json({
@@ -1621,75 +1934,67 @@ app.get("/ebay/location/get", async (req, res) => {
 });
 
 app.get("/ebay/location/create", async (req, res) => {
-  try {
-    validateEbayLocationEnv();
-
-    const payload = buildDefaultEbayLocationPayload();
-
-    const result = await createOrReplaceEbayInventoryLocation({
-      merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
-      locationPayload: payload,
-    });
-
-    return res.json({
-      ok: true,
-      merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
-      payload,
-      result,
-    });
-  } catch (error) {
-    if (error.response) {
-      return res.status(500).json({
-        ok: false,
-        error: error.response.data,
-      });
-    }
-
-    return res.status(500).json({
-      ok: false,
-      error: error.message,
-    });
-  }
+  return res.status(400).json({
+    ok: false,
+    error:
+      "This account already has an enabled location. Use EBAY_MERCHANT_LOCATION_KEY=Default-EBAY_IT and /ebay/location/get instead.",
+  });
 });
 
-app.get("/ebay/location/enable", async (req, res) => {
+app.get("/ebay/category/suggest", async (req, res) => {
   try {
-    const merchantLocationKey = String(
-      req.query.merchantLocationKey || EBAY_MERCHANT_LOCATION_KEY
-    );
-
-    if (!merchantLocationKey) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "missing merchantLocationKey" });
+    const sku = String(req.query.sku || "").trim();
+    if (!sku) {
+      return res.status(400).json({ ok: false, error: "missing sku" });
     }
 
-    const result = await enableEbayInventoryLocation(merchantLocationKey);
-
-    return res.json({
-      ok: true,
-      merchantLocationKey,
-      result,
-    });
-  } catch (error) {
-    if (error.response) {
-      return res.status(500).json({
-        ok: false,
-        error: error.response.data,
-      });
+    const shopifyVariant = await getShopifyVariantBySku(sku);
+    if (!shopifyVariant) {
+      return res.status(404).json({ ok: false, error: `Shopify SKU not found: ${sku}` });
     }
 
-    return res.status(500).json({
-      ok: false,
-      error: error.message,
-    });
-  }
-});
-
-app.get("/ebay/setup/bootstrap", async (req, res) => {
-  try {
     const marketplaceId = getRequestedMarketplaceId(req);
-    const result = await bootstrapEbaySellerSetup({ marketplaceId });
+    const suggestion = await suggestEbayCategory({
+      marketplaceId,
+      title: shopifyVariant.product.title,
+      shopifyCategory: shopifyVariant.product.categoryFullName,
+      productType: shopifyVariant.product.productType,
+    });
+
+    return res.json({
+      ok: true,
+      sku,
+      marketplaceId,
+      shopify: {
+        title: shopifyVariant.product.title,
+        productType: shopifyVariant.product.productType,
+        categoryFullName: shopifyVariant.product.categoryFullName,
+      },
+      suggestion,
+    });
+  } catch (error) {
+    if (error.response) {
+      return res.status(500).json({ ok: false, error: error.response.data });
+    }
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.get("/ebay/publish/test", async (req, res) => {
+  try {
+    const sku = String(req.query.sku || "").trim();
+    const categoryId = String(req.query.categoryId || "").trim();
+    const marketplaceId = getRequestedMarketplaceId(req);
+
+    if (!sku) {
+      return res.status(400).json({ ok: false, error: "missing sku" });
+    }
+
+    const result = await publishSkuToEbay({
+      sku,
+      marketplaceId,
+      categoryIdOverride: categoryId,
+    });
 
     return res.json(result);
   } catch (error) {
