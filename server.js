@@ -237,8 +237,8 @@ function buildEbayChallengeResponse({ challengeCode, verificationToken, endpoint
   return hash.digest("hex");
 }
 
-function getPublicEbayNotificationEndpoint(req) {
-  return `${req.protocol}://${req.get("host")}/ebay/notifications`;
+function getPublicEbayNotificationEndpoint() {
+  return "https://syncamzeby.onrender.com/ebay/notifications";
 }
 
 async function ebayTokenRequest(bodyParams) {
