@@ -42,7 +42,7 @@ const EBAY_REDIRECT_URI = process.env.EBAY_REDIRECT_URI || "";
 const EBAY_VERIFICATION_TOKEN = process.env.EBAY_VERIFICATION_TOKEN || "";
 const EBAY_SCOPES =
   process.env.EBAY_SCOPES ||
-  "https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.account https://api.ebay.com/oauth/api_scope/sell.fulfillment";
+  "https://api.ebay.com/oauth/api_scope/sell.inventory";
 
 // eBay setup defaults
 const EBAY_DEFAULT_MARKETPLACE_ID =
@@ -152,6 +152,21 @@ function validateEbayLocationEnv() {
   requireEnv("EBAY_LOCATION_ADDRESS_LINE1", EBAY_LOCATION_ADDRESS_LINE1);
 }
 
+function validateEbayVerificationToken() {
+  requireEnv("EBAY_VERIFICATION_TOKEN", EBAY_VERIFICATION_TOKEN);
+
+  const isValid =
+    EBAY_VERIFICATION_TOKEN.length >= 32 &&
+    EBAY_VERIFICATION_TOKEN.length <= 80 &&
+    /^[A-Za-z0-9_-]+$/.test(EBAY_VERIFICATION_TOKEN);
+
+  if (!isValid) {
+    throw new Error(
+      "EBAY_VERIFICATION_TOKEN must be 32-80 chars and contain only letters, numbers, underscore, or hyphen"
+    );
+  }
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -212,6 +227,18 @@ function getQueryString(params = {}) {
 
   const qs = sp.toString();
   return qs ? `?${qs}` : "";
+}
+
+function buildEbayChallengeResponse({ challengeCode, verificationToken, endpoint }) {
+  const hash = crypto.createHash("sha256");
+  hash.update(challengeCode);
+  hash.update(verificationToken);
+  hash.update(endpoint);
+  return hash.digest("hex");
+}
+
+function getPublicEbayNotificationEndpoint(req) {
+  return `${req.protocol}://${req.get("host")}/ebay/notifications`;
 }
 
 async function ebayTokenRequest(bodyParams) {
@@ -1680,33 +1707,36 @@ app.get("/ebay/setup/bootstrap", async (req, res) => {
 // =========================
 
 app.get("/ebay/notifications", (req, res) => {
-  return res.status(200).send("SyncAmzEby eBay notifications endpoint OK");
+  try {
+    validateEbayVerificationToken();
+
+    const challengeCode = String(req.query.challenge_code || "");
+    const endpoint = getPublicEbayNotificationEndpoint(req);
+
+    if (!challengeCode) {
+      return res.status(200).send("SyncAmzEby eBay notifications endpoint OK");
+    }
+
+    const challengeResponse = buildEbayChallengeResponse({
+      challengeCode,
+      verificationToken: EBAY_VERIFICATION_TOKEN,
+      endpoint,
+    });
+
+    return res.status(200).json({ challengeResponse });
+  } catch (error) {
+    console.log("EBAY GET NOTIFICATION ERROR", error.message);
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
 });
 
 app.post("/ebay/notifications", express.json({ type: "*/*" }), (req, res) => {
   try {
-    const challengeCode = String(req.query.challenge_code || "");
-
-    if (challengeCode) {
-      return res.status(200).send(challengeCode);
-    }
-
-    const headerToken = String(
-      req.headers["x-ebay-verification-token"] || ""
-    );
-
-    if (EBAY_VERIFICATION_TOKEN && headerToken !== EBAY_VERIFICATION_TOKEN) {
-      console.log("EBAY NOTIFICATION INVALID TOKEN", {
-        expected: EBAY_VERIFICATION_TOKEN ? "***set***" : "***missing***",
-        received: headerToken ? "***present***" : "***missing***",
-      });
-
-      return res.status(403).send("Invalid verification token");
-    }
-
     console.log("EBAY NOTIFICATION RECEIVED");
     console.log(JSON.stringify(req.body, null, 2));
-
     return res.status(200).send("OK");
   } catch (error) {
     console.log("EBAY NOTIFICATION ERROR", error.message);
