@@ -1733,14 +1733,37 @@ app.get("/ebay/notifications", (req, res) => {
   }
 });
 
-app.post("/ebay/notifications", express.json({ type: "*/*" }), (req, res) => {
+app.all('/ebay/notifications', async (req, res) => {
   try {
-    console.log("EBAY NOTIFICATION RECEIVED");
+    // 🔹 1. VALIDAZIONE eBay (GET)
+    if (req.method === 'GET') {
+      const challengeCode = req.query.challenge_code;
+
+      if (!challengeCode) {
+        return res.status(400).send('Missing challenge_code');
+      }
+
+      const crypto = require('crypto');
+
+      const hash = crypto
+        .createHash('sha256')
+        .update(challengeCode + process.env.EBAY_VERIFICATION_TOKEN + process.env.EBAY_ENDPOINT)
+        .digest('hex');
+
+      console.log('EBAY VALIDATION SUCCESS');
+
+      return res.status(200).send(hash);
+    }
+
+    // 🔹 2. NOTIFICHE REALI (POST)
+    console.log('EBAY NOTIFICATION RECEIVED');
     console.log(JSON.stringify(req.body, null, 2));
-    return res.status(200).send("OK");
-  } catch (error) {
-    console.log("EBAY NOTIFICATION ERROR", error.message);
-    return res.status(500).send("error");
+
+    return res.status(200).send('OK');
+
+  } catch (err) {
+    console.error('EBAY NOTIFICATION ERROR:', err);
+    return res.status(500).send('ERROR');
   }
 });
 
