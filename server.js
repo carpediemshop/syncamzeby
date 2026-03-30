@@ -1205,6 +1205,23 @@ app.get("/", (req, res) => {
   res.send("SyncAmzEby running");
 });
 
+// =========================
+// EBAY NOTIFICATION (REQUIRED FOR PRODUCTION)
+// =========================
+
+app.post("/ebay/notifications", express.json(), async (req, res) => {
+  try {
+    console.log("EBAY NOTIFICATION RECEIVED:");
+    console.log(JSON.stringify(req.body, null, 2));
+
+    // eBay vuole solo HTTP 200
+    return res.status(200).send("OK");
+  } catch (error) {
+    console.log("EBAY NOTIFICATION ERROR", error.message);
+    return res.status(500).send("error");
+  }
+});
+
 app.get("/health", async (req, res) => {
   try {
     validateBaseEnv();
