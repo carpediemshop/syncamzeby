@@ -1711,7 +1711,7 @@ app.get("/ebay/notifications", (req, res) => {
     validateEbayVerificationToken();
 
     const challengeCode = String(req.query.challenge_code || "");
-    const endpoint = getPublicEbayNotificationEndpoint(req);
+    const endpoint = getPublicEbayNotificationEndpoint();
 
     if (!challengeCode) {
       return res.status(200).send("SyncAmzEby eBay notifications endpoint OK");
