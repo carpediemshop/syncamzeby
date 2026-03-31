@@ -1,0 +1,793 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SyncAmzEby - eBay Publisher</title>
+  <style>
+    :root{
+      --bg:#f4f7fb;
+      --panel:#ffffff;
+      --text:#111827;
+      --muted:#6b7280;
+      --line:#e5e7eb;
+      --primary:#2563eb;
+      --primary-dark:#1d4ed8;
+      --secondary:#111827;
+      --gray:#6b7280;
+      --danger:#b91c1c;
+      --ok:#047857;
+      --bad:#b91c1c;
+      --warn:#b45309;
+      --shadow:0 10px 30px rgba(0,0,0,.08);
+      --radius:16px;
+    }
+    *{box-sizing:border-box}
+    body{
+      font-family:Arial,sans-serif;
+      background:var(--bg);
+      margin:0;
+      color:var(--text);
+    }
+    .wrap{
+      max-width:1280px;
+      margin:24px auto;
+      padding:0 16px 60px;
+    }
+    .hero{
+      background:linear-gradient(135deg,#0f172a,#1e3a8a);
+      color:#fff;
+      border-radius:22px;
+      padding:24px;
+      margin-bottom:18px;
+      box-shadow:var(--shadow);
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:20px;
+      flex-wrap:wrap;
+    }
+    .hero h1{
+      margin:0 0 8px;
+      font-size:32px;
+    }
+    .hero p{
+      margin:0;
+      color:#dbeafe;
+      font-size:14px;
+      line-height:1.45;
+    }
+    .status-badge{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      background:rgba(255,255,255,.12);
+      padding:12px 16px;
+      border-radius:999px;
+      font-weight:700;
+      min-height:46px;
+    }
+    .dot{
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      background:#f59e0b;
+      display:inline-block;
+    }
+    .dot.ok{background:#22c55e}
+    .dot.bad{background:#ef4444}
+    .dot.warn{background:#f59e0b}
+    .card{
+      background:var(--panel);
+      border-radius:var(--radius);
+      padding:20px;
+      box-shadow:var(--shadow);
+      margin-bottom:18px;
+      border:1px solid var(--line);
+    }
+    h2{
+      margin:0 0 14px;
+      font-size:20px;
+    }
+    .row{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .col{
+      flex:1;
+      min-width:240px;
+    }
+    input,select,button,textarea{
+      width:100%;
+      box-sizing:border-box;
+      padding:12px;
+      border-radius:12px;
+      border:1px solid #d1d5db;
+      font-size:14px;
+      background:#fff;
+    }
+    textarea{
+      resize:vertical;
+      min-height:44px;
+    }
+    input:focus,select:focus,textarea:focus{
+      outline:none;
+      border-color:#93c5fd;
+      box-shadow:0 0 0 4px rgba(37,99,235,.12);
+    }
+    button{
+      background:var(--primary);
+      color:#fff;
+      border:none;
+      font-weight:700;
+      cursor:pointer;
+      transition:.18s ease;
+    }
+    button:hover{background:var(--primary-dark)}
+    button.secondary{background:var(--secondary)}
+    button.gray{background:var(--gray)}
+    button.danger{background:var(--danger)}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .label{
+      font-size:12px;
+      font-weight:700;
+      margin:0 0 6px;
+      color:#374151;
+      text-transform:uppercase;
+      letter-spacing:.04em;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+    }
+    .muted{
+      color:var(--muted);
+      font-size:13px;
+    }
+    .images{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .images img{
+      width:96px;
+      height:96px;
+      object-fit:cover;
+      border-radius:10px;
+      border:1px solid #e5e7eb;
+      background:#fff;
+    }
+    pre{
+      background:#0f172a;
+      color:#e5e7eb;
+      padding:14px;
+      border-radius:12px;
+      overflow:auto;
+      font-size:12px;
+      white-space:pre-wrap;
+      min-height:220px;
+    }
+    .success{color:#065f46;font-weight:700}
+    .error{color:#991b1b;font-weight:700}
+    .warning{color:#92400e;font-weight:700}
+    .toolbar{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .toolbar .btn{
+      flex:1;
+      min-width:180px;
+    }
+    .meta-grid{
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:12px;
+      margin-top:10px;
+    }
+    .mini{
+      border:1px solid #e5e7eb;
+      border-radius:12px;
+      padding:12px;
+      background:#f8fafc;
+    }
+    .mini .k{
+      font-size:11px;
+      color:#6b7280;
+      font-weight:700;
+      text-transform:uppercase;
+      margin-bottom:6px;
+    }
+    .mini .v{
+      font-size:14px;
+      font-weight:700;
+      word-break:break-word;
+    }
+    .market-grid{
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:14px;
+    }
+    .market-card{
+      border:1px solid #e5e7eb;
+      border-radius:14px;
+      padding:14px;
+      background:#fafcff;
+    }
+    .market-top{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .market-title{
+      font-size:16px;
+      font-weight:800;
+    }
+    .chip{
+      display:inline-block;
+      border:1px solid #dbeafe;
+      background:#eff6ff;
+      color:#1d4ed8;
+      border-radius:999px;
+      padding:6px 10px;
+      font-size:12px;
+      font-weight:700;
+    }
+    .hint{
+      font-size:12px;
+      color:#6b7280;
+      margin-top:8px;
+      line-height:1.4;
+    }
+    .note{
+      background:#fff7ed;
+      border:1px solid #fed7aa;
+      color:#9a3412;
+      border-radius:12px;
+      padding:12px 14px;
+      font-size:13px;
+      line-height:1.45;
+      margin-top:12px;
+    }
+    .overlay{
+      position:fixed;
+      inset:0;
+      background:rgba(15,23,42,.55);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:9999;
+      backdrop-filter:blur(4px);
+    }
+    .overlay.show{display:flex}
+    .overlay-card{
+      background:#fff;
+      border-radius:20px;
+      padding:28px;
+      width:min(92vw,420px);
+      box-shadow:0 30px 80px rgba(0,0,0,.25);
+      text-align:center;
+    }
+    .spinner{
+      width:64px;
+      height:64px;
+      border-radius:50%;
+      border:6px solid #dbeafe;
+      border-top-color:#2563eb;
+      margin:0 auto 18px;
+      animation:spin 1s linear infinite;
+    }
+    @keyframes spin{
+      to{transform:rotate(360deg)}
+    }
+    .overlay-title{
+      font-size:20px;
+      font-weight:800;
+      margin-bottom:8px;
+      color:#111827;
+    }
+    .overlay-sub{
+      color:#6b7280;
+      font-size:14px;
+      line-height:1.45;
+    }
+    @media (max-width: 980px){
+      .grid{grid-template-columns:1fr}
+      .meta-grid{grid-template-columns:1fr 1fr}
+      .market-grid{grid-template-columns:1fr}
+    }
+    @media (max-width: 640px){
+      .meta-grid{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <div id="overlay" class="overlay">
+    <div class="overlay-card">
+      <div class="spinner"></div>
+      <div id="overlayTitle" class="overlay-title">Il sistema sta lavorando</div>
+      <div id="overlaySub" class="overlay-sub">Attendi qualche secondo...</div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="hero">
+      <div>
+        <h1>eBay Publisher Multi-Market</h1>
+        <p>
+          Pubblicazione simultanea su eBay IT / DE / FR / ES / GB.<br />
+          Le descrizioni vengono tradotte automaticamente per marketplace.<br />
+          Il titolo tradotto viene mostrato in preview/log, ma con Inventory API il titolo pubblicato resta condiviso dallo SKU.
+        </p>
+      </div>
+      <div class="status-badge">
+        <span id="heroDot" class="dot warn"></span>
+        <span id="heroStatusText">Verifica connessione eBay...</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Connessione eBay</h2>
+      <div class="toolbar" style="margin-bottom:14px;">
+        <div class="btn"><button id="connectBtn">Connetti a eBay</button></div>
+        <div class="btn"><button id="refreshConnBtn" class="secondary">Aggiorna stato connessione</button></div>
+        <div class="btn"><button id="disconnectBtn" class="danger">Disconnetti eBay</button></div>
+      </div>
+
+      <div id="connectionStatus" class="muted">Controllo connessione in corso...</div>
+
+      <div class="meta-grid">
+        <div class="mini">
+          <div class="k">Environment</div>
+          <div class="v" id="metaEnv">-</div>
+        </div>
+        <div class="mini">
+          <div class="k">Merchant Location</div>
+          <div class="v" id="metaLocation">-</div>
+        </div>
+        <div class="mini">
+          <div class="k">Token scadenza</div>
+          <div class="v" id="metaExpiry">-</div>
+        </div>
+        <div class="mini">
+          <div class="k">Mercati attivi</div>
+          <div class="v" id="metaMarkets">-</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Publisher</h2>
+      <div class="row">
+        <div class="col">
+          <div class="label">SKU Shopify</div>
+          <input id="sku" value="17-GELO-ZHRW" />
+        </div>
+        <div class="col">
+          <div class="label">Lingua sorgente prodotto</div>
+          <select id="sourceLanguage">
+            <option value="it" selected>Italiano</option>
+            <option value="en">Inglese</option>
+            <option value="de">Tedesco</option>
+            <option value="fr">Francese</option>
+            <option value="es">Spagnolo</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="toolbar" style="margin-top:12px;">
+        <div class="btn"><button id="loadBtn">Carica prodotto Shopify</button></div>
+        <div class="btn"><button id="suggestAllBtn" class="secondary">Suggerisci categorie per tutti i mercati</button></div>
+        <div class="btn"><button id="previewTranslationsBtn" class="secondary">Preview traduzioni</button></div>
+        <div class="btn"><button id="publishAllBtn" class="gray">Pubblica su tutti i mercati</button></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Dati prodotto Shopify</h2>
+      <div class="grid">
+        <div>
+          <div class="label">Titolo</div>
+          <textarea id="shopifyTitle" rows="2" readonly></textarea>
+        </div>
+        <div>
+          <div class="label">Categoria Shopify</div>
+          <textarea id="shopifyCategory" rows="2" readonly></textarea>
+        </div>
+        <div>
+          <div class="label">Product type</div>
+          <input id="shopifyProductType" readonly />
+        </div>
+        <div>
+          <div class="label">Vendor</div>
+          <input id="shopifyVendor" readonly />
+        </div>
+        <div>
+          <div class="label">Prezzo</div>
+          <input id="shopifyPrice" readonly />
+        </div>
+        <div>
+          <div class="label">Quantità</div>
+          <input id="shopifyQty" readonly />
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <div class="label">Descrizione</div>
+        <textarea id="shopifyDescription" rows="7" readonly></textarea>
+      </div>
+      <div style="margin-top:12px">
+        <div class="label">Immagini</div>
+        <div id="images" class="images"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Marketplace e categorie</h2>
+      <div id="marketGrid" class="market-grid"></div>
+      <div class="note">
+        Le categorie eBay sono diverse da marketplace a marketplace. Per questo il sistema suggerisce una categoria distinta per IT, DE, FR, ES e GB.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Log</h2>
+      <div id="status" class="muted">Pronto.</div>
+      <pre id="log"></pre>
+    </div>
+  </div>
+
+<script>
+const el = (id) => document.getElementById(id);
+
+let APP_CONFIG = null;
+let MARKETPLACES = [];
+
+function showOverlay(title, sub) {
+  el("overlayTitle").textContent = title || "Il sistema sta lavorando";
+  el("overlaySub").textContent = sub || "Attendi qualche secondo...";
+  el("overlay").classList.add("show");
+}
+
+function hideOverlay() {
+  el("overlay").classList.remove("show");
+}
+
+function setStatus(text, type = "success") {
+  const node = el("status");
+  node.textContent = text;
+  node.className =
+    type === "error" ? "error" :
+    type === "warning" ? "warning" :
+    "success";
+}
+
+function setLog(obj) {
+  el("log").textContent =
+    typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+}
+
+async function fetchJson(url, options = {}) {
+  const res = await fetch(url, options);
+  const data = await res.json();
+  if (!res.ok || data.ok === false) {
+    throw new Error(JSON.stringify(data));
+  }
+  return data;
+}
+
+function getSku() {
+  return el("sku").value.trim();
+}
+
+function getSourceLanguage() {
+  return el("sourceLanguage").value.trim();
+}
+
+function buildMarketCards() {
+  const grid = el("marketGrid");
+  grid.innerHTML = "";
+
+  MARKETPLACES.forEach((market) => {
+    const wrap = document.createElement("div");
+    wrap.className = "market-card";
+    wrap.innerHTML = `
+      <div class="market-top">
+        <div class="market-title">${market.label}</div>
+        <div class="chip">${market.marketplaceId} • ${market.locale}</div>
+      </div>
+
+      <div class="label">Categoria suggerita / selezionata</div>
+      <select id="select_${market.marketplaceId}"></select>
+
+      <div style="margin-top:10px" class="label">Category ID manuale</div>
+      <input id="manual_${market.marketplaceId}" placeholder="Opzionale: sovrascrivi categoryId" />
+
+      <div class="hint" id="hint_${market.marketplaceId}">
+        Nessuna categoria caricata.
+      </div>
+    `;
+    grid.appendChild(wrap);
+  });
+}
+
+function setConnectionUi(connection) {
+  const connected = Boolean(connection?.connected);
+  const heroDot = el("heroDot");
+  const heroStatusText = el("heroStatusText");
+  const connectionStatus = el("connectionStatus");
+
+  heroDot.className = connected ? "dot ok" : "dot bad";
+  heroStatusText.textContent = connected
+    ? "eBay account collegato"
+    : "eBay account non collegato";
+
+  connectionStatus.textContent = connected
+    ? "Connessione eBay attiva e persistente."
+    : "Connessione eBay assente. Clicca 'Connetti a eBay'.";
+
+  el("metaEnv").textContent = connection?.environment || "-";
+  el("metaExpiry").textContent = connection?.accessTokenExpiresAt || "-";
+}
+
+function setStaticMeta() {
+  el("metaLocation").textContent = APP_CONFIG?.merchantLocationKey || "-";
+  el("metaMarkets").textContent = MARKETPLACES.map((m) => m.marketplaceId.replace("EBAY_", "")).join(", ");
+}
+
+async function loadConfig() {
+  const data = await fetchJson("/ebay/config/public");
+  APP_CONFIG = data;
+  MARKETPLACES = data.marketplaces || [];
+  buildMarketCards();
+  setStaticMeta();
+}
+
+async function refreshConnection() {
+  try {
+    const data = await fetchJson("/ebay/connection");
+    setConnectionUi(data.connection);
+    return data;
+  } catch (err) {
+    setConnectionUi({ connected: false });
+    setLog(err.message);
+    return null;
+  }
+}
+
+async function loadShopifyProduct() {
+  const sku = getSku();
+  if (!sku) {
+    setStatus("Inserisci uno SKU.", "error");
+    return;
+  }
+
+  showOverlay("Caricamento prodotto", "Sto leggendo il prodotto da Shopify...");
+  setStatus("Caricamento prodotto Shopify...");
+  try {
+    const data = await fetchJson(`/ebay/shopify/product?sku=${encodeURIComponent(sku)}`);
+    const p = data.product;
+
+    el("shopifyTitle").value = p.title || "";
+    el("shopifyCategory").value = p.categoryFullName || "";
+    el("shopifyProductType").value = p.productType || "";
+    el("shopifyVendor").value = p.vendor || "";
+    el("shopifyPrice").value = String(p.price ?? "");
+    el("shopifyQty").value = String(p.inventoryQuantity ?? "");
+    el("shopifyDescription").value = p.descriptionText || "";
+
+    const images = el("images");
+    images.innerHTML = "";
+    (p.imageUrls || []).forEach((url) => {
+      const img = document.createElement("img");
+      img.src = url;
+      img.alt = "img";
+      images.appendChild(img);
+    });
+
+    setStatus("Prodotto Shopify caricato.");
+    setLog(data);
+  } catch (err) {
+    setStatus("Errore caricamento Shopify.", "error");
+    setLog(err.message);
+  } finally {
+    hideOverlay();
+  }
+}
+
+async function suggestAllCategories() {
+  const sku = getSku();
+  if (!sku) {
+    setStatus("Inserisci uno SKU.", "error");
+    return;
+  }
+
+  showOverlay("Ricerca categorie", "Sto cercando la categoria eBay migliore per ogni marketplace...");
+  setStatus("Ricerca categorie multi-market...");
+  try {
+    const data = await fetchJson(`/ebay/category/suggest-all?sku=${encodeURIComponent(sku)}`);
+
+    MARKETPLACES.forEach((market) => {
+      const result = data.results?.[market.marketplaceId];
+      const select = el(`select_${market.marketplaceId}`);
+      const hint = el(`hint_${market.marketplaceId}`);
+      select.innerHTML = "";
+
+      if (!result?.ok) {
+        hint.textContent = `Errore suggerimento: ${JSON.stringify(result?.error || "unknown")}`;
+        return;
+      }
+
+      const suggestions = result?.suggestion?.suggestions || [];
+      suggestions.forEach((row) => {
+        const opt = document.createElement("option");
+        opt.value = row.categoryId;
+        opt.textContent = `${row.categoryName} [${row.categoryId}]`;
+        select.appendChild(opt);
+      });
+
+      hint.textContent = suggestions.length
+        ? `${suggestions.length} categorie suggerite per ${market.site}.`
+        : `Nessuna categoria suggerita per ${market.site}.`;
+    });
+
+    setStatus("Categorie caricate per tutti i mercati.");
+    setLog(data);
+  } catch (err) {
+    setStatus("Errore suggerimento categorie.", "error");
+    setLog(err.message);
+  } finally {
+    hideOverlay();
+  }
+}
+
+function buildCategoryMap() {
+  const categoryMap = {};
+  MARKETPLACES.forEach((market) => {
+    const manual = el(`manual_${market.marketplaceId}`).value.trim();
+    const selected = el(`select_${market.marketplaceId}`).value.trim();
+    categoryMap[market.marketplaceId] = manual || selected || "";
+  });
+  return categoryMap;
+}
+
+async function previewTranslations() {
+  const sku = getSku();
+  const sourceLanguage = getSourceLanguage();
+
+  if (!sku) {
+    setStatus("Inserisci uno SKU.", "error");
+    return;
+  }
+
+  showOverlay("Preview traduzioni", "Sto traducendo titolo e descrizione per tutti i marketplace...");
+  setStatus("Preview traduzioni in corso...");
+  try {
+    const data = await fetchJson(
+      `/ebay/translation/preview?sku=${encodeURIComponent(sku)}&sourceLanguage=${encodeURIComponent(sourceLanguage)}`
+    );
+
+    setStatus("Preview traduzioni completata.");
+    setLog(data);
+  } catch (err) {
+    setStatus("Errore preview traduzioni.", "error");
+    setLog(err.message);
+  } finally {
+    hideOverlay();
+  }
+}
+
+async function publishAllMarkets() {
+  const sku = getSku();
+  const sourceLanguage = getSourceLanguage();
+  const categoryMap = buildCategoryMap();
+
+  if (!sku) {
+    setStatus("Inserisci uno SKU.", "error");
+    return;
+  }
+
+  const missing = MARKETPLACES.filter((m) => !categoryMap[m.marketplaceId]);
+  if (missing.length) {
+    setStatus(
+      `Mancano categoryId per: ${missing.map((m) => m.marketplaceId).join(", ")}`,
+      "error"
+    );
+    return;
+  }
+
+  showOverlay(
+    "Pubblicazione multi-market",
+    "Sto creando/aggiornando gli offer e pubblicando su IT, DE, FR, ES e GB..."
+  );
+  setStatus("Pubblicazione multi-market in corso...");
+  try {
+    const data = await fetchJson("/ebay/publish/multi", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        sku,
+        sourceLanguage,
+        categoryMap
+      })
+    });
+
+    setStatus(data.ok ? "Pubblicazione completata." : "Pubblicazione completata con errori.", data.ok ? "success" : "warning");
+    setLog(data);
+    await refreshConnection();
+  } catch (err) {
+    setStatus("Errore pubblicazione multi-market.", "error");
+    setLog(err.message);
+    await refreshConnection();
+  } finally {
+    hideOverlay();
+  }
+}
+
+el("connectBtn").addEventListener("click", () => {
+  showOverlay("Connessione a eBay", "Sto aprendo il flusso OAuth di eBay...");
+  window.location.href = "/ebay/oauth/start";
+});
+
+el("refreshConnBtn").addEventListener("click", async () => {
+  showOverlay("Controllo connessione", "Sto verificando lo stato dell'account eBay...");
+  try {
+    await refreshConnection();
+    setStatus("Stato connessione aggiornato.");
+  } catch (err) {
+    setStatus("Errore controllo connessione.", "error");
+  } finally {
+    hideOverlay();
+  }
+});
+
+el("disconnectBtn").addEventListener("click", async () => {
+  if (!confirm("Vuoi davvero disconnettere l'account eBay?")) return;
+
+  showOverlay("Disconnessione", "Sto rimuovendo i token eBay salvati...");
+  try {
+    const data = await fetchJson("/ebay/disconnect");
+    setStatus("Account eBay disconnesso.");
+    setLog(data);
+    await refreshConnection();
+  } catch (err) {
+    setStatus("Errore disconnessione eBay.", "error");
+    setLog(err.message);
+  } finally {
+    hideOverlay();
+  }
+});
+
+el("loadBtn").addEventListener("click", loadShopifyProduct);
+el("suggestAllBtn").addEventListener("click", suggestAllCategories);
+el("previewTranslationsBtn").addEventListener("click", previewTranslations);
+el("publishAllBtn").addEventListener("click", publishAllMarkets);
+
+(async function init() {
+  try {
+    showOverlay("Inizializzazione", "Sto preparando l'interfaccia del publisher...");
+    await loadConfig();
+    await refreshConnection();
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("connected") === "1") {
+      setStatus("eBay collegato con successo.");
+    }
+    if (params.get("error") === "oauth") {
+      setStatus("Errore nel callback OAuth eBay.", "error");
+    }
+  } catch (err) {
+    setStatus("Errore inizializzazione interfaccia.", "error");
+    setLog(err.message);
+  } finally {
+    hideOverlay();
+  }
+})();
+</script>
+</body>
+</html>
