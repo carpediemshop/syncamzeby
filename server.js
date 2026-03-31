@@ -14,14 +14,16 @@ import {
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 
-app.use(express.json());
-
-// =========================
-// PATHS / FILES
-// =========================
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// =========================
+// EXPRESS
+// =========================
+
+app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true }));
+app.use("/public", express.static(path.join(__dirname, "public")));
 
 // =========================
 // ENV
@@ -42,7 +44,7 @@ const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID;
 const SHOPIFY_CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET;
 const SHOPIFY_LOCATION_ID = process.env.SHOPIFY_LOCATION_ID;
 
-// App base
+// Base URL
 const APP_BASE_URL = (
   process.env.APP_BASE_URL || "https://syncamzeby.onrender.com"
 ).replace(/\/+$/, "");
@@ -83,17 +85,65 @@ const EBAY_STATE_FILE = path.join(EBAY_STATE_DIR, "ebay-connection.json");
 const AUTO_POLL_SQS = String(process.env.AUTO_POLL_SQS || "false") === "true";
 const SQS_POLL_INTERVAL_MS = Number(process.env.SQS_POLL_INTERVAL_MS || 20000);
 
+// APIs
 const AMAZON_SP_API_BASE = "https://sellingpartnerapi-eu.amazon.com";
-
 const EBAY_AUTH_BASE =
   EBAY_ENVIRONMENT === "sandbox"
     ? "https://auth.sandbox.ebay.com"
     : "https://auth.ebay.com";
-
 const EBAY_API_BASE =
   EBAY_ENVIRONMENT === "sandbox"
     ? "https://api.sandbox.ebay.com"
     : "https://api.ebay.com";
+
+// =========================
+// MARKETPLACES / LOCALES
+// =========================
+
+const MARKETPLACES = [
+  {
+    marketplaceId: "EBAY_IT",
+    site: "ebay.it",
+    locale: "it-IT",
+    language: "it",
+    label: "Italia",
+  },
+  {
+    marketplaceId: "EBAY_DE",
+    site: "ebay.de",
+    locale: "de-DE",
+    language: "de",
+    label: "Germania",
+  },
+  {
+    marketplaceId: "EBAY_FR",
+    site: "ebay.fr",
+    locale: "fr-FR",
+    language: "fr",
+    label: "Francia",
+  },
+  {
+    marketplaceId: "EBAY_ES",
+    site: "ebay.es",
+    locale: "es-ES",
+    language: "es",
+    label: "Spagna",
+  },
+  {
+    marketplaceId: "EBAY_GB",
+    site: "ebay.co.uk",
+    locale: "en-GB",
+    language: "en",
+    label: "Regno Unito",
+  },
+];
+
+function getMarketplaceMeta(marketplaceId) {
+  return (
+    MARKETPLACES.find((m) => m.marketplaceId === String(marketplaceId || "").trim()) ||
+    null
+  );
+}
 
 // =========================
 // IN-MEMORY STATE
@@ -279,8 +329,28 @@ function normalizeMoney(value) {
   return Number.isFinite(n) ? Number(n.toFixed(2)) : 0;
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function cleanHtmlForEbay(html = "") {
+  return String(html || "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .trim();
+}
+
+function escapeHtml(value = "") {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function getRequestedMarketplaceId(req) {
+  return String(req.query.marketplaceId || EBAY_DEFAULT_MARKETPLACE_ID);
+}
+
+function getSourceLanguage(input) {
+  const lang = String(input || "it").trim().toLowerCase();
+  return ["it", "de", "fr", "es", "en"].includes(lang) ? lang : "it";
 }
 
 // =========================
@@ -566,8 +636,76 @@ async function ebayPostNoBody(
   };
 }
 
-function getRequestedMarketplaceId(req) {
-  return String(req.query.marketplaceId || EBAY_DEFAULT_MARKETPLACE_ID);
+// =========================
+// EBAY TRANSLATION
+// =========================
+
+async function translateTextWithEbay({
+  from,
+  to,
+  text,
+  translationContext,
+}) {
+  const original = String(text || "").trim();
+  if (!original) return "";
+
+  if (from === to) return original;
+
+  const appToken = await getEbayApplicationAccessToken();
+
+  const response = await axios.post(
+    `${EBAY_API_BASE}/commerce/translation/v1_beta/translate`,
+    {
+      from,
+      to,
+      text: [original],
+      translationContext,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${appToken}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+    }
+  );
+
+  return response.data?.translations?.[0]?.translatedText || original;
+}
+
+async function buildMarketplaceTranslations({
+  sourceLanguage,
+  title,
+  descriptionHtml,
+}) {
+  const result = {};
+
+  for (const market of MARKETPLACES) {
+    const translatedTitle = await translateTextWithEbay({
+      from: sourceLanguage,
+      to: market.language,
+      text: title,
+      translationContext: "ITEM_TITLE",
+    });
+
+    const translatedDescription = await translateTextWithEbay({
+      from: sourceLanguage,
+      to: market.language,
+      text: descriptionHtml,
+      translationContext: "ITEM_DESCRIPTION",
+    });
+
+    result[market.marketplaceId] = {
+      marketplaceId: market.marketplaceId,
+      locale: market.locale,
+      language: market.language,
+      site: market.site,
+      translatedTitle,
+      translatedDescription,
+    };
+  }
+
+  return result;
 }
 
 // =========================
@@ -818,6 +956,7 @@ async function getShopifyVariantBySku(sku) {
           price
           inventoryQuantity
           title
+          barcode
           selectedOptions {
             name
             value
@@ -828,6 +967,7 @@ async function getShopifyVariantBySku(sku) {
             descriptionHtml
             vendor
             productType
+            onlineStoreUrl
             category {
               fullName
             }
@@ -854,13 +994,12 @@ async function getShopifyVariantBySku(sku) {
     .map((img) => img?.url)
     .filter(Boolean);
 
-  const descriptionText = truncateText(
-    stripHtml(variant.product?.descriptionHtml || ""),
-    4000
-  );
+  const descriptionHtml = cleanHtmlForEbay(variant.product?.descriptionHtml || "");
+  const descriptionText = truncateText(stripHtml(descriptionHtml), 4000);
 
   return {
     sku: variant.sku,
+    barcode: variant.barcode || "",
     price: normalizeMoney(variant.price),
     inventoryQuantity: Number(variant.inventoryQuantity || 0),
     variantTitle: variant.title || "",
@@ -868,9 +1007,11 @@ async function getShopifyVariantBySku(sku) {
     product: {
       id: variant.product?.id || null,
       title: variant.product?.title || "",
+      descriptionHtml,
       descriptionText,
       vendor: variant.product?.vendor || "",
       productType: variant.product?.productType || "",
+      onlineStoreUrl: variant.product?.onlineStoreUrl || "",
       categoryFullName: variant.product?.category?.fullName || "",
       imageUrls: images,
     },
@@ -933,7 +1074,7 @@ function buildInventoryItemPayload(shopifyVariant) {
     throw new Error("Shopify product has no images. eBay publish requires images.");
   }
 
-  return {
+  const payload = {
     availability: {
       shipToLocationAvailability: {
         quantity: Math.max(0, Number(shopifyVariant?.inventoryQuantity || 0)),
@@ -947,6 +1088,12 @@ function buildInventoryItemPayload(shopifyVariant) {
       imageUrls,
     },
   };
+
+  if (shopifyVariant?.barcode) {
+    payload.product.ean = [String(shopifyVariant.barcode)];
+  }
+
+  return payload;
 }
 
 async function createOrReplaceInventoryItem({ sku, payload }) {
@@ -959,9 +1106,44 @@ async function createOrReplaceInventoryItem({ sku, payload }) {
   );
 }
 
+async function getOffersBySkuMarketplace({ sku, marketplaceId }) {
+  const accessToken = await ensureValidEbayAccessToken();
+
+  const result = await ebayGet(
+    "/sell/inventory/v1/offer",
+    accessToken,
+    {
+      sku,
+      marketplace_id: marketplaceId,
+      format: EBAY_DEFAULT_FORMAT,
+    }
+  );
+
+  return result?.offers || [];
+}
+
 async function createOffer({ payload }) {
   const accessToken = await ensureValidEbayAccessToken();
   return ebayPost("/sell/inventory/v1/offer", accessToken, payload);
+}
+
+async function updateOffer({ offerId, payload }) {
+  const accessToken = await ensureValidEbayAccessToken();
+
+  const response = await axios.put(
+    `${EBAY_API_BASE}/sell/inventory/v1/offer/${encodeURIComponent(offerId)}`,
+    payload,
+    {
+      headers: buildEbayApiHeaders(accessToken),
+      validateStatus: (status) => status >= 200 && status < 300,
+    }
+  );
+
+  return {
+    status: response.status,
+    data: response.data,
+    headers: response.headers,
+  };
 }
 
 async function publishOffer({ offerId }) {
@@ -980,6 +1162,8 @@ function buildOfferPayload({
   marketplaceId,
   categoryId,
   policyIds,
+  listingDescription,
+  locale,
 }) {
   if (!policyIds?.paymentPolicyId) {
     throw new Error("Missing paymentPolicyId");
@@ -1013,26 +1197,79 @@ function buildOfferPayload({
       fulfillmentPolicyId: policyIds.fulfillmentPolicyId,
     },
     listingDuration: EBAY_DEFAULT_LISTING_DURATION,
+    listingDescription: cleanHtmlForEbay(listingDescription || ""),
+    locale,
   };
 }
 
-async function publishSkuToEbay({
+async function upsertOfferForMarketplace({
   sku,
-  marketplaceId = EBAY_DEFAULT_MARKETPLACE_ID,
+  price,
+  quantity,
+  marketplaceId,
   categoryId,
+  translatedDescription,
+  locale,
+}) {
+  const policies = await getAllEbayPolicies(marketplaceId);
+  const policyIds = pickDefaultPolicyIds(policies);
+
+  const payload = buildOfferPayload({
+    sku,
+    price,
+    quantity,
+    marketplaceId,
+    categoryId,
+    policyIds,
+    listingDescription: translatedDescription,
+    locale,
+  });
+
+  const existingOffers = await getOffersBySkuMarketplace({ sku, marketplaceId });
+  const existing = existingOffers[0] || null;
+
+  if (existing?.offerId) {
+    const updateResult = await updateOffer({
+      offerId: existing.offerId,
+      payload,
+    });
+
+    return {
+      mode: "updated",
+      offerId: existing.offerId,
+      payload,
+      updateResult,
+    };
+  }
+
+  const createResult = await createOffer({ payload });
+  const offerId = createResult?.offerId;
+
+  if (!offerId) {
+    throw new Error(
+      `Offer create response missing offerId for ${marketplaceId}: ${JSON.stringify(
+        createResult
+      )}`
+    );
+  }
+
+  return {
+    mode: "created",
+    offerId,
+    payload,
+    createResult,
+  };
+}
+
+async function publishSkuToMultipleEbayMarkets({
+  sku,
+  sourceLanguage = "it",
+  categoryMap = {},
 }) {
   const shopifyVariant = await getShopifyVariantBySku(sku);
   if (!shopifyVariant) {
     throw new Error(`Shopify SKU not found: ${sku}`);
   }
-
-  const selectedCategoryId = String(categoryId || "").trim();
-  if (!selectedCategoryId) {
-    throw new Error("Missing categoryId");
-  }
-
-  const policies = await getAllEbayPolicies(marketplaceId);
-  const policyIds = pickDefaultPolicyIds(policies);
 
   const inventoryItemPayload = buildInventoryItemPayload(shopifyVariant);
   const inventoryItemResult = await createOrReplaceInventoryItem({
@@ -1040,46 +1277,86 @@ async function publishSkuToEbay({
     payload: inventoryItemPayload,
   });
 
-  const offerPayload = buildOfferPayload({
-    sku,
-    price: shopifyVariant.price,
-    quantity: shopifyVariant.inventoryQuantity,
-    marketplaceId,
-    categoryId: selectedCategoryId,
-    policyIds,
+  const translations = await buildMarketplaceTranslations({
+    sourceLanguage,
+    title: inventoryItemPayload.product.title,
+    descriptionHtml:
+      shopifyVariant.product.descriptionHtml || shopifyVariant.product.descriptionText,
   });
 
-  const offerResult = await createOffer({ payload: offerPayload });
-  const offerId = offerResult?.offerId;
+  const marketsResult = [];
 
-  if (!offerId) {
-    throw new Error(
-      `Offer created response missing offerId: ${JSON.stringify(offerResult)}`
-    );
+  for (const market of MARKETPLACES) {
+    const categoryId = String(categoryMap?.[market.marketplaceId] || "").trim();
+
+    if (!categoryId) {
+      marketsResult.push({
+        marketplaceId: market.marketplaceId,
+        locale: market.locale,
+        site: market.site,
+        ok: false,
+        error: "missing categoryId for marketplace",
+      });
+      continue;
+    }
+
+    try {
+      const translation = translations[market.marketplaceId];
+      const upsert = await upsertOfferForMarketplace({
+        sku,
+        price: shopifyVariant.price,
+        quantity: shopifyVariant.inventoryQuantity,
+        marketplaceId: market.marketplaceId,
+        categoryId,
+        translatedDescription: translation.translatedDescription,
+        locale: market.locale,
+      });
+
+      const publishResult = await publishOffer({ offerId: upsert.offerId });
+
+      marketsResult.push({
+        marketplaceId: market.marketplaceId,
+        locale: market.locale,
+        site: market.site,
+        ok: true,
+        categoryId,
+        translatedTitlePreview: translation.translatedTitle,
+        translatedDescriptionPreview: translation.translatedDescription,
+        offerMode: upsert.mode,
+        offerId: upsert.offerId,
+        publishResult,
+      });
+    } catch (error) {
+      marketsResult.push({
+        marketplaceId: market.marketplaceId,
+        locale: market.locale,
+        site: market.site,
+        ok: false,
+        categoryId,
+        error: error.response?.data || error.message,
+      });
+    }
   }
 
-  const publishResult = await publishOffer({ offerId });
-
   return {
-    ok: true,
+    ok: marketsResult.every((m) => m.ok),
     sku,
-    marketplaceId,
-    merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
+    note:
+      "Inventory API usa un titolo condiviso sull'inventory item; la descrizione viene localizzata per marketplace. Il titolo tradotto qui è preview/log.",
     shopify: {
       title: shopifyVariant.product.title,
-      price: shopifyVariant.price,
-      inventoryQuantity: shopifyVariant.inventoryQuantity,
+      descriptionText: shopifyVariant.product.descriptionText,
       vendor: shopifyVariant.product.vendor,
       productType: shopifyVariant.product.productType,
       categoryFullName: shopifyVariant.product.categoryFullName,
+      price: shopifyVariant.price,
+      inventoryQuantity: shopifyVariant.inventoryQuantity,
       imageCount: shopifyVariant.product.imageUrls.length,
     },
-    selectedPolicies: policyIds,
     inventoryItemPayload,
     inventoryItemResult,
-    offerPayload,
-    offerResult,
-    publishResult,
+    translations,
+    markets: marketsResult,
   };
 }
 
@@ -1647,668 +1924,25 @@ async function pollSqsOnce() {
 }
 
 // =========================
-// UI HTML
+// UI / STATIC HTML
 // =========================
 
-function renderEbayPublisherHtml() {
-  return `<!doctype html>
-<html lang="it">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>SyncAmzEby - Publisher eBay</title>
-  <style>
-    :root{
-      --bg:#0b1220;
-      --panel:#ffffff;
-      --text:#111827;
-      --muted:#6b7280;
-      --line:#e5e7eb;
-      --primary:#2563eb;
-      --primary-dark:#1d4ed8;
-      --ok:#047857;
-      --bad:#b91c1c;
-      --warn:#b45309;
-      --shadow:0 10px 30px rgba(0,0,0,.08);
-      --radius:16px;
-    }
-    *{box-sizing:border-box}
-    body{
-      font-family:Arial,sans-serif;
-      background:#f4f7fb;
-      margin:0;
-      color:var(--text);
-    }
-    .wrap{
-      max-width:1180px;
-      margin:24px auto;
-      padding:0 16px 60px;
-    }
-    .hero{
-      background:linear-gradient(135deg,#0f172a,#1e3a8a);
-      color:#fff;
-      border-radius:22px;
-      padding:24px;
-      margin-bottom:18px;
-      box-shadow:var(--shadow);
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-start;
-      gap:20px;
-      flex-wrap:wrap;
-    }
-    .hero h1{
-      margin:0 0 8px;
-      font-size:32px;
-    }
-    .hero p{
-      margin:0;
-      color:#dbeafe;
-      font-size:14px;
-    }
-    .status-badge{
-      display:inline-flex;
-      align-items:center;
-      gap:10px;
-      background:rgba(255,255,255,.12);
-      padding:12px 16px;
-      border-radius:999px;
-      font-weight:700;
-      min-height:46px;
-    }
-    .dot{
-      width:10px;
-      height:10px;
-      border-radius:50%;
-      background:#f59e0b;
-      display:inline-block;
-    }
-    .dot.ok{background:#22c55e}
-    .dot.bad{background:#ef4444}
-    .dot.warn{background:#f59e0b}
-
-    .card{
-      background:var(--panel);
-      border-radius:var(--radius);
-      padding:20px;
-      box-shadow:var(--shadow);
-      margin-bottom:18px;
-      border:1px solid var(--line);
-    }
-    h2{
-      margin:0 0 14px;
-      font-size:20px;
-    }
-    .row{
-      display:flex;
-      gap:12px;
-      flex-wrap:wrap;
-    }
-    .col{
-      flex:1;
-      min-width:240px;
-    }
-    input,select,button,textarea{
-      width:100%;
-      box-sizing:border-box;
-      padding:12px;
-      border-radius:12px;
-      border:1px solid #d1d5db;
-      font-size:14px;
-      background:#fff;
-    }
-    textarea{
-      resize:vertical;
-      min-height:44px;
-    }
-    input:focus,select:focus,textarea:focus{
-      outline:none;
-      border-color:#93c5fd;
-      box-shadow:0 0 0 4px rgba(37,99,235,.12);
-    }
-    button{
-      background:var(--primary);
-      color:#fff;
-      border:none;
-      font-weight:700;
-      cursor:pointer;
-      transition:.18s ease;
-    }
-    button:hover{background:var(--primary-dark)}
-    button.secondary{background:#111827}
-    button.gray{background:#6b7280}
-    button.danger{background:#b91c1c}
-    button:disabled{opacity:.6;cursor:not-allowed}
-    .label{
-      font-size:12px;
-      font-weight:700;
-      margin:0 0 6px;
-      color:#374151;
-      text-transform:uppercase;
-      letter-spacing:.04em;
-    }
-    .grid{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:12px;
-    }
-    .muted{
-      color:var(--muted);
-      font-size:13px;
-    }
-    .images{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-    }
-    .images img{
-      width:96px;
-      height:96px;
-      object-fit:cover;
-      border-radius:10px;
-      border:1px solid #e5e7eb;
-      background:#fff;
-    }
-    pre{
-      background:#0f172a;
-      color:#e5e7eb;
-      padding:14px;
-      border-radius:12px;
-      overflow:auto;
-      font-size:12px;
-      white-space:pre-wrap;
-      min-height:180px;
-    }
-    .success{color:#065f46;font-weight:700}
-    .error{color:#991b1b;font-weight:700}
-    .warning{color:#92400e;font-weight:700}
-    .toolbar{
-      display:flex;
-      gap:12px;
-      flex-wrap:wrap;
-    }
-    .toolbar .btn{
-      flex:1;
-      min-width:180px;
-    }
-    .meta-grid{
-      display:grid;
-      grid-template-columns:repeat(4,1fr);
-      gap:12px;
-      margin-top:10px;
-    }
-    .mini{
-      border:1px solid #e5e7eb;
-      border-radius:12px;
-      padding:12px;
-      background:#f8fafc;
-    }
-    .mini .k{
-      font-size:11px;
-      color:#6b7280;
-      font-weight:700;
-      text-transform:uppercase;
-      margin-bottom:6px;
-    }
-    .mini .v{
-      font-size:14px;
-      font-weight:700;
-      word-break:break-word;
-    }
-
-    .overlay{
-      position:fixed;
-      inset:0;
-      background:rgba(15,23,42,.55);
-      display:none;
-      align-items:center;
-      justify-content:center;
-      z-index:9999;
-      backdrop-filter:blur(4px);
-    }
-    .overlay.show{display:flex}
-    .overlay-card{
-      background:#fff;
-      border-radius:20px;
-      padding:28px;
-      width:min(92vw,420px);
-      box-shadow:0 30px 80px rgba(0,0,0,.25);
-      text-align:center;
-    }
-    .spinner{
-      width:64px;
-      height:64px;
-      border-radius:50%;
-      border:6px solid #dbeafe;
-      border-top-color:#2563eb;
-      margin:0 auto 18px;
-      animation:spin 1s linear infinite;
-    }
-    @keyframes spin{
-      to{transform:rotate(360deg)}
-    }
-    .overlay-title{
-      font-size:20px;
-      font-weight:800;
-      margin-bottom:8px;
-      color:#111827;
-    }
-    .overlay-sub{
-      color:#6b7280;
-      font-size:14px;
-      line-height:1.45;
-    }
-
-    @media (max-width: 900px){
-      .grid{grid-template-columns:1fr}
-      .meta-grid{grid-template-columns:1fr 1fr}
-    }
-    @media (max-width: 640px){
-      .meta-grid{grid-template-columns:1fr}
-    }
-  </style>
-</head>
-<body>
-  <div id="overlay" class="overlay">
-    <div class="overlay-card">
-      <div class="spinner"></div>
-      <div id="overlayTitle" class="overlay-title">Il sistema sta lavorando</div>
-      <div id="overlaySub" class="overlay-sub">Attendi qualche secondo...</div>
-    </div>
-  </div>
-
-  <div class="wrap">
-    <div class="hero">
-      <div>
-        <h1>Publisher eBay</h1>
-        <p>SyncAmzEby • pubblicazione prodotti Shopify su eBay con connessione persistente</p>
-      </div>
-      <div class="status-badge">
-        <span id="heroDot" class="dot warn"></span>
-        <span id="heroStatusText">Verifica connessione eBay...</span>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Connessione eBay</h2>
-
-      <div class="toolbar" style="margin-bottom:14px;">
-        <div class="btn"><button id="connectBtn">Connetti a eBay</button></div>
-        <div class="btn"><button id="refreshConnBtn" class="secondary">Aggiorna stato connessione</button></div>
-        <div class="btn"><button id="disconnectBtn" class="danger">Disconnetti eBay</button></div>
-      </div>
-
-      <div id="connectionStatus" class="muted">Controllo connessione in corso...</div>
-
-      <div class="meta-grid">
-        <div class="mini">
-          <div class="k">Environment</div>
-          <div class="v" id="metaEnv">-</div>
-        </div>
-        <div class="mini">
-          <div class="k">Marketplace</div>
-          <div class="v" id="metaMarketplace">${EBAY_DEFAULT_MARKETPLACE_ID}</div>
-        </div>
-        <div class="mini">
-          <div class="k">Merchant Location</div>
-          <div class="v" id="metaLocation">${EBAY_MERCHANT_LOCATION_KEY}</div>
-        </div>
-        <div class="mini">
-          <div class="k">Token scadenza</div>
-          <div class="v" id="metaExpiry">-</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Publisher</h2>
-      <div class="row">
-        <div class="col">
-          <div class="label">SKU Shopify</div>
-          <input id="sku" value="17-GELO-ZHRW" />
-        </div>
-        <div class="col">
-          <div class="label">Marketplace</div>
-          <input id="marketplaceId" value="${EBAY_DEFAULT_MARKETPLACE_ID}" />
-        </div>
-      </div>
-      <div class="row" style="margin-top:12px">
-        <div class="col"><button id="loadBtn">Carica prodotto Shopify</button></div>
-        <div class="col"><button id="suggestBtn" class="secondary">Suggerisci categoria eBay</button></div>
-        <div class="col"><button id="publishBtn" class="gray">Pubblica su eBay</button></div>
-      </div>
-      <p class="muted" style="margin-top:12px">
-        Prezzo eBay = Shopify, condizione = ${EBAY_DEFAULT_CONDITION}, formato = ${EBAY_DEFAULT_FORMAT}, durata = ${EBAY_DEFAULT_LISTING_DURATION}, location = ${EBAY_MERCHANT_LOCATION_KEY}
-      </p>
-    </div>
-
-    <div class="card">
-      <h2>Dati prodotto Shopify</h2>
-      <div class="grid">
-        <div>
-          <div class="label">Titolo</div>
-          <textarea id="shopifyTitle" rows="2" readonly></textarea>
-        </div>
-        <div>
-          <div class="label">Categoria Shopify</div>
-          <textarea id="shopifyCategory" rows="2" readonly></textarea>
-        </div>
-        <div>
-          <div class="label">Product type</div>
-          <input id="shopifyProductType" readonly />
-        </div>
-        <div>
-          <div class="label">Vendor</div>
-          <input id="shopifyVendor" readonly />
-        </div>
-        <div>
-          <div class="label">Prezzo</div>
-          <input id="shopifyPrice" readonly />
-        </div>
-        <div>
-          <div class="label">Quantità</div>
-          <input id="shopifyQty" readonly />
-        </div>
-      </div>
-      <div style="margin-top:12px">
-        <div class="label">Descrizione</div>
-        <textarea id="shopifyDescription" rows="6" readonly></textarea>
-      </div>
-      <div style="margin-top:12px">
-        <div class="label">Immagini</div>
-        <div id="images" class="images"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Categoria eBay</h2>
-      <div class="row">
-        <div class="col">
-          <div class="label">Categoria suggerita / selezionata</div>
-          <select id="categorySelect"></select>
-        </div>
-        <div class="col">
-          <div class="label">Category ID manuale</div>
-          <input id="manualCategoryId" placeholder="Opzionale: sovrascrivi categoryId" />
-        </div>
-      </div>
-      <p class="muted" id="categoryInfo">Nessuna categoria caricata.</p>
-    </div>
-
-    <div class="card">
-      <h2>Log</h2>
-      <div id="status" class="muted">Pronto.</div>
-      <pre id="log"></pre>
-    </div>
-  </div>
-
-<script>
-const el = (id) => document.getElementById(id);
-
-function showOverlay(title, sub) {
-  el("overlayTitle").textContent = title || "Il sistema sta lavorando";
-  el("overlaySub").textContent = sub || "Attendi qualche secondo...";
-  el("overlay").classList.add("show");
-}
-
-function hideOverlay() {
-  el("overlay").classList.remove("show");
-}
-
-function setStatus(text, type = "success") {
-  const node = el("status");
-  node.textContent = text;
-  node.className =
-    type === "error" ? "error" :
-    type === "warning" ? "warning" :
-    "success";
-}
-
-function setLog(obj) {
-  el("log").textContent =
-    typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
-}
-
-function getSku() {
-  return el("sku").value.trim();
-}
-
-function getMarketplaceId() {
-  return el("marketplaceId").value.trim();
-}
-
-function selectedCategoryId() {
-  const manual = el("manualCategoryId").value.trim();
-  if (manual) return manual;
-  return el("categorySelect").value.trim();
-}
-
-async function fetchJson(url, options = {}) {
-  const res = await fetch(url, options);
-  const data = await res.json();
-  if (!res.ok || data.ok === false) {
-    throw new Error(JSON.stringify(data));
-  }
-  return data;
-}
-
-function setConnectionUi(connection) {
-  const connected = Boolean(connection?.connected);
-  const heroDot = el("heroDot");
-  const heroStatusText = el("heroStatusText");
-  const connectionStatus = el("connectionStatus");
-  const metaEnv = el("metaEnv");
-  const metaExpiry = el("metaExpiry");
-
-  heroDot.className = connected ? "dot ok" : "dot bad";
-  heroStatusText.textContent = connected
-    ? "eBay account collegato"
-    : "eBay account non collegato";
-
-  connectionStatus.textContent = connected
-    ? "Connessione eBay attiva e salvata in modo persistente."
-    : "Connessione eBay assente. Clicca 'Connetti a eBay'.";
-
-  metaEnv.textContent = connection?.environment || "-";
-  metaExpiry.textContent = connection?.accessTokenExpiresAt || "-";
-}
-
-async function refreshConnection() {
-  try {
-    const data = await fetchJson("/ebay/connection");
-    setConnectionUi(data.connection);
-    return data;
-  } catch (err) {
-    setConnectionUi({ connected: false });
-    setLog(err.message);
-    return null;
-  }
-}
-
-async function loadShopifyProduct() {
-  const sku = getSku();
-  if (!sku) {
-    setStatus("Inserisci uno SKU.", "error");
-    return;
-  }
-
-  showOverlay("Caricamento prodotto", "Sto leggendo il prodotto da Shopify...");
-  setStatus("Caricamento prodotto Shopify...");
-  try {
-    const data = await fetchJson(\`/ebay/shopify/product?sku=\${encodeURIComponent(sku)}\`);
-    const p = data.product;
-
-    el("shopifyTitle").value = p.title || "";
-    el("shopifyCategory").value = p.categoryFullName || "";
-    el("shopifyProductType").value = p.productType || "";
-    el("shopifyVendor").value = p.vendor || "";
-    el("shopifyPrice").value = String(p.price ?? "");
-    el("shopifyQty").value = String(p.inventoryQuantity ?? "");
-    el("shopifyDescription").value = p.descriptionText || "";
-
-    const images = el("images");
-    images.innerHTML = "";
-    (p.imageUrls || []).forEach((url) => {
-      const img = document.createElement("img");
-      img.src = url;
-      img.alt = "img";
-      images.appendChild(img);
-    });
-
-    setStatus("Prodotto Shopify caricato.");
-    setLog(data);
-  } catch (err) {
-    setStatus("Errore caricamento Shopify.", "error");
-    setLog(err.message);
-  } finally {
-    hideOverlay();
-  }
-}
-
-async function suggestCategory() {
-  const sku = getSku();
-  const marketplaceId = getMarketplaceId();
-
-  if (!sku) {
-    setStatus("Inserisci uno SKU.", "error");
-    return;
-  }
-
-  showOverlay("Ricerca categorie", "Sto cercando la categoria eBay più adatta...");
-  setStatus("Ricerca categorie eBay...");
-  try {
-    const data = await fetchJson(
-      \`/ebay/category/suggest?sku=\${encodeURIComponent(sku)}&marketplaceId=\${encodeURIComponent(marketplaceId)}\`
-    );
-
-    const select = el("categorySelect");
-    select.innerHTML = "";
-
-    const suggestions = data?.suggestion?.suggestions || [];
-    suggestions.forEach((row) => {
-      const opt = document.createElement("option");
-      opt.value = row.categoryId;
-      opt.textContent = \`\${row.categoryName} [\${row.categoryId}]\`;
-      select.appendChild(opt);
-    });
-
-    el("categoryInfo").textContent =
-      suggestions.length
-        ? \`\${suggestions.length} categorie suggerite.\`
-        : "Nessuna categoria suggerita.";
-
-    setStatus("Categorie eBay caricate.");
-    setLog(data);
-  } catch (err) {
-    setStatus("Errore suggerimento categoria.", "error");
-    setLog(err.message);
-  } finally {
-    hideOverlay();
-  }
-}
-
-async function publishSku() {
-  const sku = getSku();
-  const marketplaceId = getMarketplaceId();
-  const categoryId = selectedCategoryId();
-
-  if (!sku) {
-    setStatus("Inserisci uno SKU.", "error");
-    return;
-  }
-
-  if (!categoryId) {
-    setStatus("Scegli o inserisci una categoryId.", "error");
-    return;
-  }
-
-  showOverlay(
-    "Pubblicazione eBay in corso",
-    "Sto verificando la connessione, creando inventory item, offer e pubblicando il listing..."
-  );
-
-  setStatus("Pubblicazione su eBay in corso...");
-  try {
-    const data = await fetchJson("/ebay/publish/test", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sku, marketplaceId, categoryId }),
-    });
-
-    setStatus("Pubblicazione eBay completata.");
-    setLog(data);
-    await refreshConnection();
-  } catch (err) {
-    setStatus("Errore pubblicazione eBay.", "error");
-    setLog(err.message);
-    await refreshConnection();
-  } finally {
-    hideOverlay();
-  }
-}
-
-el("loadBtn").addEventListener("click", loadShopifyProduct);
-el("suggestBtn").addEventListener("click", suggestCategory);
-el("publishBtn").addEventListener("click", publishSku);
-
-el("connectBtn").addEventListener("click", () => {
-  showOverlay(
-    "Connessione a eBay",
-    "Sto aprendo il flusso OAuth di eBay..."
-  );
-  window.location.href = "/ebay/oauth/start";
+app.get("/", (req, res) => {
+  res.redirect("/ebay/publisher");
 });
-
-el("refreshConnBtn").addEventListener("click", async () => {
-  showOverlay("Controllo connessione", "Sto verificando lo stato dell'account eBay...");
-  try {
-    await refreshConnection();
-    setStatus("Stato connessione aggiornato.");
-  } catch (err) {
-    setStatus("Errore controllo connessione.", "error");
-  } finally {
-    hideOverlay();
-  }
-});
-
-el("disconnectBtn").addEventListener("click", async () => {
-  if (!confirm("Vuoi davvero disconnettere l'account eBay?")) return;
-
-  showOverlay("Disconnessione", "Sto rimuovendo i token eBay salvati...");
-  try {
-    const data = await fetchJson("/ebay/disconnect", { method: "GET" });
-    setStatus("Account eBay disconnesso.");
-    setLog(data);
-    await refreshConnection();
-  } catch (err) {
-    setStatus("Errore disconnessione eBay.", "error");
-    setLog(err.message);
-  } finally {
-    hideOverlay();
-  }
-});
-
-refreshConnection().then(() => {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get("connected") === "1") {
-    setStatus("eBay collegato con successo.");
-  }
-  if (params.get("error") === "oauth") {
-    setStatus("Errore nel callback OAuth eBay.", "error");
-  }
-});
-</script>
-</body>
-</html>`;
-}
-
-// =========================
-// UI ROUTE
-// =========================
 
 app.get("/ebay/publisher", (req, res) => {
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  res.send(renderEbayPublisherHtml());
+  res.sendFile(path.join(__dirname, "public", "ebay-publisher.html"));
+});
+
+app.get("/ebay/config/public", (req, res) => {
+  res.json({
+    ok: true,
+    appBaseUrl: APP_BASE_URL,
+    defaultMarketplaceId: EBAY_DEFAULT_MARKETPLACE_ID,
+    merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
+    marketplaces: MARKETPLACES,
+  });
 });
 
 // =========================
@@ -2337,14 +1971,118 @@ app.get("/ebay/shopify/product", async (req, res) => {
         categoryFullName: product.product.categoryFullName,
         productType: product.product.productType,
         vendor: product.product.vendor,
+        onlineStoreUrl: product.product.onlineStoreUrl,
         price: product.price,
         inventoryQuantity: product.inventoryQuantity,
         descriptionText: product.product.descriptionText,
+        descriptionHtml: product.product.descriptionHtml,
+        barcode: product.barcode,
         imageUrls: product.product.imageUrls,
       },
     });
   } catch (error) {
     return res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+app.get("/ebay/category/suggest-all", async (req, res) => {
+  try {
+    const sku = String(req.query.sku || "").trim();
+    if (!sku) {
+      return res.status(400).json({ ok: false, error: "missing sku" });
+    }
+
+    const shopifyVariant = await getShopifyVariantBySku(sku);
+    if (!shopifyVariant) {
+      return res
+        .status(404)
+        .json({ ok: false, error: `Shopify SKU not found: ${sku}` });
+    }
+
+    const results = {};
+
+    for (const market of MARKETPLACES) {
+      try {
+        const suggestion = await suggestEbayCategory({
+          marketplaceId: market.marketplaceId,
+          title: shopifyVariant.product.title,
+          shopifyCategory: shopifyVariant.product.categoryFullName,
+          productType: shopifyVariant.product.productType,
+        });
+
+        results[market.marketplaceId] = {
+          ok: true,
+          marketplaceId: market.marketplaceId,
+          locale: market.locale,
+          site: market.site,
+          suggestion,
+        };
+      } catch (error) {
+        results[market.marketplaceId] = {
+          ok: false,
+          marketplaceId: market.marketplaceId,
+          locale: market.locale,
+          site: market.site,
+          error: error.response?.data || error.message,
+        };
+      }
+    }
+
+    return res.json({
+      ok: true,
+      sku,
+      shopify: {
+        title: shopifyVariant.product.title,
+        productType: shopifyVariant.product.productType,
+        categoryFullName: shopifyVariant.product.categoryFullName,
+      },
+      results,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error.response?.data || error.message,
+    });
+  }
+});
+
+app.get("/ebay/translation/preview", async (req, res) => {
+  try {
+    const sku = String(req.query.sku || "").trim();
+    const sourceLanguage = getSourceLanguage(req.query.sourceLanguage || "it");
+
+    if (!sku) {
+      return res.status(400).json({ ok: false, error: "missing sku" });
+    }
+
+    const shopifyVariant = await getShopifyVariantBySku(sku);
+    if (!shopifyVariant) {
+      return res
+        .status(404)
+        .json({ ok: false, error: `Shopify SKU not found: ${sku}` });
+    }
+
+    const inventoryItemPayload = buildInventoryItemPayload(shopifyVariant);
+
+    const translations = await buildMarketplaceTranslations({
+      sourceLanguage,
+      title: inventoryItemPayload.product.title,
+      descriptionHtml:
+        shopifyVariant.product.descriptionHtml || shopifyVariant.product.descriptionText,
+    });
+
+    return res.json({
+      ok: true,
+      sku,
+      sourceLanguage,
+      baseTitle: inventoryItemPayload.product.title,
+      translations,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error.response?.data || error.message,
+    });
   }
 });
 
@@ -2367,6 +2105,7 @@ app.get("/ebay/health", async (req, res) => {
       ruName: EBAY_RU_NAME,
       defaultMarketplaceId: EBAY_DEFAULT_MARKETPLACE_ID,
       merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
+      marketplaces: MARKETPLACES,
       hasVerificationToken: Boolean(EBAY_VERIFICATION_TOKEN),
       notificationEndpoint: EBAY_NOTIFICATION_ENDPOINT,
       stateDir: EBAY_STATE_DIR,
@@ -2480,16 +2219,9 @@ app.get("/ebay/token/refresh", async (req, res) => {
       connection: result,
     });
   } catch (error) {
-    if (error.response) {
-      return res.status(500).json({
-        ok: false,
-        error: error.response.data,
-      });
-    }
-
     return res.status(500).json({
       ok: false,
-      error: error.message,
+      error: error.response?.data || error.message,
     });
   }
 });
@@ -2523,16 +2255,9 @@ app.get("/ebay/account/policies", async (req, res) => {
       result,
     });
   } catch (error) {
-    if (error.response) {
-      return res.status(500).json({
-        ok: false,
-        error: error.response.data,
-      });
-    }
-
     return res.status(500).json({
       ok: false,
-      error: error.message,
+      error: error.response?.data || error.message,
     });
   }
 });
@@ -2557,16 +2282,9 @@ app.get("/ebay/location/get", async (req, res) => {
       result,
     });
   } catch (error) {
-    if (error.response) {
-      return res.status(500).json({
-        ok: false,
-        error: error.response.data,
-      });
-    }
-
     return res.status(500).json({
       ok: false,
-      error: error.message,
+      error: error.response?.data || error.message,
     });
   }
 });
@@ -2580,16 +2298,9 @@ app.get("/ebay/location/list", async (req, res) => {
       result,
     });
   } catch (error) {
-    if (error.response) {
-      return res.status(500).json({
-        ok: false,
-        error: error.response.data,
-      });
-    }
-
     return res.status(500).json({
       ok: false,
-      error: error.message,
+      error: error.response?.data || error.message,
     });
   }
 });
@@ -2628,47 +2339,34 @@ app.get("/ebay/category/suggest", async (req, res) => {
       suggestion,
     });
   } catch (error) {
-    if (error.response) {
-      return res.status(500).json({ ok: false, error: error.response.data });
-    }
-    return res.status(500).json({ ok: false, error: error.message });
+    return res.status(500).json({
+      ok: false,
+      error: error.response?.data || error.message,
+    });
   }
 });
 
-app.post("/ebay/publish/test", async (req, res) => {
+app.post("/ebay/publish/multi", async (req, res) => {
   try {
     const sku = String(req.body?.sku || "").trim();
-    const marketplaceId = String(
-      req.body?.marketplaceId || EBAY_DEFAULT_MARKETPLACE_ID
-    ).trim();
-    const categoryId = String(req.body?.categoryId || "").trim();
+    const sourceLanguage = getSourceLanguage(req.body?.sourceLanguage || "it");
+    const categoryMap = req.body?.categoryMap || {};
 
     if (!sku) {
       return res.status(400).json({ ok: false, error: "missing sku" });
     }
 
-    if (!categoryId) {
-      return res.status(400).json({ ok: false, error: "missing categoryId" });
-    }
-
-    const result = await publishSkuToEbay({
+    const result = await publishSkuToMultipleEbayMarkets({
       sku,
-      marketplaceId,
-      categoryId,
+      sourceLanguage,
+      categoryMap,
     });
 
     return res.json(result);
   } catch (error) {
-    if (error.response) {
-      return res.status(500).json({
-        ok: false,
-        error: error.response.data,
-      });
-    }
-
     return res.status(500).json({
       ok: false,
-      error: error.message,
+      error: error.response?.data || error.message,
     });
   }
 });
@@ -2733,16 +2431,9 @@ app.get("/amazon/notifications/setup", async (req, res) => {
     const result = await ensureAmazonOrderChangeSubscription();
     res.json({ ok: true, ...result });
   } catch (error) {
-    if (error.response) {
-      return res.status(500).json({
-        ok: false,
-        error: error.response.data,
-      });
-    }
-
     return res.status(500).json({
       ok: false,
-      error: error.message,
+      error: error.response?.data || error.message,
     });
   }
 });
@@ -2752,16 +2443,9 @@ app.get("/amazon/notifications/destinations", async (req, res) => {
     const result = await listAmazonDestinations();
     res.json({ ok: true, result });
   } catch (error) {
-    if (error.response) {
-      return res.status(500).json({
-        ok: false,
-        error: error.response.data,
-      });
-    }
-
     return res.status(500).json({
       ok: false,
-      error: error.message,
+      error: error.response?.data || error.message,
     });
   }
 });
@@ -2771,16 +2455,9 @@ app.get("/amazon/notifications/subscription", async (req, res) => {
     const result = await getOrderChangeSubscription();
     res.json({ ok: true, result });
   } catch (error) {
-    if (error.response) {
-      return res.status(500).json({
-        ok: false,
-        error: error.response.data,
-      });
-    }
-
     return res.status(500).json({
       ok: false,
-      error: error.message,
+      error: error.response?.data || error.message,
     });
   }
 });
@@ -2807,16 +2484,9 @@ app.get("/amazon/order-items", async (req, res) => {
     const result = await getAmazonOrderItems(orderId);
     return res.json({ ok: true, result });
   } catch (error) {
-    if (error.response) {
-      return res.status(500).json({
-        ok: false,
-        error: error.response.data,
-      });
-    }
-
     return res.status(500).json({
       ok: false,
-      error: error.message,
+      error: error.response?.data || error.message,
     });
   }
 });
@@ -2843,16 +2513,9 @@ app.get("/shopify/test-adjust", async (req, res) => {
 
     return res.json({ ok: true, result });
   } catch (error) {
-    if (error.response) {
-      return res.status(500).json({
-        ok: false,
-        error: error.response.data,
-      });
-    }
-
     return res.status(500).json({
       ok: false,
-      error: error.message,
+      error: error.response?.data || error.message,
     });
   }
 });
@@ -2924,7 +2587,7 @@ app.post("/webhooks/inventory", express.raw({ type: "*/*" }), async (req, res) =
 });
 
 // =========================
-// EXTRA HEALTH ROUTE
+// HEALTH
 // =========================
 
 app.get("/health", async (req, res) => {
@@ -2952,6 +2615,7 @@ app.get("/health", async (req, res) => {
     ebayConnected: ebayConnectionStore.connected,
     merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
     marketplaceId: EBAY_DEFAULT_MARKETPLACE_ID,
+    marketplaces: MARKETPLACES,
     sqs: sqsAttrs,
   });
 });
