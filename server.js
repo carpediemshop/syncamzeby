@@ -11,6 +11,8 @@ import {
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 
+app.use(express.json());
+
 // =========================
 // ENV
 // =========================
@@ -56,20 +58,6 @@ const EBAY_DEFAULT_LISTING_DURATION =
 const EBAY_DEFAULT_CONDITION = process.env.EBAY_DEFAULT_CONDITION || "NEW";
 const EBAY_DEFAULT_FORMAT = process.env.EBAY_DEFAULT_FORMAT || "FIXED_PRICE";
 
-// Legacy location envs retained for debugging
-const EBAY_LOCATION_NAME =
-  process.env.EBAY_LOCATION_NAME || "SyncAmzEby Main Location";
-const EBAY_LOCATION_PHONE = process.env.EBAY_LOCATION_PHONE || "";
-const EBAY_LOCATION_COUNTRY = process.env.EBAY_LOCATION_COUNTRY || "IT";
-const EBAY_LOCATION_POSTAL_CODE =
-  process.env.EBAY_LOCATION_POSTAL_CODE || "";
-const EBAY_LOCATION_CITY = process.env.EBAY_LOCATION_CITY || "";
-const EBAY_LOCATION_STATE = process.env.EBAY_LOCATION_STATE || "";
-const EBAY_LOCATION_ADDRESS_LINE1 =
-  process.env.EBAY_LOCATION_ADDRESS_LINE1 || "";
-const EBAY_LOCATION_ADDRESS_LINE2 =
-  process.env.EBAY_LOCATION_ADDRESS_LINE2 || "";
-
 // Polling
 const AUTO_POLL_SQS = String(process.env.AUTO_POLL_SQS || "false") === "true";
 const SQS_POLL_INTERVAL_MS = Number(process.env.SQS_POLL_INTERVAL_MS || 20000);
@@ -112,7 +100,7 @@ const sqsClient = new SQSClient({
 });
 
 // =========================
-// GENERIC HELPERS
+// HELPERS
 // =========================
 
 function requireEnv(name, value) {
@@ -270,6 +258,10 @@ function normalizeMoney(value) {
   return Number.isFinite(n) ? Number(n.toFixed(2)) : 0;
 }
 
+// =========================
+// EBAY TOKENS
+// =========================
+
 async function ebayTokenRequest(bodyParams) {
   const response = await axios.post(
     `${EBAY_API_BASE}/identity/v1/oauth2/token`,
@@ -284,6 +276,19 @@ async function ebayTokenRequest(bodyParams) {
   );
 
   return response.data;
+}
+
+async function getEbayApplicationAccessToken() {
+  const response = await ebayTokenRequest({
+    grant_type: "client_credentials",
+    scope: "https://api.ebay.com/oauth/api_scope",
+  });
+
+  if (!response?.access_token) {
+    throw new Error("Unable to obtain eBay application access token");
+  }
+
+  return response.access_token;
 }
 
 async function exchangeEbayCodeForTokens(code) {
@@ -530,23 +535,23 @@ async function getEbayInventoryLocation(merchantLocationKey) {
 }
 
 async function getDefaultCategoryTreeId(marketplaceId) {
-  const accessToken = await ensureValidEbayAccessToken();
+  const appAccessToken = await getEbayApplicationAccessToken();
 
   return ebayGet(
     "/commerce/taxonomy/v1/get_default_category_tree_id",
-    accessToken,
+    appAccessToken,
     { marketplace_id: marketplaceId }
   );
 }
 
 async function getCategorySuggestions({ categoryTreeId, q }) {
-  const accessToken = await ensureValidEbayAccessToken();
+  const appAccessToken = await getEbayApplicationAccessToken();
 
   return ebayGet(
     `/commerce/taxonomy/v1/category_tree/${encodeURIComponent(
       categoryTreeId
     )}/get_category_suggestions`,
-    accessToken,
+    appAccessToken,
     { q }
   );
 }
@@ -570,31 +575,35 @@ async function suggestEbayCategory({
     firstNonEmpty(title),
   ].filter(Boolean);
 
+  const allSuggestions = [];
+
   for (const q of queries) {
     const suggestions = await getCategorySuggestions({ categoryTreeId, q });
-    const first =
-      suggestions?.categorySuggestions?.[0] ||
-      suggestions?.categorySuggestions?.[0]?.category;
+    const rows = (suggestions?.categorySuggestions || []).map((row) => ({
+      query: q,
+      categoryId: row?.category?.categoryId || row?.categoryId || null,
+      categoryName: row?.category?.categoryName || row?.categoryName || null,
+      categoryTreeId,
+    }));
 
-    if (suggestions?.categorySuggestions?.length) {
-      const best = suggestions.categorySuggestions[0];
-      return {
-        query: q,
-        categoryTreeId,
-        categoryId: best?.category?.categoryId || best?.categoryId || null,
-        categoryName:
-          best?.category?.categoryName || best?.categoryName || null,
-        raw: suggestions,
-      };
+    allSuggestions.push(...rows);
+  }
+
+  const deduped = [];
+  const seen = new Set();
+
+  for (const row of allSuggestions) {
+    const key = `${row.categoryId}::${row.categoryName}`;
+    if (row.categoryId && !seen.has(key)) {
+      seen.add(key);
+      deduped.push(row);
     }
   }
 
   return {
-    queryTried: queries,
     categoryTreeId,
-    categoryId: null,
-    categoryName: null,
-    raw: null,
+    suggestions: deduped,
+    best: deduped[0] || null,
   };
 }
 
@@ -886,32 +895,16 @@ function buildOfferPayload({
 async function publishSkuToEbay({
   sku,
   marketplaceId = EBAY_DEFAULT_MARKETPLACE_ID,
-  categoryIdOverride = "",
+  categoryId,
 }) {
   const shopifyVariant = await getShopifyVariantBySku(sku);
   if (!shopifyVariant) {
     throw new Error(`Shopify SKU not found: ${sku}`);
   }
 
-  const categorySuggestion = categoryIdOverride
-    ? {
-        query: "manual_override",
-        categoryId: categoryIdOverride,
-        categoryName: null,
-        categoryTreeId: null,
-        raw: null,
-      }
-    : await suggestEbayCategory({
-        marketplaceId,
-        title: shopifyVariant.product.title,
-        shopifyCategory: shopifyVariant.product.categoryFullName,
-        productType: shopifyVariant.product.productType,
-      });
-
-  if (!categorySuggestion?.categoryId) {
-    throw new Error(
-      `Could not determine eBay category automatically for SKU ${sku}.`
-    );
+  const selectedCategoryId = String(categoryId || "").trim();
+  if (!selectedCategoryId) {
+    throw new Error("Missing categoryId");
   }
 
   const policies = await getAllEbayPolicies(marketplaceId);
@@ -928,7 +921,7 @@ async function publishSkuToEbay({
     price: shopifyVariant.price,
     quantity: shopifyVariant.inventoryQuantity,
     marketplaceId,
-    categoryId: categorySuggestion.categoryId,
+    categoryId: selectedCategoryId,
     policyIds,
   });
 
@@ -957,7 +950,6 @@ async function publishSkuToEbay({
       categoryFullName: shopifyVariant.product.categoryFullName,
       imageCount: shopifyVariant.product.imageUrls.length,
     },
-    categorySuggestion,
     selectedPolicies: policyIds,
     inventoryItemPayload,
     inventoryItemResult,
@@ -1531,39 +1523,313 @@ async function pollSqsOnce() {
 }
 
 // =========================
-// ROUTES
+// UI HTML
 // =========================
 
-app.get("/", (req, res) => {
-  res.send("SyncAmzEby running");
-});
+function renderEbayPublisherHtml() {
+  return `<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SyncAmzEby - Publisher eBay</title>
+  <style>
+    body{font-family:Arial,sans-serif;background:#f6f7fb;margin:0;color:#1f2937}
+    .wrap{max-width:1100px;margin:24px auto;padding:0 16px}
+    .card{background:#fff;border-radius:14px;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,.08);margin-bottom:18px}
+    h1{margin:0 0 16px;font-size:28px}
+    h2{margin:0 0 12px;font-size:20px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .col{flex:1;min-width:240px}
+    input,select,button,textarea{width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:1px solid #d1d5db;font-size:14px}
+    button{background:#2563eb;color:#fff;border:none;font-weight:700;cursor:pointer}
+    button.secondary{background:#111827}
+    button.gray{background:#6b7280}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .label{font-size:12px;font-weight:700;margin:0 0 6px;color:#374151}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .muted{color:#6b7280;font-size:13px}
+    .images{display:flex;gap:10px;flex-wrap:wrap}
+    .images img{width:96px;height:96px;object-fit:cover;border-radius:10px;border:1px solid #e5e7eb}
+    pre{background:#0f172a;color:#e5e7eb;padding:14px;border-radius:12px;overflow:auto;font-size:12px;white-space:pre-wrap}
+    .success{color:#065f46;font-weight:700}
+    .error{color:#991b1b;font-weight:700}
+    @media (max-width: 900px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Publisher eBay</h1>
+      <div class="row">
+        <div class="col">
+          <div class="label">SKU Shopify</div>
+          <input id="sku" value="17-GELO-ZHRW" />
+        </div>
+        <div class="col">
+          <div class="label">Marketplace</div>
+          <input id="marketplaceId" value="${EBAY_DEFAULT_MARKETPLACE_ID}" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <div class="col"><button id="loadBtn">Carica prodotto Shopify</button></div>
+        <div class="col"><button id="suggestBtn" class="secondary">Suggerisci categoria eBay</button></div>
+        <div class="col"><button id="publishBtn" class="gray">Pubblica su eBay</button></div>
+      </div>
+      <p class="muted" style="margin-top:12px">
+        Prezzo eBay = Shopify, condizione = ${EBAY_DEFAULT_CONDITION}, formato = ${EBAY_DEFAULT_FORMAT}, durata = ${EBAY_DEFAULT_LISTING_DURATION}, location = ${EBAY_MERCHANT_LOCATION_KEY}
+      </p>
+    </div>
 
-app.get("/health", async (req, res) => {
+    <div class="card">
+      <h2>Dati prodotto Shopify</h2>
+      <div class="grid">
+        <div>
+          <div class="label">Titolo</div>
+          <textarea id="shopifyTitle" rows="2" readonly></textarea>
+        </div>
+        <div>
+          <div class="label">Categoria Shopify</div>
+          <textarea id="shopifyCategory" rows="2" readonly></textarea>
+        </div>
+        <div>
+          <div class="label">Product type</div>
+          <input id="shopifyProductType" readonly />
+        </div>
+        <div>
+          <div class="label">Vendor</div>
+          <input id="shopifyVendor" readonly />
+        </div>
+        <div>
+          <div class="label">Prezzo</div>
+          <input id="shopifyPrice" readonly />
+        </div>
+        <div>
+          <div class="label">Quantità</div>
+          <input id="shopifyQty" readonly />
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <div class="label">Descrizione</div>
+        <textarea id="shopifyDescription" rows="6" readonly></textarea>
+      </div>
+      <div style="margin-top:12px">
+        <div class="label">Immagini</div>
+        <div id="images" class="images"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Categoria eBay</h2>
+      <div class="row">
+        <div class="col">
+          <div class="label">Categoria suggerita / selezionata</div>
+          <select id="categorySelect"></select>
+        </div>
+        <div class="col">
+          <div class="label">Category ID manuale</div>
+          <input id="manualCategoryId" placeholder="Opzionale: sovrascrivi categoryId" />
+        </div>
+      </div>
+      <p class="muted" id="categoryInfo">Nessuna categoria caricata.</p>
+    </div>
+
+    <div class="card">
+      <h2>Log</h2>
+      <div id="status" class="muted">Pronto.</div>
+      <pre id="log"></pre>
+    </div>
+  </div>
+
+<script>
+const el = (id) => document.getElementById(id);
+
+function setStatus(text, isError = false) {
+  const node = el("status");
+  node.textContent = text;
+  node.className = isError ? "error" : "success";
+}
+
+function setLog(obj) {
+  el("log").textContent =
+    typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+}
+
+function getSku() {
+  return el("sku").value.trim();
+}
+
+function getMarketplaceId() {
+  return el("marketplaceId").value.trim();
+}
+
+function selectedCategoryId() {
+  const manual = el("manualCategoryId").value.trim();
+  if (manual) return manual;
+  return el("categorySelect").value.trim();
+}
+
+async function fetchJson(url, options = {}) {
+  const res = await fetch(url, options);
+  const data = await res.json();
+  if (!res.ok || data.ok === false) {
+    throw new Error(JSON.stringify(data));
+  }
+  return data;
+}
+
+async function loadShopifyProduct() {
+  const sku = getSku();
+  if (!sku) {
+    setStatus("Inserisci uno SKU.", true);
+    return;
+  }
+
+  setStatus("Caricamento prodotto Shopify...");
   try {
-    validateBaseEnv();
+    const data = await fetchJson(\`/ebay/shopify/product?sku=\${encodeURIComponent(sku)}\`);
+    const p = data.product;
 
-    const attrs = await sqsClient.send(
-      new GetQueueAttributesCommand({
-        QueueUrl: AMAZON_SQS_QUEUE_URL,
-        AttributeNames: ["QueueArn"],
-      })
+    el("shopifyTitle").value = p.title || "";
+    el("shopifyCategory").value = p.categoryFullName || "";
+    el("shopifyProductType").value = p.productType || "";
+    el("shopifyVendor").value = p.vendor || "";
+    el("shopifyPrice").value = String(p.price ?? "");
+    el("shopifyQty").value = String(p.inventoryQuantity ?? "");
+    el("shopifyDescription").value = p.descriptionText || "";
+
+    const images = el("images");
+    images.innerHTML = "";
+    (p.imageUrls || []).forEach((url) => {
+      const img = document.createElement("img");
+      img.src = url;
+      img.alt = "img";
+      images.appendChild(img);
+    });
+
+    setStatus("Prodotto Shopify caricato.");
+    setLog(data);
+  } catch (err) {
+    setStatus("Errore caricamento Shopify.", true);
+    setLog(err.message);
+  }
+}
+
+async function suggestCategory() {
+  const sku = getSku();
+  const marketplaceId = getMarketplaceId();
+
+  if (!sku) {
+    setStatus("Inserisci uno SKU.", true);
+    return;
+  }
+
+  setStatus("Ricerca categorie eBay...");
+  try {
+    const data = await fetchJson(
+      \`/ebay/category/suggest?sku=\${encodeURIComponent(sku)}&marketplaceId=\${encodeURIComponent(marketplaceId)}\`
     );
 
-    res.json({
-      ok: true,
-      queueArn: attrs.Attributes?.QueueArn || null,
-      autoPoll: AUTO_POLL_SQS,
-      pollIntervalMs: SQS_POLL_INTERVAL_MS,
-      ebay: {
-        enabled: EBAY_ENABLED,
-        environment: EBAY_ENVIRONMENT,
-        connected: ebayConnectionStore.connected,
-        defaultMarketplaceId: EBAY_DEFAULT_MARKETPLACE_ID,
-        merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
-      },
+    const select = el("categorySelect");
+    select.innerHTML = "";
+
+    const suggestions = data?.suggestion?.suggestions || [];
+    suggestions.forEach((row) => {
+      const opt = document.createElement("option");
+      opt.value = row.categoryId;
+      opt.textContent = \`\${row.categoryName} [\${row.categoryId}]\`;
+      select.appendChild(opt);
     });
+
+    el("categoryInfo").textContent =
+      suggestions.length
+        ? \`\${suggestions.length} categorie suggerite.\`
+        : "Nessuna categoria suggerita.";
+
+    setStatus("Categorie eBay caricate.");
+    setLog(data);
+  } catch (err) {
+    setStatus("Errore suggerimento categoria.", true);
+    setLog(err.message);
+  }
+}
+
+async function publishSku() {
+  const sku = getSku();
+  const marketplaceId = getMarketplaceId();
+  const categoryId = selectedCategoryId();
+
+  if (!sku) {
+    setStatus("Inserisci uno SKU.", true);
+    return;
+  }
+
+  if (!categoryId) {
+    setStatus("Scegli o inserisci una categoryId.", true);
+    return;
+  }
+
+  setStatus("Pubblicazione su eBay in corso...");
+  try {
+    const data = await fetchJson("/ebay/publish/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sku, marketplaceId, categoryId }),
+    });
+
+    setStatus("Pubblicazione eBay completata.");
+    setLog(data);
+  } catch (err) {
+    setStatus("Errore pubblicazione eBay.", true);
+    setLog(err.message);
+  }
+}
+
+el("loadBtn").addEventListener("click", loadShopifyProduct);
+el("suggestBtn").addEventListener("click", suggestCategory);
+el("publishBtn").addEventListener("click", publishSku);
+</script>
+</body>
+</html>`;
+}
+
+// =========================
+// UI ROUTE
+// =========================
+
+app.get("/ebay/publisher", (req, res) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(renderEbayPublisherHtml());
+});
+
+// =========================
+// DEBUG / DATA ROUTES UI
+// =========================
+
+app.get("/ebay/shopify/product", async (req, res) => {
+  try {
+    const sku = String(req.query.sku || "").trim();
+    if (!sku) {
+      return res.status(400).json({ ok: false, error: "missing sku" });
+    }
+
+    const product = await getShopifyVariantBySku(sku);
+    if (!product) {
+      return res.status(404).json({ ok: false, error: `Shopify SKU not found: ${sku}` });
+    }
+
+    return res.json({ ok: true, sku, product: {
+      title: product.product.title,
+      categoryFullName: product.product.categoryFullName,
+      productType: product.product.productType,
+      vendor: product.product.vendor,
+      price: product.price,
+      inventoryQuantity: product.inventoryQuantity,
+      descriptionText: product.product.descriptionText,
+      imageUrls: product.product.imageUrls,
+    }});
   } catch (error) {
-    res.status(500).json({ ok: false, error: error.message });
+    return res.status(500).json({ ok: false, error: error.message });
   }
 });
 
@@ -1775,130 +2041,6 @@ app.get("/ebay/account/policies", async (req, res) => {
   }
 });
 
-app.get("/ebay/account/payment-policies", async (req, res) => {
-  try {
-    const marketplaceId = getRequestedMarketplaceId(req);
-    const result = await getEbayPaymentPolicies(marketplaceId);
-
-    return res.json({
-      ok: true,
-      marketplaceId,
-      result,
-    });
-  } catch (error) {
-    if (error.response) {
-      return res.status(500).json({
-        ok: false,
-        error: error.response.data,
-      });
-    }
-
-    return res.status(500).json({
-      ok: false,
-      error: error.message,
-    });
-  }
-});
-
-app.get("/ebay/account/return-policies", async (req, res) => {
-  try {
-    const marketplaceId = getRequestedMarketplaceId(req);
-    const result = await getEbayReturnPolicies(marketplaceId);
-
-    return res.json({
-      ok: true,
-      marketplaceId,
-      result,
-    });
-  } catch (error) {
-    if (error.response) {
-      return res.status(500).json({
-        ok: false,
-        error: error.response.data,
-      });
-    }
-
-    return res.status(500).json({
-      ok: false,
-      error: error.message,
-    });
-  }
-});
-
-app.get("/ebay/account/fulfillment-policies", async (req, res) => {
-  try {
-    const marketplaceId = getRequestedMarketplaceId(req);
-    const result = await getEbayFulfillmentPolicies(marketplaceId);
-
-    return res.json({
-      ok: true,
-      marketplaceId,
-      result,
-    });
-  } catch (error) {
-    if (error.response) {
-      return res.status(500).json({
-        ok: false,
-        error: error.response.data,
-      });
-    }
-
-    return res.status(500).json({
-      ok: false,
-      error: error.message,
-    });
-  }
-});
-
-app.get("/ebay/location/default-payload", async (req, res) => {
-  try {
-    return res.json({
-      ok: true,
-      merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
-      note: "Using existing eBay location; create is no longer required for this account.",
-      existingLocationKey: EBAY_MERCHANT_LOCATION_KEY,
-      legacyPayloadConfig: {
-        name: EBAY_LOCATION_NAME,
-        phone: EBAY_LOCATION_PHONE,
-        country: EBAY_LOCATION_COUNTRY,
-        postalCode: EBAY_LOCATION_POSTAL_CODE,
-        city: EBAY_LOCATION_CITY,
-        state: EBAY_LOCATION_STATE,
-        addressLine1: EBAY_LOCATION_ADDRESS_LINE1,
-        addressLine2: EBAY_LOCATION_ADDRESS_LINE2,
-      },
-    });
-  } catch (error) {
-    return res.status(500).json({
-      ok: false,
-      error: error.message,
-    });
-  }
-});
-
-app.get("/ebay/location/list", async (req, res) => {
-  try {
-    const result = await getEbayInventoryLocations();
-
-    return res.json({
-      ok: true,
-      result,
-    });
-  } catch (error) {
-    if (error.response) {
-      return res.status(500).json({
-        ok: false,
-        error: error.response.data,
-      });
-    }
-
-    return res.status(500).json({
-      ok: false,
-      error: error.message,
-    });
-  }
-});
-
 app.get("/ebay/location/get", async (req, res) => {
   try {
     const merchantLocationKey = String(
@@ -1933,12 +2075,27 @@ app.get("/ebay/location/get", async (req, res) => {
   }
 });
 
-app.get("/ebay/location/create", async (req, res) => {
-  return res.status(400).json({
-    ok: false,
-    error:
-      "This account already has an enabled location. Use EBAY_MERCHANT_LOCATION_KEY=Default-EBAY_IT and /ebay/location/get instead.",
-  });
+app.get("/ebay/location/list", async (req, res) => {
+  try {
+    const result = await getEbayInventoryLocations();
+
+    return res.json({
+      ok: true,
+      result,
+    });
+  } catch (error) {
+    if (error.response) {
+      return res.status(500).json({
+        ok: false,
+        error: error.response.data,
+      });
+    }
+
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
 });
 
 app.get("/ebay/category/suggest", async (req, res) => {
@@ -1980,20 +2137,26 @@ app.get("/ebay/category/suggest", async (req, res) => {
   }
 });
 
-app.get("/ebay/publish/test", async (req, res) => {
+app.post("/ebay/publish/test", async (req, res) => {
   try {
-    const sku = String(req.query.sku || "").trim();
-    const categoryId = String(req.query.categoryId || "").trim();
-    const marketplaceId = getRequestedMarketplaceId(req);
+    const sku = String(req.body?.sku || "").trim();
+    const marketplaceId = String(
+      req.body?.marketplaceId || EBAY_DEFAULT_MARKETPLACE_ID
+    ).trim();
+    const categoryId = String(req.body?.categoryId || "").trim();
 
     if (!sku) {
       return res.status(400).json({ ok: false, error: "missing sku" });
     }
 
+    if (!categoryId) {
+      return res.status(400).json({ ok: false, error: "missing categoryId" });
+    }
+
     const result = await publishSkuToEbay({
       sku,
       marketplaceId,
-      categoryIdOverride: categoryId,
+      categoryId,
     });
 
     return res.json(result);
@@ -2023,7 +2186,6 @@ app.get("/ebay/notifications", (req, res) => {
     const challengeCode = String(req.query.challenge_code || "");
 
     if (!challengeCode) {
-      console.log("EBAY NOTIFICATION GET WITHOUT CHALLENGE");
       return res.status(200).send("SyncAmzEby eBay notifications endpoint OK");
     }
 
@@ -2033,12 +2195,8 @@ app.get("/ebay/notifications", (req, res) => {
       endpoint: EBAY_NOTIFICATION_ENDPOINT,
     });
 
-    console.log("EBAY CHALLENGE RECEIVED", challengeCode);
-    console.log("EBAY CHALLENGE RESPONSE GENERATED");
-
     return res.status(200).json({ challengeResponse });
   } catch (error) {
-    console.log("EBAY GET NOTIFICATION ERROR", error.message);
     return res.status(500).json({
       ok: false,
       error: error.message,
@@ -2059,9 +2217,6 @@ app.post("/ebay/notifications", express.raw({ type: "*/*" }), (req, res) => {
     }
 
     console.log("EBAY NOTIFICATION RECEIVED");
-    console.log("EBAY METHOD", req.method);
-    console.log("EBAY QUERY", JSON.stringify(req.query || {}));
-    console.log("EBAY HEADERS CONTENT-TYPE", req.headers["content-type"] || "");
     console.log("EBAY RAW BODY", rawBody || "<empty>");
 
     return res.status(200).send("OK");
