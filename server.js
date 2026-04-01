@@ -406,6 +406,12 @@ function errorToSerializable(error) {
   return error?.response?.data || error?.message || String(error);
 }
 
+function isEbayOfferUnavailableError(error) {
+  const data = error?.response?.data || error;
+  const errors = Array.isArray(data?.errors) ? data.errors : [];
+  return errors.some((e) => Number(e?.errorId) === 25713);
+}
+
 // =========================
 // EBAY FILE PERSISTENCE
 // =========================
@@ -1512,13 +1518,42 @@ async function syncShopifySkuToEbay({ sku, sourceLanguage = "it" }) {
 
   const inventoryItemPayload = buildInventoryItemPayload(shopifyVariant);
 
-  const inventoryItemUpdate = await createOrReplaceInventoryItem({
-    sku,
-    payload: inventoryItemPayload,
-    contentLanguage: inventoryContentLanguage,
-  });
+  let inventoryItemUpdate = null;
+  try {
+    inventoryItemUpdate = await createOrReplaceInventoryItem({
+      sku,
+      payload: inventoryItemPayload,
+      contentLanguage: inventoryContentLanguage,
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      sku,
+      failedStep: "inventory_item_upsert",
+      inventoryContentLanguage,
+      error: errorToSerializable(error),
+    };
+  }
 
-  const offers = await getOffersBySku({ sku });
+  let offers = [];
+  try {
+    offers = await getOffersBySku({ sku });
+  } catch (error) {
+    return {
+      ok: true,
+      sku,
+      inventorySynced: true,
+      priceSynced: false,
+      syncedPrice: shopifyVariant.price,
+      syncedQuantity: shopifyVariant.inventoryQuantity,
+      inventoryContentLanguage,
+      inventoryItemUpdate,
+      offersFound: 0,
+      warning: "Inventory aggiornato, ma non sono riuscito a leggere le offer.",
+      offerReadError: errorToSerializable(error),
+      offerResults: [],
+    };
+  }
 
   const offerResults = [];
 
@@ -1574,6 +1609,17 @@ async function syncShopifySkuToEbay({ sku, sourceLanguage = "it" }) {
         updateResult,
       });
     } catch (error) {
+      if (isEbayOfferUnavailableError(error)) {
+        offerResults.push({
+          ok: false,
+          skipped: true,
+          reason: "offer_not_available",
+          offerId,
+          error: errorToSerializable(error),
+        });
+        continue;
+      }
+
       offerResults.push({
         ok: false,
         offerId,
@@ -1582,14 +1628,25 @@ async function syncShopifySkuToEbay({ sku, sourceLanguage = "it" }) {
     }
   }
 
+  const realFailures = offerResults.filter(
+    (r) => r.ok === false && !r.skipped
+  );
+
+  const skippedUnavailable = offerResults.filter(
+    (r) => r.ok === false && r.skipped && r.reason === "offer_not_available"
+  );
+
   return {
-    ok: offerResults.every((r) => r.ok),
+    ok: realFailures.length === 0,
     sku,
+    inventorySynced: true,
+    priceSynced: realFailures.length === 0,
     syncedPrice: shopifyVariant.price,
     syncedQuantity: shopifyVariant.inventoryQuantity,
     inventoryContentLanguage,
     inventoryItemUpdate,
     offersFound: offers.length,
+    skippedUnavailableOffers: skippedUnavailable.length,
     offerResults,
   };
 }
@@ -2799,9 +2856,15 @@ app.post("/webhooks/products", express.raw({ type: "*/*" }), async (req, res) =>
             sku: variant.sku,
             sourceLanguage: "it",
           });
-          console.log("EBAY SYNC FROM PRODUCT WEBHOOK", JSON.stringify(ebayResult));
+          console.log(
+            "EBAY SYNC FROM PRODUCT WEBHOOK",
+            JSON.stringify(ebayResult, null, 2)
+          );
         } catch (error) {
-          console.log("EBAY SYNC FROM PRODUCT WEBHOOK ERROR", errorToSerializable(error));
+          console.log(
+            "EBAY SYNC FROM PRODUCT WEBHOOK ERROR",
+            errorToSerializable(error)
+          );
         }
       }
     }
@@ -2845,9 +2908,15 @@ app.post("/webhooks/inventory", express.raw({ type: "*/*" }), async (req, res) =
         sku,
         sourceLanguage: "it",
       });
-      console.log("EBAY SYNC FROM INVENTORY WEBHOOK", JSON.stringify(ebayResult));
+      console.log(
+        "EBAY SYNC FROM INVENTORY WEBHOOK",
+        JSON.stringify(ebayResult, null, 2)
+      );
     } catch (error) {
-      console.log("EBAY SYNC FROM INVENTORY WEBHOOK ERROR", errorToSerializable(error));
+      console.log(
+        "EBAY SYNC FROM INVENTORY WEBHOOK ERROR",
+        errorToSerializable(error)
+      );
     }
 
     return res.sendStatus(200);
