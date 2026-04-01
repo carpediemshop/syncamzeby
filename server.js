@@ -528,12 +528,6 @@ function deletePersistedListingIdForSku(sku) {
   ebayListingIdMap.delete(normalizeSku(sku));
 }
 
-function getSafeOfferIds(offers = []) {
-  return offers
-    .map((offer) => String(offer?.offerId || "").trim())
-    .filter(Boolean);
-}
-
 function safeArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -562,12 +556,6 @@ function getConfiguredCategoryForMarketplace(sku, marketplaceId) {
   }
 
   return "";
-}
-
-function extractNumericOrderId(value) {
-  return String(value || "")
-    .trim()
-    .replace(/[^\d]/g, "");
 }
 
 function serializeOrderSyncState() {
@@ -1386,14 +1374,16 @@ async function getShopifyVariantBySku(sku) {
 function buildDefaultAspects(shopifyVariant) {
   const aspects = {};
 
-  const vendor = firstNonEmpty(shopifyVariant?.product?.vendor, "Generic");
+  const vendor = firstNonEmpty(shopifyVariant?.product?.vendor, "Generico");
+  aspects.Marca = [vendor];
   aspects.Brand = [vendor];
 
   const productType = firstNonEmpty(
     shopifyVariant?.product?.productType,
     shopifyVariant?.product?.categoryFullName,
-    "General"
+    "Altro"
   );
+  aspects.Tipo = [productType];
   aspects.Type = [productType];
 
   const variantTitle = firstNonEmpty(shopifyVariant?.variantTitle);
@@ -1401,6 +1391,7 @@ function buildDefaultAspects(shopifyVariant) {
     variantTitle &&
     !["Default Title", "Titolo predefinito"].includes(variantTitle)
   ) {
+    aspects.Stile = [variantTitle];
     aspects.Style = [variantTitle];
   }
 
@@ -1727,7 +1718,6 @@ function buildOfferPayload({
   };
 }
 
-// FIX PRINCIPALE QUI
 async function upsertOfferForMarketplace({
   sku,
   price,
