@@ -18,11 +18,25 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // =========================
-// EXPRESS
+// RAW ROUTES TO SKIP JSON PARSER
 // =========================
 
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true }));
+const RAW_BODY_PATHS = new Set([
+  "/webhooks/products",
+  "/webhooks/inventory",
+  "/ebay/notifications",
+]);
+
+app.use((req, res, next) => {
+  if (RAW_BODY_PATHS.has(req.path)) return next();
+  return express.json({ limit: "2mb" })(req, res, next);
+});
+
+app.use((req, res, next) => {
+  if (RAW_BODY_PATHS.has(req.path)) return next();
+  return express.urlencoded({ extended: true })(req, res, next);
+});
+
 app.use("/public", express.static(path.join(__dirname, "public")));
 
 // =========================
@@ -70,13 +84,12 @@ const EBAY_DEFAULT_MARKETPLACE_ID =
   process.env.EBAY_DEFAULT_MARKETPLACE_ID || "EBAY_IT";
 const EBAY_MERCHANT_LOCATION_KEY =
   process.env.EBAY_MERCHANT_LOCATION_KEY || "Default-EBAY_IT";
-const EBAY_DEFAULT_CURRENCY = process.env.EBAY_DEFAULT_CURRENCY || "EUR";
 const EBAY_DEFAULT_LISTING_DURATION =
   process.env.EBAY_DEFAULT_LISTING_DURATION || "GTC";
 const EBAY_DEFAULT_CONDITION = process.env.EBAY_DEFAULT_CONDITION || "NEW";
 const EBAY_DEFAULT_FORMAT = process.env.EBAY_DEFAULT_FORMAT || "FIXED_PRICE";
 
-// eBay state persistence
+// eBay persistence
 const EBAY_STATE_DIR =
   process.env.EBAY_STATE_DIR || path.join(__dirname, "data");
 const EBAY_STATE_FILE = path.join(EBAY_STATE_DIR, "ebay-connection.json");
@@ -106,6 +119,7 @@ const MARKETPLACES = [
     site: "ebay.it",
     locale: "it-IT",
     language: "it",
+    currency: "EUR",
     label: "Italia",
   },
   {
@@ -113,6 +127,7 @@ const MARKETPLACES = [
     site: "ebay.de",
     locale: "de-DE",
     language: "de",
+    currency: "EUR",
     label: "Germania",
   },
   {
@@ -120,6 +135,7 @@ const MARKETPLACES = [
     site: "ebay.fr",
     locale: "fr-FR",
     language: "fr",
+    currency: "EUR",
     label: "Francia",
   },
   {
@@ -127,6 +143,7 @@ const MARKETPLACES = [
     site: "ebay.es",
     locale: "es-ES",
     language: "es",
+    currency: "EUR",
     label: "Spagna",
   },
   {
@@ -134,6 +151,7 @@ const MARKETPLACES = [
     site: "ebay.co.uk",
     locale: "en-GB",
     language: "en",
+    currency: "GBP",
     label: "Regno Unito",
   },
 ];
@@ -336,14 +354,6 @@ function cleanHtmlForEbay(html = "") {
     .trim();
 }
 
-function escapeHtml(value = "") {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
-
 function getRequestedMarketplaceId(req) {
   return String(req.query.marketplaceId || EBAY_DEFAULT_MARKETPLACE_ID);
 }
@@ -351,6 +361,49 @@ function getRequestedMarketplaceId(req) {
 function getSourceLanguage(input) {
   const lang = String(input || "it").trim().toLowerCase();
   return ["it", "de", "fr", "es", "en"].includes(lang) ? lang : "it";
+}
+
+function languageToLocale(language) {
+  const lang = getSourceLanguage(language);
+  if (lang === "it") return "it-IT";
+  if (lang === "de") return "de-DE";
+  if (lang === "fr") return "fr-FR";
+  if (lang === "es") return "es-ES";
+  return "en-GB";
+}
+
+function normalizeContentLanguage(value, fallback = "it-IT") {
+  const raw = String(value || "").trim();
+  const regex = /^[a-z]{2}-[A-Z]{2}$/;
+
+  if (regex.test(raw)) return raw;
+  if (regex.test(fallback)) return fallback;
+  return "it-IT";
+}
+
+function parsePossiblyJsonBody(body) {
+  if (Buffer.isBuffer(body)) {
+    const text = body.toString("utf8");
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  }
+
+  if (typeof body === "string") {
+    try {
+      return JSON.parse(body);
+    } catch {
+      return body;
+    }
+  }
+
+  return body;
+}
+
+function errorToSerializable(error) {
+  return error?.response?.data || error?.message || String(error);
 }
 
 // =========================
@@ -718,8 +771,7 @@ async function getEbayFulfillmentPolicies(marketplaceId) {
   return ebayGet(
     "/sell/account/v1/fulfillment_policy",
     accessToken,
-    { marketplace_id: marketplaceId },
-    { "Content-Language": "en-US" }
+    { marketplace_id: marketplaceId }
   );
 }
 
@@ -729,8 +781,7 @@ async function getEbayPaymentPolicies(marketplaceId) {
   return ebayGet(
     "/sell/account/v1/payment_policy",
     accessToken,
-    { marketplace_id: marketplaceId },
-    { "Content-Language": "en-US" }
+    { marketplace_id: marketplaceId }
   );
 }
 
@@ -740,8 +791,7 @@ async function getEbayReturnPolicies(marketplaceId) {
   return ebayGet(
     "/sell/account/v1/return_policy",
     accessToken,
-    { marketplace_id: marketplaceId },
-    { "Content-Language": "en-US" }
+    { marketplace_id: marketplaceId }
   );
 }
 
@@ -1096,13 +1146,22 @@ function buildInventoryItemPayload(shopifyVariant) {
   return payload;
 }
 
-async function createOrReplaceInventoryItem({ sku, payload }) {
+async function createOrReplaceInventoryItem({
+  sku,
+  payload,
+  contentLanguage,
+}) {
   const accessToken = await ensureValidEbayAccessToken();
+  const safeContentLanguage = normalizeContentLanguage(contentLanguage, "it-IT");
 
   return ebayPut(
     `/sell/inventory/v1/inventory_item/${encodeURIComponent(sku)}`,
     accessToken,
-    payload
+    payload,
+    {},
+    {
+      "Content-Language": safeContentLanguage,
+    }
   );
 }
 
@@ -1122,19 +1181,39 @@ async function getOffersBySkuMarketplace({ sku, marketplaceId }) {
   return result?.offers || [];
 }
 
-async function createOffer({ payload }) {
+async function createOffer({
+  payload,
+  contentLanguage,
+}) {
   const accessToken = await ensureValidEbayAccessToken();
-  return ebayPost("/sell/inventory/v1/offer", accessToken, payload);
+  const safeContentLanguage = normalizeContentLanguage(contentLanguage, "it-IT");
+
+  return ebayPost(
+    "/sell/inventory/v1/offer",
+    accessToken,
+    payload,
+    {},
+    {
+      "Content-Language": safeContentLanguage,
+    }
+  );
 }
 
-async function updateOffer({ offerId, payload }) {
+async function updateOffer({
+  offerId,
+  payload,
+  contentLanguage,
+}) {
   const accessToken = await ensureValidEbayAccessToken();
+  const safeContentLanguage = normalizeContentLanguage(contentLanguage, "it-IT");
 
   const response = await axios.put(
     `${EBAY_API_BASE}/sell/inventory/v1/offer/${encodeURIComponent(offerId)}`,
     payload,
     {
-      headers: buildEbayApiHeaders(accessToken),
+      headers: buildEbayApiHeaders(accessToken, {
+        "Content-Language": safeContentLanguage,
+      }),
       validateStatus: (status) => status >= 200 && status < 300,
     }
   );
@@ -1163,7 +1242,7 @@ function buildOfferPayload({
   categoryId,
   policyIds,
   listingDescription,
-  locale,
+  currency,
 }) {
   if (!policyIds?.paymentPolicyId) {
     throw new Error("Missing paymentPolicyId");
@@ -1188,7 +1267,7 @@ function buildOfferPayload({
     pricingSummary: {
       price: {
         value: String(normalizeMoney(price)),
-        currency: EBAY_DEFAULT_CURRENCY,
+        currency: currency || "EUR",
       },
     },
     listingPolicies: {
@@ -1198,7 +1277,6 @@ function buildOfferPayload({
     },
     listingDuration: EBAY_DEFAULT_LISTING_DURATION,
     listingDescription: cleanHtmlForEbay(listingDescription || ""),
-    locale,
   };
 }
 
@@ -1209,8 +1287,10 @@ async function upsertOfferForMarketplace({
   marketplaceId,
   categoryId,
   translatedDescription,
-  locale,
 }) {
+  const meta = getMarketplaceMeta(marketplaceId);
+  const contentLanguage = normalizeContentLanguage(meta?.locale, "it-IT");
+
   const policies = await getAllEbayPolicies(marketplaceId);
   const policyIds = pickDefaultPolicyIds(policies);
 
@@ -1222,7 +1302,7 @@ async function upsertOfferForMarketplace({
     categoryId,
     policyIds,
     listingDescription: translatedDescription,
-    locale,
+    currency: meta?.currency || "EUR",
   });
 
   const existingOffers = await getOffersBySkuMarketplace({ sku, marketplaceId });
@@ -1232,17 +1312,22 @@ async function upsertOfferForMarketplace({
     const updateResult = await updateOffer({
       offerId: existing.offerId,
       payload,
+      contentLanguage,
     });
 
     return {
       mode: "updated",
       offerId: existing.offerId,
       payload,
+      contentLanguage,
       updateResult,
     };
   }
 
-  const createResult = await createOffer({ payload });
+  const createResult = await createOffer({
+    payload,
+    contentLanguage,
+  });
   const offerId = createResult?.offerId;
 
   if (!offerId) {
@@ -1257,6 +1342,7 @@ async function upsertOfferForMarketplace({
     mode: "created",
     offerId,
     payload,
+    contentLanguage,
     createResult,
   };
 }
@@ -1272,17 +1358,44 @@ async function publishSkuToMultipleEbayMarkets({
   }
 
   const inventoryItemPayload = buildInventoryItemPayload(shopifyVariant);
-  const inventoryItemResult = await createOrReplaceInventoryItem({
-    sku,
-    payload: inventoryItemPayload,
-  });
+  const inventoryContentLanguage = normalizeContentLanguage(
+    languageToLocale(sourceLanguage),
+    "it-IT"
+  );
 
-  const translations = await buildMarketplaceTranslations({
-    sourceLanguage,
-    title: inventoryItemPayload.product.title,
-    descriptionHtml:
-      shopifyVariant.product.descriptionHtml || shopifyVariant.product.descriptionText,
-  });
+  let inventoryItemResult;
+  try {
+    inventoryItemResult = await createOrReplaceInventoryItem({
+      sku,
+      payload: inventoryItemPayload,
+      contentLanguage: inventoryContentLanguage,
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      failedStep: "inventory_item_upsert",
+      sku,
+      inventoryContentLanguage,
+      error: errorToSerializable(error),
+    };
+  }
+
+  let translations;
+  try {
+    translations = await buildMarketplaceTranslations({
+      sourceLanguage,
+      title: inventoryItemPayload.product.title,
+      descriptionHtml:
+        shopifyVariant.product.descriptionHtml || shopifyVariant.product.descriptionText,
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      failedStep: "translation",
+      sku,
+      error: errorToSerializable(error),
+    };
+  }
 
   const marketsResult = [];
 
@@ -1309,7 +1422,6 @@ async function publishSkuToMultipleEbayMarkets({
         marketplaceId: market.marketplaceId,
         categoryId,
         translatedDescription: translation.translatedDescription,
-        locale: market.locale,
       });
 
       const publishResult = await publishOffer({ offerId: upsert.offerId });
@@ -1320,6 +1432,8 @@ async function publishSkuToMultipleEbayMarkets({
         site: market.site,
         ok: true,
         categoryId,
+        contentLanguage: upsert.contentLanguage,
+        currency: market.currency,
         translatedTitlePreview: translation.translatedTitle,
         translatedDescriptionPreview: translation.translatedDescription,
         offerMode: upsert.mode,
@@ -1333,7 +1447,9 @@ async function publishSkuToMultipleEbayMarkets({
         site: market.site,
         ok: false,
         categoryId,
-        error: error.response?.data || error.message,
+        contentLanguage: normalizeContentLanguage(market.locale, "it-IT"),
+        currency: market.currency,
+        error: errorToSerializable(error),
       });
     }
   }
@@ -1353,6 +1469,7 @@ async function publishSkuToMultipleEbayMarkets({
       inventoryQuantity: shopifyVariant.inventoryQuantity,
       imageCount: shopifyVariant.product.imageUrls.length,
     },
+    inventoryContentLanguage,
     inventoryItemPayload,
     inventoryItemResult,
     translations,
@@ -2023,7 +2140,7 @@ app.get("/ebay/category/suggest-all", async (req, res) => {
           marketplaceId: market.marketplaceId,
           locale: market.locale,
           site: market.site,
-          error: error.response?.data || error.message,
+          error: errorToSerializable(error),
         };
       }
     }
@@ -2041,7 +2158,7 @@ app.get("/ebay/category/suggest-all", async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       ok: false,
-      error: error.response?.data || error.message,
+      error: errorToSerializable(error),
     });
   }
 });
@@ -2081,7 +2198,7 @@ app.get("/ebay/translation/preview", async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       ok: false,
-      error: error.response?.data || error.message,
+      error: errorToSerializable(error),
     });
   }
 });
@@ -2175,7 +2292,7 @@ app.get("/ebay/oauth/callback", async (req, res) => {
 
     return res.redirect("/ebay/publisher?connected=1");
   } catch (error) {
-    console.log("EBAY CALLBACK ERROR", error.response?.data || error.message);
+    console.log("EBAY CALLBACK ERROR", errorToSerializable(error));
     return res.redirect("/ebay/publisher?error=oauth");
   }
 });
@@ -2221,7 +2338,7 @@ app.get("/ebay/token/refresh", async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       ok: false,
-      error: error.response?.data || error.message,
+      error: errorToSerializable(error),
     });
   }
 });
@@ -2257,7 +2374,7 @@ app.get("/ebay/account/policies", async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       ok: false,
-      error: error.response?.data || error.message,
+      error: errorToSerializable(error),
     });
   }
 });
@@ -2284,7 +2401,7 @@ app.get("/ebay/location/get", async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       ok: false,
-      error: error.response?.data || error.message,
+      error: errorToSerializable(error),
     });
   }
 });
@@ -2300,7 +2417,7 @@ app.get("/ebay/location/list", async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       ok: false,
-      error: error.response?.data || error.message,
+      error: errorToSerializable(error),
     });
   }
 });
@@ -2341,7 +2458,7 @@ app.get("/ebay/category/suggest", async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       ok: false,
-      error: error.response?.data || error.message,
+      error: errorToSerializable(error),
     });
   }
 });
@@ -2366,7 +2483,7 @@ app.post("/ebay/publish/multi", async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       ok: false,
-      error: error.response?.data || error.message,
+      error: errorToSerializable(error),
     });
   }
 });
@@ -2374,6 +2491,22 @@ app.post("/ebay/publish/multi", async (req, res) => {
 // =========================
 // EBAY NOTIFICATIONS
 // =========================
+
+app.post("/ebay/notifications", express.raw({ type: "*/*" }), (req, res) => {
+  try {
+    const parsed = parsePossiblyJsonBody(req.body);
+    const rawBody =
+      typeof parsed === "string" ? parsed : JSON.stringify(parsed || {});
+
+    console.log("EBAY NOTIFICATION RECEIVED");
+    console.log("EBAY RAW BODY", rawBody || "<empty>");
+
+    return res.status(200).send("OK");
+  } catch (error) {
+    console.log("EBAY NOTIFICATION ERROR", error.message);
+    return res.status(500).send("error");
+  }
+});
 
 app.get("/ebay/notifications", (req, res) => {
   try {
@@ -2400,28 +2533,6 @@ app.get("/ebay/notifications", (req, res) => {
   }
 });
 
-app.post("/ebay/notifications", express.raw({ type: "*/*" }), (req, res) => {
-  try {
-    let rawBody = "";
-
-    if (Buffer.isBuffer(req.body)) {
-      rawBody = req.body.toString("utf8");
-    } else if (typeof req.body === "string") {
-      rawBody = req.body;
-    } else if (req.body) {
-      rawBody = JSON.stringify(req.body);
-    }
-
-    console.log("EBAY NOTIFICATION RECEIVED");
-    console.log("EBAY RAW BODY", rawBody || "<empty>");
-
-    return res.status(200).send("OK");
-  } catch (error) {
-    console.log("EBAY NOTIFICATION ERROR", error.message);
-    return res.status(500).send("error");
-  }
-});
-
 // =========================
 // AMAZON ROUTES
 // =========================
@@ -2433,7 +2544,7 @@ app.get("/amazon/notifications/setup", async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       ok: false,
-      error: error.response?.data || error.message,
+      error: errorToSerializable(error),
     });
   }
 });
@@ -2445,7 +2556,7 @@ app.get("/amazon/notifications/destinations", async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       ok: false,
-      error: error.response?.data || error.message,
+      error: errorToSerializable(error),
     });
   }
 });
@@ -2457,7 +2568,7 @@ app.get("/amazon/notifications/subscription", async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       ok: false,
-      error: error.response?.data || error.message,
+      error: errorToSerializable(error),
     });
   }
 });
@@ -2486,7 +2597,7 @@ app.get("/amazon/order-items", async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       ok: false,
-      error: error.response?.data || error.message,
+      error: errorToSerializable(error),
     });
   }
 });
@@ -2515,7 +2626,7 @@ app.get("/shopify/test-adjust", async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       ok: false,
-      error: error.response?.data || error.message,
+      error: errorToSerializable(error),
     });
   }
 });
@@ -2526,7 +2637,8 @@ app.get("/shopify/test-adjust", async (req, res) => {
 
 app.post("/webhooks/products", express.raw({ type: "*/*" }), async (req, res) => {
   try {
-    const payload = JSON.parse(req.body.toString());
+    const parsed = parsePossiblyJsonBody(req.body);
+    const payload = typeof parsed === "string" ? JSON.parse(parsed) : parsed;
 
     for (const variant of payload.variants || []) {
       const existing = inventoryMap.get(String(variant.inventory_item_id)) || {};
@@ -2555,7 +2667,8 @@ app.post("/webhooks/products", express.raw({ type: "*/*" }), async (req, res) =>
 
 app.post("/webhooks/inventory", express.raw({ type: "*/*" }), async (req, res) => {
   try {
-    const payload = JSON.parse(req.body.toString());
+    const parsed = parsePossiblyJsonBody(req.body);
+    const payload = typeof parsed === "string" ? JSON.parse(parsed) : parsed;
 
     let mapped = inventoryMap.get(String(payload.inventory_item_id));
 
