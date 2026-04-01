@@ -93,6 +93,10 @@ const EBAY_DEFAULT_FORMAT = process.env.EBAY_DEFAULT_FORMAT || "FIXED_PRICE";
 const EBAY_STATE_DIR =
   process.env.EBAY_STATE_DIR || path.join(__dirname, "data");
 const EBAY_STATE_FILE = path.join(EBAY_STATE_DIR, "ebay-connection.json");
+const EBAY_LISTING_MAP_FILE = path.join(EBAY_STATE_DIR, "ebay-listing-map.json");
+
+// Optional JSON map from ENV: {"SKU1":"123456789012","SKU2":"234567890123"}
+const EBAY_LISTING_ID_MAP_JSON = process.env.EBAY_LISTING_ID_MAP_JSON || "";
 
 // Polling
 const AUTO_POLL_SQS = String(process.env.AUTO_POLL_SQS || "false") === "true";
@@ -158,8 +162,9 @@ const MARKETPLACES = [
 
 function getMarketplaceMeta(marketplaceId) {
   return (
-    MARKETPLACES.find((m) => m.marketplaceId === String(marketplaceId || "").trim()) ||
-    null
+    MARKETPLACES.find(
+      (m) => m.marketplaceId === String(marketplaceId || "").trim()
+    ) || null
   );
 }
 
@@ -171,6 +176,8 @@ const inventoryMap = new Map();
 const processedAmazonOrderEvents = new Set();
 
 const ebayOAuthStates = new Map();
+const ebayListingIdMap = new Map();
+
 const ebayConnectionStore = {
   connected: false,
   connectedAt: null,
@@ -406,10 +413,68 @@ function errorToSerializable(error) {
   return error?.response?.data || error?.message || String(error);
 }
 
+function getEbayErrorsArray(errorLike) {
+  const data = errorLike?.response?.data || errorLike || {};
+  return Array.isArray(data?.errors) ? data.errors : [];
+}
+
 function isEbayOfferUnavailableError(error) {
-  const data = error?.response?.data || error;
-  const errors = Array.isArray(data?.errors) ? data.errors : [];
-  return errors.some((e) => Number(e?.errorId) === 25713);
+  return getEbayErrorsArray(error).some((e) => Number(e?.errorId) === 25713);
+}
+
+function isPlainObject(value) {
+  return value && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeSku(value) {
+  return String(value || "").trim();
+}
+
+function normalizeListingId(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[^\d]/g, "");
+}
+
+function sanitizeListingMapForResponse() {
+  const entries = [];
+  for (const [sku, listingId] of ebayListingIdMap.entries()) {
+    entries.push({ sku, listingId });
+  }
+  return {
+    count: entries.length,
+    entries: entries.sort((a, b) => a.sku.localeCompare(b.sku)),
+  };
+}
+
+function getPersistedListingIdForSku(sku) {
+  return ebayListingIdMap.get(normalizeSku(sku)) || null;
+}
+
+function setPersistedListingIdForSku(sku, listingId) {
+  const safeSku = normalizeSku(sku);
+  const safeListingId = normalizeListingId(listingId);
+
+  if (!safeSku) {
+    throw new Error("Cannot save listing mapping: missing sku");
+  }
+
+  if (!safeListingId) {
+    throw new Error("Cannot save listing mapping: missing listingId");
+  }
+
+  ebayListingIdMap.set(safeSku, safeListingId);
+  return safeListingId;
+}
+
+function deletePersistedListingIdForSku(sku) {
+  ebayListingIdMap.delete(normalizeSku(sku));
+}
+
+function getSafeOfferIds(offers = []) {
+  return offers
+    .map((offer) => String(offer?.offerId || "").trim())
+    .filter(Boolean);
 }
 
 // =========================
@@ -458,7 +523,10 @@ async function loadEbayConnectionFromDisk() {
     ebayConnectionStore.scope = data.scope || null;
     ebayConnectionStore.userInfo = data.userInfo || null;
 
-    console.log("EBAY STATE LOADED FROM DISK", sanitizeEbayConnectionForResponse());
+    console.log(
+      "EBAY STATE LOADED FROM DISK",
+      sanitizeEbayConnectionForResponse()
+    );
   } catch (error) {
     if (error.code === "ENOENT") {
       console.log("EBAY STATE FILE NOT FOUND, STARTING CLEAN");
@@ -481,6 +549,65 @@ async function clearEbayConnectionOnDisk() {
   ebayConnectionStore.userInfo = null;
 
   await saveEbayConnectionToDisk();
+}
+
+async function saveEbayListingMapToDisk() {
+  await ensureEbayStateDir();
+
+  const payload = {
+    savedAt: nowIso(),
+    mappings: Object.fromEntries(ebayListingIdMap.entries()),
+  };
+
+  await fs.writeFile(
+    EBAY_LISTING_MAP_FILE,
+    JSON.stringify(payload, null, 2),
+    "utf8"
+  );
+}
+
+async function loadEbayListingMapFromDisk() {
+  try {
+    await ensureEbayStateDir();
+
+    if (EBAY_LISTING_ID_MAP_JSON) {
+      try {
+        const envMap = JSON.parse(EBAY_LISTING_ID_MAP_JSON);
+        if (isPlainObject(envMap)) {
+          for (const [sku, listingId] of Object.entries(envMap)) {
+            const safeSku = normalizeSku(sku);
+            const safeListingId = normalizeListingId(listingId);
+            if (safeSku && safeListingId) {
+              ebayListingIdMap.set(safeSku, safeListingId);
+            }
+          }
+        }
+      } catch (error) {
+        console.log("EBAY LISTING MAP ENV PARSE ERROR", error.message);
+      }
+    }
+
+    const raw = await fs.readFile(EBAY_LISTING_MAP_FILE, "utf8");
+    const data = JSON.parse(raw);
+    const mappings = isPlainObject(data?.mappings) ? data.mappings : {};
+
+    for (const [sku, listingId] of Object.entries(mappings)) {
+      const safeSku = normalizeSku(sku);
+      const safeListingId = normalizeListingId(listingId);
+      if (safeSku && safeListingId) {
+        ebayListingIdMap.set(safeSku, safeListingId);
+      }
+    }
+
+    console.log("EBAY LISTING MAP LOADED", sanitizeListingMapForResponse());
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      console.log("EBAY LISTING MAP FILE NOT FOUND, STARTING CLEAN");
+      return;
+    }
+
+    console.log("EBAY LISTING MAP LOAD ERROR", error.message);
+  }
 }
 
 // =========================
@@ -1179,20 +1306,24 @@ async function createOrReplaceInventoryItem({
   );
 }
 
-async function getOffersBySku({ sku }) {
+async function getOffersBySku({ sku, marketplaceId, format }) {
   const accessToken = await ensureValidEbayAccessToken();
 
-  const result = await ebayGet(
-    "/sell/inventory/v1/offer",
-    accessToken,
-    {
-      sku,
-      format: EBAY_DEFAULT_FORMAT,
-      limit: 200,
-      offset: 0,
-    }
-  );
+  const params = {
+    sku,
+    limit: 200,
+    offset: 0,
+  };
 
+  if (marketplaceId) {
+    params.marketplace_id = marketplaceId;
+  }
+
+  if (format) {
+    params.format = format;
+  }
+
+  const result = await ebayGet("/sell/inventory/v1/offer", accessToken, params);
   return result?.offers || [];
 }
 
@@ -1255,6 +1386,129 @@ async function publishOffer({ offerId }) {
     `/sell/inventory/v1/offer/${encodeURIComponent(offerId)}/publish`,
     accessToken
   );
+}
+
+async function bulkMigrateListings({ requests }) {
+  const accessToken = await ensureValidEbayAccessToken();
+
+  return ebayPost(
+    "/sell/inventory/v1/bulk_migrate_listing",
+    accessToken,
+    { requests }
+  );
+}
+
+async function bulkUpdatePriceQuantity({ requests }) {
+  const accessToken = await ensureValidEbayAccessToken();
+
+  return ebayPost(
+    "/sell/inventory/v1/bulk_update_price_quantity",
+    accessToken,
+    { requests }
+  );
+}
+
+async function migrateListingToInventoryModel({
+  sku,
+  listingId,
+}) {
+  const safeSku = normalizeSku(sku);
+  const safeListingId = normalizeListingId(listingId);
+
+  if (!safeSku) {
+    throw new Error("migrateListingToInventoryModel: missing sku");
+  }
+  if (!safeListingId) {
+    throw new Error("migrateListingToInventoryModel: missing listingId");
+  }
+
+  const migrationResult = await bulkMigrateListings({
+    requests: [{ listingId: safeListingId }],
+  });
+
+  const responses = Array.isArray(migrationResult?.responses)
+    ? migrationResult.responses
+    : [];
+  const first = responses[0] || null;
+
+  if (!first) {
+    throw new Error(
+      `bulk_migrate_listing returned no responses for listingId ${safeListingId}`
+    );
+  }
+
+  const errors = Array.isArray(first.errors) ? first.errors : [];
+  const ok =
+    Number(first.statusCode || 0) >= 200 &&
+    Number(first.statusCode || 0) < 300 &&
+    errors.length === 0;
+
+  if (!ok) {
+    throw new Error(JSON.stringify(first));
+  }
+
+  if (first.sku && normalizeSku(first.sku) !== safeSku) {
+    console.log("EBAY MIGRATION SKU MISMATCH", {
+      expectedSku: safeSku,
+      returnedSku: first.sku,
+      listingId: safeListingId,
+    });
+  }
+
+  setPersistedListingIdForSku(safeSku, safeListingId);
+  await saveEbayListingMapToDisk();
+
+  return {
+    ok: true,
+    sku: safeSku,
+    listingId: safeListingId,
+    migrationResult,
+  };
+}
+
+async function bulkUpdatePublishedOffersForSku({
+  sku,
+  price,
+  quantity,
+  offers,
+}) {
+  const safeSku = normalizeSku(sku);
+  const offerIds = getSafeOfferIds(offers);
+
+  if (!safeSku) {
+    throw new Error("bulkUpdatePublishedOffersForSku: missing sku");
+  }
+
+  if (!offerIds.length) {
+    throw new Error("bulkUpdatePublishedOffersForSku: no offerIds to update");
+  }
+
+  const requests = [
+    {
+      sku: safeSku,
+      shipToLocationAvailability: {
+        quantity: Math.max(0, Number(quantity || 0)),
+      },
+      offers: offers
+        .filter((offer) => offer?.offerId)
+        .map((offer) => {
+          const meta = getMarketplaceMeta(offer?.marketplaceId);
+          return {
+            offerId: String(offer.offerId),
+            availableQuantity: Math.max(0, Number(quantity || 0)),
+            price: {
+              value: String(normalizeMoney(price)),
+              currency:
+                offer?.pricingSummary?.price?.currency ||
+                meta?.currency ||
+                "EUR",
+            },
+          };
+        }),
+    },
+  ];
+
+  return bulkUpdatePriceQuantity({ requests });
 }
 
 function buildOfferPayload({
@@ -1505,10 +1759,17 @@ async function publishSkuToMultipleEbayMarkets({
 // EBAY SYNC FROM SHOPIFY
 // =========================
 
-async function syncShopifySkuToEbay({ sku, sourceLanguage = "it" }) {
-  const shopifyVariant = await getShopifyVariantBySku(sku);
+async function syncShopifySkuToEbay({
+  sku,
+  sourceLanguage = "it",
+  listingId = null,
+}) {
+  const safeSku = normalizeSku(sku);
+  const safeListingId = normalizeListingId(listingId || getPersistedListingIdForSku(safeSku));
+
+  const shopifyVariant = await getShopifyVariantBySku(safeSku);
   if (!shopifyVariant) {
-    return { ok: false, sku, error: `Shopify SKU not found: ${sku}` };
+    return { ok: false, sku: safeSku, error: `Shopify SKU not found: ${safeSku}` };
   }
 
   const inventoryContentLanguage = normalizeContentLanguage(
@@ -1521,14 +1782,14 @@ async function syncShopifySkuToEbay({ sku, sourceLanguage = "it" }) {
   let inventoryItemUpdate = null;
   try {
     inventoryItemUpdate = await createOrReplaceInventoryItem({
-      sku,
+      sku: safeSku,
       payload: inventoryItemPayload,
       contentLanguage: inventoryContentLanguage,
     });
   } catch (error) {
     return {
       ok: false,
-      sku,
+      sku: safeSku,
       failedStep: "inventory_item_upsert",
       inventoryContentLanguage,
       error: errorToSerializable(error),
@@ -1536,12 +1797,38 @@ async function syncShopifySkuToEbay({ sku, sourceLanguage = "it" }) {
   }
 
   let offers = [];
+  let initialOfferLookupError = null;
+  let initialOfferLookupUnavailable25713 = false;
+
   try {
-    offers = await getOffersBySku({ sku });
+    offers = await getOffersBySku({ sku: safeSku });
   } catch (error) {
+    initialOfferLookupError = errorToSerializable(error);
+    initialOfferLookupUnavailable25713 = isEbayOfferUnavailableError(error);
+    offers = [];
+  }
+
+  let migrationAttempted = false;
+  let migrationResult = null;
+  let postMigrationOfferLookupError = null;
+
+  if (!offers.length && safeListingId) {
+    try {
+      migrationAttempted = true;
+      migrationResult = await migrateListingToInventoryModel({
+        sku: safeSku,
+        listingId: safeListingId,
+      });
+      offers = await getOffersBySku({ sku: safeSku });
+    } catch (error) {
+      postMigrationOfferLookupError = errorToSerializable(error);
+    }
+  }
+
+  if (!offers.length) {
     return {
       ok: true,
-      sku,
+      sku: safeSku,
       inventorySynced: true,
       priceSynced: false,
       syncedPrice: shopifyVariant.price,
@@ -1549,104 +1836,83 @@ async function syncShopifySkuToEbay({ sku, sourceLanguage = "it" }) {
       inventoryContentLanguage,
       inventoryItemUpdate,
       offersFound: 0,
-      warning: "Inventory aggiornato, ma non sono riuscito a leggere le offer.",
-      offerReadError: errorToSerializable(error),
+      listingIdUsed: safeListingId || null,
+      migrationAttempted,
+      migrationResult,
+      initialOfferLookupUnavailable25713,
+      initialOfferLookupError,
+      postMigrationOfferLookupError,
+      warning:
+        "Inventory aggiornato, ma non esistono offer accessibili tramite Inventory API per questo SKU. Se la listing esiste già su eBay ma è stata creata fuori dal modello Inventory API, salva il listingId e rilancia la sync per forzare la migrazione.",
       offerResults: [],
     };
   }
 
-  const offerResults = [];
+  let bulkUpdateResult = null;
+  let bulkUpdateError = null;
 
-  for (const offerSummary of offers) {
-    const offerId = offerSummary.offerId;
-    if (!offerId) continue;
-
-    try {
-      const currentOffer = await getOffer(offerId);
-      const meta = getMarketplaceMeta(currentOffer.marketplaceId);
-      const contentLanguage = normalizeContentLanguage(meta?.locale, "it-IT");
-
-      const updatedOfferPayload = {
-        ...currentOffer,
-        availableQuantity: Math.max(
-          0,
-          Number(shopifyVariant.inventoryQuantity || 0)
-        ),
-        pricingSummary: {
-          ...(currentOffer.pricingSummary || {}),
-          price: {
-            value: String(normalizeMoney(shopifyVariant.price)),
-            currency:
-              currentOffer?.pricingSummary?.price?.currency ||
-              meta?.currency ||
-              "EUR",
-          },
-        },
-      };
-
-      delete updatedOfferPayload.offerId;
-      delete updatedOfferPayload.listing;
-      delete updatedOfferPayload.status;
-      delete updatedOfferPayload.marketplaceItemCondition;
-      delete updatedOfferPayload.tax;
-      delete updatedOfferPayload.shippingCostOverrides;
-      delete updatedOfferPayload.charity;
-      delete updatedOfferPayload.bestOfferTerms;
-      delete updatedOfferPayload.auctionTerms;
-      delete updatedOfferPayload.includeCatalogProductDetails;
-
-      const updateResult = await updateOffer({
-        offerId,
-        payload: updatedOfferPayload,
-        contentLanguage,
-      });
-
-      offerResults.push({
-        ok: true,
-        offerId,
-        marketplaceId: currentOffer.marketplaceId,
-        contentLanguage,
-        updateResult,
-      });
-    } catch (error) {
-      if (isEbayOfferUnavailableError(error)) {
-        offerResults.push({
-          ok: false,
-          skipped: true,
-          reason: "offer_not_available",
-          offerId,
-          error: errorToSerializable(error),
-        });
-        continue;
-      }
-
-      offerResults.push({
-        ok: false,
-        offerId,
-        error: errorToSerializable(error),
-      });
-    }
+  try {
+    bulkUpdateResult = await bulkUpdatePublishedOffersForSku({
+      sku: safeSku,
+      price: shopifyVariant.price,
+      quantity: shopifyVariant.inventoryQuantity,
+      offers,
+    });
+  } catch (error) {
+    bulkUpdateError = errorToSerializable(error);
   }
 
-  const realFailures = offerResults.filter(
-    (r) => r.ok === false && !r.skipped
-  );
+  const offerResults = offers.map((offer) => {
+    const responseRow =
+      bulkUpdateResult?.responses?.find(
+        (r) =>
+          String(r?.offerId || "") === String(offer?.offerId || "") ||
+          (String(r?.sku || "") === safeSku &&
+            !String(r?.offerId || "").trim())
+      ) || null;
 
-  const skippedUnavailable = offerResults.filter(
-    (r) => r.ok === false && r.skipped && r.reason === "offer_not_available"
-  );
+    const errors = Array.isArray(responseRow?.errors) ? responseRow.errors : [];
+    const warnings = Array.isArray(responseRow?.warnings)
+      ? responseRow.warnings
+      : [];
+
+    return {
+      offerId: offer?.offerId || null,
+      marketplaceId: offer?.marketplaceId || null,
+      format: offer?.format || null,
+      statusCode: responseRow?.statusCode || null,
+      ok:
+        responseRow
+          ? Number(responseRow.statusCode || 0) >= 200 &&
+            Number(responseRow.statusCode || 0) < 300 &&
+            errors.length === 0
+          : bulkUpdateError
+          ? false
+          : true,
+      errors,
+      warnings,
+    };
+  });
+
+  const realFailures = offerResults.filter((r) => r.ok === false);
 
   return {
-    ok: realFailures.length === 0,
-    sku,
+    ok: realFailures.length === 0 && !bulkUpdateError,
+    sku: safeSku,
     inventorySynced: true,
-    priceSynced: realFailures.length === 0,
+    priceSynced: realFailures.length === 0 && !bulkUpdateError,
     syncedPrice: shopifyVariant.price,
     syncedQuantity: shopifyVariant.inventoryQuantity,
     inventoryContentLanguage,
     inventoryItemUpdate,
     offersFound: offers.length,
-    skippedUnavailableOffers: skippedUnavailable.length,
+    listingIdUsed: safeListingId || null,
+    migrationAttempted,
+    migrationResult,
+    initialOfferLookupUnavailable25713,
+    initialOfferLookupError,
+    bulkUpdateError,
+    bulkUpdateResult,
     offerResults,
   };
 }
@@ -2401,7 +2667,9 @@ app.get("/ebay/health", async (req, res) => {
       notificationEndpoint: EBAY_NOTIFICATION_ENDPOINT,
       stateDir: EBAY_STATE_DIR,
       stateFile: EBAY_STATE_FILE,
+      listingMapFile: EBAY_LISTING_MAP_FILE,
       connection: sanitizeEbayConnectionForResponse(),
+      listingMap: sanitizeListingMapForResponse(),
     });
   } catch (error) {
     return res.status(500).json({
@@ -2637,6 +2905,136 @@ app.get("/ebay/category/suggest", async (req, res) => {
   }
 });
 
+app.get("/ebay/offers/by-sku", async (req, res) => {
+  try {
+    const sku = String(req.query.sku || "").trim();
+    const marketplaceId = String(req.query.marketplaceId || "").trim();
+    const format = String(req.query.format || "").trim();
+
+    if (!sku) {
+      return res.status(400).json({ ok: false, error: "missing sku" });
+    }
+
+    const offers = await getOffersBySku({
+      sku,
+      marketplaceId: marketplaceId || undefined,
+      format: format || undefined,
+    });
+
+    return res.json({
+      ok: true,
+      sku,
+      marketplaceId: marketplaceId || null,
+      format: format || null,
+      offersFound: offers.length,
+      offers,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: errorToSerializable(error),
+    });
+  }
+});
+
+app.get("/ebay/listing-map", async (req, res) => {
+  try {
+    return res.json({
+      ok: true,
+      listingMap: sanitizeListingMapForResponse(),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.post("/ebay/listing-map/save", async (req, res) => {
+  try {
+    const sku = normalizeSku(req.body?.sku);
+    const listingId = normalizeListingId(req.body?.listingId);
+
+    if (!sku) {
+      return res.status(400).json({ ok: false, error: "missing sku" });
+    }
+    if (!listingId) {
+      return res.status(400).json({ ok: false, error: "missing listingId" });
+    }
+
+    setPersistedListingIdForSku(sku, listingId);
+    await saveEbayListingMapToDisk();
+
+    return res.json({
+      ok: true,
+      sku,
+      listingId,
+      listingMap: sanitizeListingMapForResponse(),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.post("/ebay/listing-map/delete", async (req, res) => {
+  try {
+    const sku = normalizeSku(req.body?.sku);
+
+    if (!sku) {
+      return res.status(400).json({ ok: false, error: "missing sku" });
+    }
+
+    deletePersistedListingIdForSku(sku);
+    await saveEbayListingMapToDisk();
+
+    return res.json({
+      ok: true,
+      sku,
+      listingMap: sanitizeListingMapForResponse(),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: error.message,
+    });
+  }
+});
+
+app.post("/ebay/migrate/listing", async (req, res) => {
+  try {
+    const sku = normalizeSku(req.body?.sku);
+    const listingId = normalizeListingId(req.body?.listingId);
+
+    if (!sku) {
+      return res.status(400).json({ ok: false, error: "missing sku" });
+    }
+    if (!listingId) {
+      return res.status(400).json({ ok: false, error: "missing listingId" });
+    }
+
+    const result = await migrateListingToInventoryModel({ sku, listingId });
+    const offers = await getOffersBySku({ sku });
+
+    return res.json({
+      ok: true,
+      sku,
+      listingId,
+      migration: result,
+      offersFound: offers.length,
+      offers,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: errorToSerializable(error),
+    });
+  }
+});
+
 app.post("/ebay/publish/multi", async (req, res) => {
   try {
     const sku = String(req.body?.sku || "").trim();
@@ -2664,14 +3062,25 @@ app.post("/ebay/publish/multi", async (req, res) => {
 
 app.post("/ebay/sync/sku", async (req, res) => {
   try {
-    const sku = String(req.body?.sku || "").trim();
+    const sku = normalizeSku(req.body?.sku);
     const sourceLanguage = getSourceLanguage(req.body?.sourceLanguage || "it");
+    const listingId = normalizeListingId(req.body?.listingId);
 
     if (!sku) {
       return res.status(400).json({ ok: false, error: "missing sku" });
     }
 
-    const result = await syncShopifySkuToEbay({ sku, sourceLanguage });
+    if (listingId) {
+      setPersistedListingIdForSku(sku, listingId);
+      await saveEbayListingMapToDisk();
+    }
+
+    const result = await syncShopifySkuToEbay({
+      sku,
+      sourceLanguage,
+      listingId: listingId || null,
+    });
+
     return res.json(result);
   } catch (error) {
     return res.status(500).json({
@@ -2855,6 +3264,7 @@ app.post("/webhooks/products", express.raw({ type: "*/*" }), async (req, res) =>
           const ebayResult = await syncShopifySkuToEbay({
             sku: variant.sku,
             sourceLanguage: "it",
+            listingId: getPersistedListingIdForSku(variant.sku),
           });
           console.log(
             "EBAY SYNC FROM PRODUCT WEBHOOK",
@@ -2907,6 +3317,7 @@ app.post("/webhooks/inventory", express.raw({ type: "*/*" }), async (req, res) =
       const ebayResult = await syncShopifySkuToEbay({
         sku,
         sourceLanguage: "it",
+        listingId: getPersistedListingIdForSku(sku),
       });
       console.log(
         "EBAY SYNC FROM INVENTORY WEBHOOK",
@@ -2952,10 +3363,12 @@ app.get("/health", async (req, res) => {
     ebayEnvironment: EBAY_ENVIRONMENT,
     ebayStateDir: EBAY_STATE_DIR,
     ebayStateFile: EBAY_STATE_FILE,
+    ebayListingMapFile: EBAY_LISTING_MAP_FILE,
     ebayConnected: ebayConnectionStore.connected,
     merchantLocationKey: EBAY_MERCHANT_LOCATION_KEY,
     marketplaceId: EBAY_DEFAULT_MARKETPLACE_ID,
     marketplaces: MARKETPLACES,
+    listingMap: sanitizeListingMapForResponse(),
     sqs: sqsAttrs,
   });
 });
@@ -2970,6 +3383,7 @@ async function start() {
 
     if (EBAY_ENABLED) {
       await loadEbayConnectionFromDisk();
+      await loadEbayListingMapFromDisk();
     }
 
     app.listen(PORT, () => {
@@ -2981,6 +3395,7 @@ async function start() {
       );
       console.log(`eBay state dir: ${EBAY_STATE_DIR}`);
       console.log(`eBay state file: ${EBAY_STATE_FILE}`);
+      console.log(`eBay listing map file: ${EBAY_LISTING_MAP_FILE}`);
       console.log(`Publisher UI: ${APP_BASE_URL}/ebay/publisher`);
     });
 
