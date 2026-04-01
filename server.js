@@ -1146,6 +1146,14 @@ function buildInventoryItemPayload(shopifyVariant) {
   return payload;
 }
 
+async function getEbayInventoryItem(sku) {
+  const accessToken = await ensureValidEbayAccessToken();
+  return ebayGet(
+    `/sell/inventory/v1/inventory_item/${encodeURIComponent(sku)}`,
+    accessToken
+  );
+}
+
 async function createOrReplaceInventoryItem({
   sku,
   payload,
@@ -1165,7 +1173,7 @@ async function createOrReplaceInventoryItem({
   );
 }
 
-async function getOffersBySkuMarketplace({ sku, marketplaceId }) {
+async function getOffersBySku({ sku }) {
   const accessToken = await ensureValidEbayAccessToken();
 
   const result = await ebayGet(
@@ -1173,12 +1181,21 @@ async function getOffersBySkuMarketplace({ sku, marketplaceId }) {
     accessToken,
     {
       sku,
-      marketplace_id: marketplaceId,
       format: EBAY_DEFAULT_FORMAT,
+      limit: 200,
+      offset: 0,
     }
   );
 
   return result?.offers || [];
+}
+
+async function getOffer(offerId) {
+  const accessToken = await ensureValidEbayAccessToken();
+  return ebayGet(
+    `/sell/inventory/v1/offer/${encodeURIComponent(offerId)}`,
+    accessToken
+  );
 }
 
 async function createOffer({
@@ -1305,8 +1322,9 @@ async function upsertOfferForMarketplace({
     currency: meta?.currency || "EUR",
   });
 
-  const existingOffers = await getOffersBySkuMarketplace({ sku, marketplaceId });
-  const existing = existingOffers[0] || null;
+  const existingOffers = await getOffersBySku({ sku });
+  const existing =
+    existingOffers.find((offer) => offer.marketplaceId === marketplaceId) || null;
 
   if (existing?.offerId) {
     const updateResult = await updateOffer({
@@ -1474,6 +1492,105 @@ async function publishSkuToMultipleEbayMarkets({
     inventoryItemResult,
     translations,
     markets: marketsResult,
+  };
+}
+
+// =========================
+// EBAY SYNC FROM SHOPIFY
+// =========================
+
+async function syncShopifySkuToEbay({ sku, sourceLanguage = "it" }) {
+  const shopifyVariant = await getShopifyVariantBySku(sku);
+  if (!shopifyVariant) {
+    return { ok: false, sku, error: `Shopify SKU not found: ${sku}` };
+  }
+
+  const inventoryContentLanguage = normalizeContentLanguage(
+    languageToLocale(sourceLanguage),
+    "it-IT"
+  );
+
+  const inventoryItemPayload = buildInventoryItemPayload(shopifyVariant);
+
+  const inventoryItemUpdate = await createOrReplaceInventoryItem({
+    sku,
+    payload: inventoryItemPayload,
+    contentLanguage: inventoryContentLanguage,
+  });
+
+  const offers = await getOffersBySku({ sku });
+
+  const offerResults = [];
+
+  for (const offerSummary of offers) {
+    const offerId = offerSummary.offerId;
+    if (!offerId) continue;
+
+    try {
+      const currentOffer = await getOffer(offerId);
+      const meta = getMarketplaceMeta(currentOffer.marketplaceId);
+      const contentLanguage = normalizeContentLanguage(meta?.locale, "it-IT");
+
+      const updatedOfferPayload = {
+        ...currentOffer,
+        availableQuantity: Math.max(
+          0,
+          Number(shopifyVariant.inventoryQuantity || 0)
+        ),
+        pricingSummary: {
+          ...(currentOffer.pricingSummary || {}),
+          price: {
+            value: String(normalizeMoney(shopifyVariant.price)),
+            currency:
+              currentOffer?.pricingSummary?.price?.currency ||
+              meta?.currency ||
+              "EUR",
+          },
+        },
+      };
+
+      delete updatedOfferPayload.offerId;
+      delete updatedOfferPayload.listing;
+      delete updatedOfferPayload.status;
+      delete updatedOfferPayload.marketplaceItemCondition;
+      delete updatedOfferPayload.tax;
+      delete updatedOfferPayload.shippingCostOverrides;
+      delete updatedOfferPayload.charity;
+      delete updatedOfferPayload.bestOfferTerms;
+      delete updatedOfferPayload.auctionTerms;
+      delete updatedOfferPayload.includeCatalogProductDetails;
+
+      const updateResult = await updateOffer({
+        offerId,
+        payload: updatedOfferPayload,
+        contentLanguage,
+      });
+
+      offerResults.push({
+        ok: true,
+        offerId,
+        marketplaceId: currentOffer.marketplaceId,
+        contentLanguage,
+        updateResult,
+      });
+    } catch (error) {
+      offerResults.push({
+        ok: false,
+        offerId,
+        error: errorToSerializable(error),
+      });
+    }
+  }
+
+  return {
+    ok: offerResults.every((r) => r.ok),
+    sku,
+    syncedPrice: shopifyVariant.price,
+    syncedQuantity: shopifyVariant.inventoryQuantity,
+    inventoryContentLanguage,
+    inventoryItemUpdate,
+    offersFound: offers.length,
+    offerResults,
   };
 }
 
@@ -2488,6 +2605,25 @@ app.post("/ebay/publish/multi", async (req, res) => {
   }
 });
 
+app.post("/ebay/sync/sku", async (req, res) => {
+  try {
+    const sku = String(req.body?.sku || "").trim();
+    const sourceLanguage = getSourceLanguage(req.body?.sourceLanguage || "it");
+
+    if (!sku) {
+      return res.status(400).json({ ok: false, error: "missing sku" });
+    }
+
+    const result = await syncShopifySkuToEbay({ sku, sourceLanguage });
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: errorToSerializable(error),
+    });
+  }
+});
+
 // =========================
 // EBAY NOTIFICATIONS
 // =========================
@@ -2656,6 +2792,18 @@ app.post("/webhooks/products", express.raw({ type: "*/*" }), async (req, res) =>
           quantity: existing.quantity,
         });
       }
+
+      if (variant.sku) {
+        try {
+          const ebayResult = await syncShopifySkuToEbay({
+            sku: variant.sku,
+            sourceLanguage: "it",
+          });
+          console.log("EBAY SYNC FROM PRODUCT WEBHOOK", JSON.stringify(ebayResult));
+        } catch (error) {
+          console.log("EBAY SYNC FROM PRODUCT WEBHOOK ERROR", errorToSerializable(error));
+        }
+      }
     }
 
     return res.sendStatus(200);
@@ -2691,6 +2839,16 @@ app.post("/webhooks/inventory", express.raw({ type: "*/*" }), async (req, res) =
     }
 
     await sendPriceQuantityToAmazon({ sku, price, quantity });
+
+    try {
+      const ebayResult = await syncShopifySkuToEbay({
+        sku,
+        sourceLanguage: "it",
+      });
+      console.log("EBAY SYNC FROM INVENTORY WEBHOOK", JSON.stringify(ebayResult));
+    } catch (error) {
+      console.log("EBAY SYNC FROM INVENTORY WEBHOOK ERROR", errorToSerializable(error));
+    }
 
     return res.sendStatus(200);
   } catch (error) {
