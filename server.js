@@ -1759,17 +1759,10 @@ async function publishSkuToMultipleEbayMarkets({
 // EBAY SYNC FROM SHOPIFY
 // =========================
 
-async function syncShopifySkuToEbay({
-  sku,
-  sourceLanguage = "it",
-  listingId = null,
-}) {
-  const safeSku = normalizeSku(sku);
-  const safeListingId = normalizeListingId(listingId || getPersistedListingIdForSku(safeSku));
-
-  const shopifyVariant = await getShopifyVariantBySku(safeSku);
+async function syncShopifySkuToEbay({ sku, sourceLanguage = "it" }) {
+  const shopifyVariant = await getShopifyVariantBySku(sku);
   if (!shopifyVariant) {
-    return { ok: false, sku: safeSku, error: `Shopify SKU not found: ${safeSku}` };
+    return { ok: false, sku, error: `Shopify SKU not found: ${sku}` };
   }
 
   const inventoryContentLanguage = normalizeContentLanguage(
@@ -1782,139 +1775,104 @@ async function syncShopifySkuToEbay({
   let inventoryItemUpdate = null;
   try {
     inventoryItemUpdate = await createOrReplaceInventoryItem({
-      sku: safeSku,
+      sku,
       payload: inventoryItemPayload,
       contentLanguage: inventoryContentLanguage,
     });
   } catch (error) {
     return {
       ok: false,
-      sku: safeSku,
+      sku,
       failedStep: "inventory_item_upsert",
-      inventoryContentLanguage,
       error: errorToSerializable(error),
     };
   }
 
   let offers = [];
-  let initialOfferLookupError = null;
-  let initialOfferLookupUnavailable25713 = false;
-
   try {
-    offers = await getOffersBySku({ sku: safeSku });
+    offers = await getOffersBySku({ sku });
   } catch (error) {
-    initialOfferLookupError = errorToSerializable(error);
-    initialOfferLookupUnavailable25713 = isEbayOfferUnavailableError(error);
     offers = [];
   }
 
-  let migrationAttempted = false;
-  let migrationResult = null;
-  let postMigrationOfferLookupError = null;
-
-  if (!offers.length && safeListingId) {
+  // 🔥 SE NON ESISTONO OFFER → CREA AUTOMATICAMENTE
+  if (!offers.length) {
     try {
-      migrationAttempted = true;
-      migrationResult = await migrateListingToInventoryModel({
-        sku: safeSku,
-        listingId: safeListingId,
+      const category = await suggestEbayCategory({
+        marketplaceId: EBAY_DEFAULT_MARKETPLACE_ID,
+        title: shopifyVariant.product.title,
+        shopifyCategory: shopifyVariant.product.categoryFullName,
+        productType: shopifyVariant.product.productType,
       });
-      offers = await getOffersBySku({ sku: safeSku });
+
+      const categoryId = category?.best?.categoryId;
+
+      if (!categoryId) {
+        throw new Error("No category found");
+      }
+
+      const createResult = await upsertOfferForMarketplace({
+        sku,
+        price: shopifyVariant.price,
+        quantity: shopifyVariant.inventoryQuantity,
+        marketplaceId: EBAY_DEFAULT_MARKETPLACE_ID,
+        categoryId,
+        translatedDescription: shopifyVariant.product.descriptionText,
+      });
+
+      await publishOffer({ offerId: createResult.offerId });
+
+      return {
+        ok: true,
+        sku,
+        createdNewOffer: true,
+        offerId: createResult.offerId,
+      };
     } catch (error) {
-      postMigrationOfferLookupError = errorToSerializable(error);
+      return {
+        ok: false,
+        sku,
+        failedStep: "offer_creation",
+        error: errorToSerializable(error),
+      };
     }
   }
 
-  if (!offers.length) {
-    return {
-      ok: true,
-      sku: safeSku,
-      inventorySynced: true,
-      priceSynced: false,
-      syncedPrice: shopifyVariant.price,
-      syncedQuantity: shopifyVariant.inventoryQuantity,
-      inventoryContentLanguage,
-      inventoryItemUpdate,
-      offersFound: 0,
-      listingIdUsed: safeListingId || null,
-      migrationAttempted,
-      migrationResult,
-      initialOfferLookupUnavailable25713,
-      initialOfferLookupError,
-      postMigrationOfferLookupError,
-      warning:
-        "Inventory aggiornato, ma non esistono offer accessibili tramite Inventory API per questo SKU. Se la listing esiste già su eBay ma è stata creata fuori dal modello Inventory API, salva il listingId e rilancia la sync per forzare la migrazione.",
-      offerResults: [],
-    };
+  // ✅ SE ESISTONO → AGGIORNA
+  const results = [];
+
+  for (const offer of offers) {
+    try {
+      const update = await updateOffer({
+        offerId: offer.offerId,
+        payload: {
+          availableQuantity: shopifyVariant.inventoryQuantity,
+          pricingSummary: {
+            price: {
+              value: String(shopifyVariant.price),
+              currency: "EUR",
+            },
+          },
+        },
+      });
+
+      results.push({ ok: true, offerId: offer.offerId });
+    } catch (error) {
+      results.push({
+        ok: false,
+        offerId: offer.offerId,
+        error: errorToSerializable(error),
+      });
+    }
   }
-
-  let bulkUpdateResult = null;
-  let bulkUpdateError = null;
-
-  try {
-    bulkUpdateResult = await bulkUpdatePublishedOffersForSku({
-      sku: safeSku,
-      price: shopifyVariant.price,
-      quantity: shopifyVariant.inventoryQuantity,
-      offers,
-    });
-  } catch (error) {
-    bulkUpdateError = errorToSerializable(error);
-  }
-
-  const offerResults = offers.map((offer) => {
-    const responseRow =
-      bulkUpdateResult?.responses?.find(
-        (r) =>
-          String(r?.offerId || "") === String(offer?.offerId || "") ||
-          (String(r?.sku || "") === safeSku &&
-            !String(r?.offerId || "").trim())
-      ) || null;
-
-    const errors = Array.isArray(responseRow?.errors) ? responseRow.errors : [];
-    const warnings = Array.isArray(responseRow?.warnings)
-      ? responseRow.warnings
-      : [];
-
-    return {
-      offerId: offer?.offerId || null,
-      marketplaceId: offer?.marketplaceId || null,
-      format: offer?.format || null,
-      statusCode: responseRow?.statusCode || null,
-      ok:
-        responseRow
-          ? Number(responseRow.statusCode || 0) >= 200 &&
-            Number(responseRow.statusCode || 0) < 300 &&
-            errors.length === 0
-          : bulkUpdateError
-          ? false
-          : true,
-      errors,
-      warnings,
-    };
-  });
-
-  const realFailures = offerResults.filter((r) => r.ok === false);
 
   return {
-    ok: realFailures.length === 0 && !bulkUpdateError,
-    sku: safeSku,
-    inventorySynced: true,
-    priceSynced: realFailures.length === 0 && !bulkUpdateError,
-    syncedPrice: shopifyVariant.price,
-    syncedQuantity: shopifyVariant.inventoryQuantity,
-    inventoryContentLanguage,
-    inventoryItemUpdate,
-    offersFound: offers.length,
-    listingIdUsed: safeListingId || null,
-    migrationAttempted,
-    migrationResult,
-    initialOfferLookupUnavailable25713,
-    initialOfferLookupError,
-    bulkUpdateError,
-    bulkUpdateResult,
-    offerResults,
+    ok: true,
+    sku,
+    updatedOffers: results.length,
+    results,
   };
+}
 }
 
 // =========================
