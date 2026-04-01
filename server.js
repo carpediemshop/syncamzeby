@@ -1372,8 +1372,8 @@ async function getShopifyVariantBySku(sku) {
       descriptionText,
       vendor: variant.product?.vendor || "",
       productType: variant.product?.productType || "",
-      onlineStoreUrl: variant.product?.onlineStoreUrl || "",
       categoryFullName: variant.product?.category?.fullName || "",
+      onlineStoreUrl: variant.product?.onlineStoreUrl || "",
       imageUrls: images,
     },
   };
@@ -1727,6 +1727,7 @@ function buildOfferPayload({
   };
 }
 
+// FIX PRINCIPALE QUI
 async function upsertOfferForMarketplace({
   sku,
   price,
@@ -1756,7 +1757,18 @@ async function upsertOfferForMarketplace({
     currency: meta.currency,
   });
 
-  const existingOffers = await getOffersBySku({ sku, marketplaceId });
+  let existingOffers = [];
+
+  try {
+    existingOffers = await getOffersBySku({ sku, marketplaceId });
+  } catch (error) {
+    if (isEbayOfferUnavailableError(error)) {
+      existingOffers = [];
+    } else {
+      throw error;
+    }
+  }
+
   const existing =
     existingOffers.find((offer) => offer.marketplaceId === marketplaceId) || null;
 
