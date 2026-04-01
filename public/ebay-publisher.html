@@ -717,7 +717,10 @@ async function publishAllMarkets() {
       })
     });
 
-    setStatus(data.ok ? "Pubblicazione completata." : "Pubblicazione completata con errori.", data.ok ? "success" : "warning");
+    setStatus(
+      data.ok ? "Pubblicazione completata." : "Pubblicazione completata con errori.",
+      data.ok ? "success" : "warning"
+    );
     setLog(data);
     await refreshConnection();
   } catch (err) {
