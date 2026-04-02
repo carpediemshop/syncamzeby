@@ -2132,7 +2132,7 @@ function buildOfferPayload({
       fulfillmentPolicyId: policyIds.fulfillmentPolicyId,
     },
     listingDuration: EBAY_DEFAULT_LISTING_DURATION,
-    listingDescription: cleanHtmlForEbay(listingDescription || ""),
+    listingDescription: buildEbayDescriptionTemplate(shopifyVariant),
   };
 }
 
@@ -4216,51 +4216,56 @@ app.post("/webhooks/inventory", express.raw({ type: "*/*" }), async (req, res) =
     const parsed = parsePossiblyJsonBody(req.body);
     const payload = typeof parsed === "string" ? JSON.parse(parsed) : parsed;
 
-    let mapped = inventoryMap.get(String(payload.inventory_item_id));
-
-    if (!mapped) {
-      inventoryMap.set(String(payload.inventory_item_id), {
-        quantity: payload.available,
-      });
-
-      return res.sendStatus(200);
-    }
-
-    mapped.quantity = payload.available;
-
-    const sku = mapped.sku;
-    const price = mapped.price;
+    const inventoryItemId = payload.inventory_item_id;
     const quantity = payload.available;
 
-    if (!sku) {
-      return res.sendStatus(200);
-    }
+    // 🔥 RECUPERA SKU DIRETTAMENTE DA SHOPIFY
+    const query = `
+      query GetSkuFromInventory($id: ID!) {
+        inventoryItem(id: $id) {
+          sku
+        }
+      }
+    `;
 
-    await sendPriceQuantityToAmazon({ sku, price, quantity });
+    const data = await shopifyGraphQL(query, {
+      id: `gid://shopify/InventoryItem/${inventoryItemId}`,
+    });
 
+    const sku = data?.inventoryItem?.sku;
+
+    if (!sku) return res.sendStatus(200);
+
+    // 🔥 RECUPERA DATI COMPLETI VARIANTE
+    const variant = await getShopifyVariantBySku(sku);
+    if (!variant) return res.sendStatus(200);
+
+    // 🔥 AMAZON
+    await sendPriceQuantityToAmazon({
+      sku,
+      price: variant.price,
+      quantity,
+    });
+
+    // 🔥 EBAY
     if (EBAY_ENABLED) {
       try {
-        const ebayResult = await syncShopifySkuToEbay({
+        const result = await syncShopifySkuToEbay({
           sku,
           sourceLanguage: "it",
           listingId: getPersistedListingIdForSku(sku),
           autoPublishAllMarkets: true,
         });
-        console.log(
-          "EBAY SYNC FROM INVENTORY WEBHOOK",
-          JSON.stringify(ebayResult, null, 2)
-        );
-      } catch (error) {
-        console.log(
-          "EBAY SYNC FROM INVENTORY WEBHOOK ERROR",
-          errorToSerializable(error)
-        );
+
+        console.log("EBAY SYNC LIVE", sku, result.ok);
+      } catch (err) {
+        console.log("EBAY ERROR", err.message);
       }
     }
 
     return res.sendStatus(200);
   } catch (error) {
-    console.log("INVENTORY WEBHOOK ERROR", error.message);
+    console.log("WEBHOOK INVENTORY ERROR", error.message);
     return res.status(500).send("error");
   }
 });
