@@ -1826,6 +1826,46 @@ async function buildDynamicAspectsForCategory({
   };
 }
 
+function buildEbayDescriptionTemplate(shopifyVariant) {
+  const title = shopifyVariant.product.title;
+  const brand = shopifyVariant.product.vendor || "Generico";
+  const category = shopifyVariant.product.productType || "";
+  const desc = shopifyVariant.product.descriptionText || "";
+
+  return `
+  <div style="font-family: Arial, sans-serif; line-height:1.5; color:#222;">
+    
+    <h2 style="font-size:20px; margin-bottom:10px;">
+      ${title}
+    </h2>
+
+    <p style="margin-bottom:15px;">
+      Prodotto originale <strong>${brand}</strong> progettato per offrire qualità, sicurezza e massima affidabilità.
+    </p>
+
+    <ul style="margin-bottom:15px;">
+      <li>✔ Prodotto di alta qualità</li>
+      <li>✔ Ideale per uso quotidiano</li>
+      <li>✔ Materiali resistenti e durevoli</li>
+      <li>✔ Spedizione veloce e sicura</li>
+    </ul>
+
+    <p style="margin-bottom:15px;">
+      ${desc}
+    </p>
+
+    <hr style="margin:20px 0;">
+
+    <p style="font-size:13px; color:#555;">
+      ✔ Spedizione rapida<br>
+      ✔ Assistenza clienti disponibile<br>
+      ✔ Venditore professionale italiano
+    </p>
+
+  </div>
+  `;
+}
+
 function buildInventoryItemPayload({
   shopifyVariant,
   translatedTitle = "",
