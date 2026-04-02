@@ -2172,7 +2172,9 @@ function buildOfferPayload({
       fulfillmentPolicyId: policyIds.fulfillmentPolicyId,
     },
     listingDuration: EBAY_DEFAULT_LISTING_DURATION,
-    listingDescription: buildEbayDescriptionTemplate(shopifyVariant),
+    listingDescription: typeof buildEbayDescriptionTemplate === "function"
+  ? buildEbayDescriptionTemplate(shopifyVariant)
+  : "<p>Descrizione prodotto</p>",
   };
 }
 
