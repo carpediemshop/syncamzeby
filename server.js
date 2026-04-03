@@ -616,7 +616,7 @@ async function getOffersBySku({ sku, marketplaceId }) {
 }
 
 function buildInventoryPayload(shopifyVariant, locale) {
-  return {
+  const payload = {
     availability: {
       shipToLocationAvailability: {
         quantity: Math.max(0, Number(shopifyVariant.inventoryQuantity || 0)),
@@ -625,7 +625,8 @@ function buildInventoryPayload(shopifyVariant, locale) {
     condition: "NEW",
     product: {
       title: String(shopifyVariant.product.title || "").slice(0, 80),
-      description: shopifyVariant.product.descriptionText || shopifyVariant.product.title,
+      description:
+        shopifyVariant.product.descriptionText || shopifyVariant.product.title,
       imageUrls: shopifyVariant.product.imageUrls || [],
       aspects: {
         Brand: [shopifyVariant.product.vendor || "Generic"],
@@ -635,6 +636,14 @@ function buildInventoryPayload(shopifyVariant, locale) {
     },
     locale,
   };
+
+  const barcode = String(shopifyVariant.barcode || "").trim();
+  if (barcode) {
+    payload.product.ean = [barcode];
+    payload.product.aspects.EAN = [barcode];
+  }
+
+  return payload;
 }
 
 async function upsertInventoryItem({ sku, payload, locale }) {
