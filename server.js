@@ -24,9 +24,10 @@ const EBAY_API_BASE = "https://api.ebay.com";
 const EBAY_OAUTH_BASE = "https://api.ebay.com/identity/v1/oauth2/token";
 
 const EBAY_SCOPES = [
-  "https://api.ebay.com/oauth/api_scope",
   "https://api.ebay.com/oauth/api_scope/sell.inventory",
   "https://api.ebay.com/oauth/api_scope/sell.account",
+  "https://api.ebay.com/oauth/api_scope/sell.fulfillment",
+  "https://api.ebay.com/oauth/api_scope/commerce.identity.readonly",
 ];
 
 const DATA_DIR = "/var/data/syncamzeby";
