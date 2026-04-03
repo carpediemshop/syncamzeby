@@ -54,15 +54,26 @@ app.use((req, res, next) => {
 async function loadState() {
   try {
     const raw = await fs.readFile(EBAY_STATE_FILE, "utf8");
-    return JSON.parse(raw);
+    const data = JSON.parse(raw);
+
+    return {
+      connected: Boolean(data.connected),
+      connectedAt: data.connectedAt || null,
+      environment: data.environment || "production",
+      accessToken: data.accessToken || null,
+      refreshToken: data.refreshToken || null,
+      expiresAt:
+        data.expiresAt ||
+        (data.accessTokenExpiresAt ? new Date(data.accessTokenExpiresAt).getTime() : 0),
+      accessTokenExpiresAt: data.accessTokenExpiresAt || null,
+      refreshTokenExpiresAt: data.refreshTokenExpiresAt || null,
+      tokenType: data.tokenType || null,
+      scope: data.scope || "",
+      userInfo: data.userInfo || null,
+    };
   } catch {
     return {};
   }
-}
-
-async function saveState(data) {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.writeFile(EBAY_STATE_FILE, JSON.stringify(data, null, 2));
 }
 
 async function getAccessToken() {
