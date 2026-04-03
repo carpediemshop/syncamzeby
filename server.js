@@ -69,34 +69,51 @@ async function getAccessToken() {
   const state = await loadState();
 
   if (!state.refreshToken) {
-    throw new Error("❌ No refresh token");
+    throw new Error("No eBay refresh token found");
+  }
+
+  if (state.accessToken && state.expiresAt && Date.now() < state.expiresAt - 60000) {
+    return state.accessToken;
   }
 
   const basic = Buffer.from(
     `${process.env.EBAY_CLIENT_ID}:${process.env.EBAY_CLIENT_SECRET}`
   ).toString("base64");
 
-  const res = await axios.post(
-    EBAY_OAUTH_BASE,
-    new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: state.refreshToken,
-      scope: EBAY_SCOPES.join(" "),
-    }),
-    {
+  const body = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: state.refreshToken,
+  });
+
+  const savedScope = String(state.scope || "").trim();
+  if (savedScope) {
+    body.set("scope", savedScope);
+  }
+
+  try {
+    const res = await axios.post(EBAY_OAUTH_BASE, body, {
       headers: {
         Authorization: `Basic ${basic}`,
         "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
       },
-    }
-  );
+    });
 
-  state.accessToken = res.data.access_token;
-  state.expiresAt = Date.now() + res.data.expires_in * 1000;
+    state.accessToken = res.data.access_token;
+    state.expiresAt = Date.now() + Number(res.data.expires_in || 7200) * 1000;
+    state.tokenType = res.data.token_type || "User Access Token";
+    state.scope = res.data.scope || savedScope || EBAY_SCOPES.join(" ");
 
-  await saveState(state);
+    await saveState(state);
 
-  return state.accessToken;
+    return state.accessToken;
+  } catch (error) {
+    console.log(
+      "EBAY TOKEN REFRESH ERROR",
+      JSON.stringify(error?.response?.data || error.message, null, 2)
+    );
+    throw error;
+  }
 }
 
 // =========================
