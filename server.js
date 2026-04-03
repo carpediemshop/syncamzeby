@@ -127,6 +127,28 @@ async function getAccessToken() {
   }
 }
 
+async function saveState(data) {
+  await fs.mkdir(DATA_DIR, { recursive: true });
+
+  const payload = {
+    connected: data.connected ?? true,
+    connectedAt: data.connectedAt || null,
+    environment: data.environment || "production",
+    accessToken: data.accessToken || null,
+    refreshToken: data.refreshToken || null,
+    expiresAt: data.expiresAt || 0,
+    accessTokenExpiresAt:
+      data.accessTokenExpiresAt ||
+      (data.expiresAt ? new Date(data.expiresAt).toISOString() : null),
+    refreshTokenExpiresAt: data.refreshTokenExpiresAt || null,
+    tokenType: data.tokenType || null,
+    scope: data.scope || "",
+    userInfo: data.userInfo || null,
+  };
+
+  await fs.writeFile(EBAY_STATE_FILE, JSON.stringify(payload, null, 2), "utf8");
+}
+
 // =========================
 // EBAY API WRAPPER
 // =========================
