@@ -2052,15 +2052,6 @@ async function ensureInventoryItemForMarketplace({
     imageUrls: shopifyVariant.product.imageUrls || [],
   });
 
-  const upsert = await upsertOfferForMarketplace({
-    sku,
-    price: shopifyVariant.price,
-    quantity: shopifyVariant.inventoryQuantity,
-    marketplaceId,
-    categoryId: finalCategoryId,
-    translatedDescription: marketplaceDescriptionHtml,
-  });
-
   const translation = (
     await buildMarketplaceTranslations({
       sourceLanguage,
