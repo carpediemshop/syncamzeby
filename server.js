@@ -2214,6 +2214,7 @@ function buildProfessionalEbayGallery(imageUrls = []) {
     translatedDescription:
   translation?.translatedDescription ||
   shopifyVariant.product.descriptionText,
+    
   });
 
   const publishResult = await publishOffer({ offerId: upsert.offerId });
