@@ -1861,12 +1861,135 @@ async function publishOrUpdateSkuOnMarketplace({
       shopifyVariant,
     }));
 
-  const professionalDescription = buildProfessionalEbayDescription({
-    marketplaceId,
-    title: translation?.translatedTitle || shopifyVariant.product.title,
-    translatedDescription:
-      translation?.translatedDescription || shopifyVariant.product.descriptionHtml || shopifyVariant.product.descriptionText,
-  });
+function buildProfessionalEbayDescription({
+  marketplaceId,
+  title,
+  translatedDescription,
+  imageUrls = [],
+}) {
+  const labels = getEbayTemplateLabels(marketplaceId);
+
+  const safeTitle = cleanHtmlForEbay(String(title || "").trim());
+  const safeBody = cleanHtmlForEbay(String(translatedDescription || "").trim());
+  const galleryHtml = buildProfessionalEbayGallery(imageUrls);
+
+  return `
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#222;background:#ffffff;">
+  <div style="max-width:980px;margin:0 auto;background:#fff;border:1px solid #d9d9d9;border-radius:16px;overflow:hidden;">
+
+    <div style="background:linear-gradient(180deg,#ffffff 0%,#f7f7f7 100%);padding:24px 24px 18px 24px;border-bottom:1px solid #ececec;">
+      <div style="font-size:12px;letter-spacing:1px;color:#777;text-transform:uppercase;font-weight:700;margin-bottom:10px;">
+        ${labels.highlights}
+      </div>
+      <h1 style="margin:0;font-size:28px;line-height:1.25;color:#111;font-weight:700;">
+        ${safeTitle}
+      </h1>
+    </div>
+
+    <div style="padding:24px;">
+
+      ${galleryHtml}
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 22px 0;">
+        <tr>
+          <td valign="top" style="padding:0;">
+            <div style="background:#fafafa;border:1px solid #ececec;border-radius:14px;padding:20px;">
+              <div style="font-size:18px;line-height:1.4;color:#111;font-weight:700;margin:0 0 14px 0;">
+                ${labels.highlights}
+              </div>
+              <div style="font-size:14px;line-height:1.7;color:#333;">
+                ${safeBody}
+              </div>
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 22px 0;">
+        <tr>
+          <td valign="top" style="width:33.33%;padding:0 8px 0 0;">
+            <div style="height:100%;background:#ffffff;border:1px solid #e8e8e8;border-radius:14px;padding:18px;text-align:center;">
+              <div style="font-size:28px;line-height:1;margin-bottom:10px;">✓</div>
+              <div style="font-size:14px;font-weight:700;color:#111;line-height:1.4;">
+                ${labels.originalProduct}
+              </div>
+            </div>
+          </td>
+          <td valign="top" style="width:33.33%;padding:0 4px;">
+            <div style="height:100%;background:#ffffff;border:1px solid #e8e8e8;border-radius:14px;padding:18px;text-align:center;">
+              <div style="font-size:28px;line-height:1;margin-bottom:10px;">🚚</div>
+              <div style="font-size:14px;font-weight:700;color:#111;line-height:1.4;">
+                ${labels.fastShipping}
+              </div>
+            </div>
+          </td>
+          <td valign="top" style="width:33.33%;padding:0 0 0 8px;">
+            <div style="height:100%;background:#ffffff;border:1px solid #e8e8e8;border-radius:14px;padding:18px;text-align:center;">
+              <div style="font-size:28px;line-height:1;margin-bottom:10px;">★</div>
+              <div style="font-size:14px;font-weight:700;color:#111;line-height:1.4;">
+                ${labels.support}
+              </div>
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <div style="background:#f6f6f6;border:1px solid #e9e9e9;border-radius:14px;padding:16px 18px;font-size:13px;line-height:1.6;color:#555;text-align:center;">
+        ${labels.closing}
+      </div>
+
+    </div>
+  </div>
+</div>`.trim();
+}
+
+function buildProfessionalEbayGallery(imageUrls = []) {
+  const images = safeArray(imageUrls)
+    .filter(Boolean)
+    .slice(0, 6);
+
+  if (!images.length) return "";
+
+  const hero = images[0];
+  const secondary = images.slice(1);
+
+  const secondaryHtml = secondary.length
+    ? `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-top:14px;">
+        <tr>
+          ${secondary
+            .map(
+              (url, index) => `
+            <td valign="top" style="width:50%;padding:${index % 2 === 0 ? "0 7px 14px 0" : "0 0 14px 7px"};">
+              <div style="border:1px solid #e5e5e5;border-radius:10px;overflow:hidden;background:#fff;">
+                <img
+                  src="${String(url).trim()}"
+                  alt="Product image ${index + 2}"
+                  style="display:block;width:100%;height:auto;border:0;"
+                />
+              </div>
+            </td>
+          `
+            )
+            .join("")}
+        </tr>
+      </table>
+    `
+    : "";
+
+  return `
+    <div style="margin:0 0 24px 0;">
+      <div style="border:1px solid #e5e5e5;border-radius:14px;overflow:hidden;background:#fff;">
+        <img
+          src="${String(hero).trim()}"
+          alt="Product hero image"
+          style="display:block;width:100%;height:auto;border:0;"
+        />
+      </div>
+      ${secondaryHtml}
+    </div>
+  `.trim();
+}
 
   const upsert = await upsertOfferForMarketplace({
     sku,
