@@ -418,6 +418,212 @@ function cleanHtmlForEbay(html = "") {
     .trim();
 }
 
+function getEbayAPlusLabels(marketplaceId) {
+  const id = String(marketplaceId || "").trim();
+
+  if (id === "EBAY_DE") {
+    return {
+      sectionTitle: "PRODUKT-HIGHLIGHTS",
+      original: "Originalprodukt",
+      shipping: "Schneller Versand",
+      support: "Kundenservice",
+      closing: "Sicher einkaufen. Schneller Versand aus Italien.",
+    };
+  }
+
+  if (id === "EBAY_FR") {
+    return {
+      sectionTitle: "POINTS FORTS DU PRODUIT",
+      original: "Produit original",
+      shipping: "Expédition rapide",
+      support: "Service client dédié",
+      closing: "Achetez en toute sécurité. Expédition rapide depuis l’Italie.",
+    };
+  }
+
+  if (id === "EBAY_ES") {
+    return {
+      sectionTitle: "PUNTOS FUERTES DEL PRODUCTO",
+      original: "Producto original",
+      shipping: "Envío rápido",
+      support: "Atención al cliente dedicada",
+      closing: "Compra con seguridad. Envío rápido desde Italia.",
+    };
+  }
+
+  if (id === "EBAY_GB") {
+    return {
+      sectionTitle: "PRODUCT HIGHLIGHTS",
+      original: "Original product",
+      shipping: "Fast shipping",
+      support: "Dedicated customer support",
+      closing: "Shop with confidence. Fast shipping from Italy.",
+    };
+  }
+
+  return {
+    sectionTitle: "PUNTI DI FORZA DEL PRODOTTO",
+    original: "Prodotto originale",
+    shipping: "Spedizione veloce",
+    support: "Assistenza clienti dedicata",
+    closing: "Acquista in sicurezza. Spedizione rapida dall’Italia.",
+  };
+}
+
+function normalizeEbayAPlusBody(content = "") {
+  const raw = cleanHtmlForEbay(String(content || "").trim());
+  if (!raw) return "";
+
+  const hasHtml = /<\/?[a-z][\s\S]*>/i.test(raw);
+  if (hasHtml) {
+    return raw;
+  }
+
+  return raw
+    .split(/\n+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map(
+      (part) =>
+        `<p style="margin:0 0 12px 0;font-size:14px;line-height:1.7;color:#333;">${part}</p>`
+    )
+    .join("");
+}
+
+function buildEbayAPlusGallery(imageUrls = []) {
+  const images = safeArray(imageUrls).filter(Boolean).slice(0, 6);
+  if (!images.length) return "";
+
+  const hero = String(images[0]).trim();
+  const secondary = images.slice(1);
+
+  let secondaryRows = "";
+  for (let i = 0; i < secondary.length; i += 2) {
+    const left = secondary[i] ? String(secondary[i]).trim() : "";
+    const right = secondary[i + 1] ? String(secondary[i + 1]).trim() : "";
+
+    secondaryRows += `
+      <tr>
+        <td valign="top" style="width:50%;padding:0 7px 14px 0;">
+          ${
+            left
+              ? `
+          <div style="border:1px solid #e5e5e5;border-radius:12px;overflow:hidden;background:#fff;">
+            <img src="${left}" alt="Product image ${i + 2}" style="display:block;width:100%;height:auto;border:0;">
+          </div>
+          `
+              : ""
+          }
+        </td>
+        <td valign="top" style="width:50%;padding:0 0 14px 7px;">
+          ${
+            right
+              ? `
+          <div style="border:1px solid #e5e5e5;border-radius:12px;overflow:hidden;background:#fff;">
+            <img src="${right}" alt="Product image ${i + 3}" style="display:block;width:100%;height:auto;border:0;">
+          </div>
+          `
+              : ""
+          }
+        </td>
+      </tr>
+    `;
+  }
+
+  return `
+    <div style="margin:0 0 24px 0;">
+      <div style="border:1px solid #e5e5e5;border-radius:14px;overflow:hidden;background:#fff;margin-bottom:14px;">
+        <img src="${hero}" alt="Product hero image" style="display:block;width:100%;height:auto;border:0;">
+      </div>
+
+      ${
+        secondaryRows
+          ? `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+        ${secondaryRows}
+      </table>
+      `
+          : ""
+      }
+    </div>
+  `.trim();
+}
+
+function buildEbayAPlusDescription({
+  marketplaceId,
+  title,
+  translatedDescription,
+  imageUrls = [],
+}) {
+  const labels = getEbayAPlusLabels(marketplaceId);
+  const safeTitle = cleanHtmlForEbay(String(title || "").trim());
+  const bodyHtml = normalizeEbayAPlusBody(translatedDescription);
+  const galleryHtml = buildEbayAPlusGallery(imageUrls);
+
+  return `
+<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#222;background:#ffffff;">
+  <div style="max-width:980px;margin:0 auto;background:#fff;border:1px solid #d9d9d9;border-radius:16px;overflow:hidden;">
+
+    <div style="background:#f7f7f7;padding:22px 24px;border-bottom:1px solid #ececec;">
+      <div style="font-size:12px;letter-spacing:1px;color:#777;text-transform:uppercase;font-weight:700;margin-bottom:10px;">
+        ${labels.sectionTitle}
+      </div>
+      <h2 style="margin:0;font-size:28px;line-height:1.25;color:#111;font-weight:700;">
+        ${safeTitle}
+      </h2>
+    </div>
+
+    <div style="padding:24px;">
+
+      ${galleryHtml}
+
+      <div style="background:#fafafa;border:1px solid #ececec;border-radius:14px;padding:20px;margin-bottom:22px;">
+        <div style="font-size:18px;line-height:1.4;color:#111;font-weight:700;margin:0 0 14px 0;">
+          ${labels.sectionTitle}
+        </div>
+        <div style="font-size:14px;line-height:1.7;color:#333;">
+          ${bodyHtml}
+        </div>
+      </div>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin:0 0 22px 0;">
+        <tr>
+          <td valign="top" style="width:33.33%;padding:0 8px 0 0;">
+            <div style="height:100%;background:#ffffff;border:1px solid #e8e8e8;border-radius:14px;padding:18px;text-align:center;">
+              <div style="font-size:26px;line-height:1;margin-bottom:10px;">✓</div>
+              <div style="font-size:14px;font-weight:700;color:#111;line-height:1.4;">
+                ${labels.original}
+              </div>
+            </div>
+          </td>
+          <td valign="top" style="width:33.33%;padding:0 4px;">
+            <div style="height:100%;background:#ffffff;border:1px solid #e8e8e8;border-radius:14px;padding:18px;text-align:center;">
+              <div style="font-size:26px;line-height:1;margin-bottom:10px;">🚚</div>
+              <div style="font-size:14px;font-weight:700;color:#111;line-height:1.4;">
+                ${labels.shipping}
+              </div>
+            </div>
+          </td>
+          <td valign="top" style="width:33.33%;padding:0 0 0 8px;">
+            <div style="height:100%;background:#ffffff;border:1px solid #e8e8e8;border-radius:14px;padding:18px;text-align:center;">
+              <div style="font-size:26px;line-height:1;margin-bottom:10px;">★</div>
+              <div style="font-size:14px;font-weight:700;color:#111;line-height:1.4;">
+                ${labels.support}
+              </div>
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <div style="background:#f6f6f6;border:1px solid #e9e9e9;border-radius:14px;padding:16px 18px;font-size:13px;line-height:1.6;color:#555;text-align:center;">
+        ${labels.closing}
+      </div>
+
+    </div>
+  </div>
+</div>`.trim();
+}
+
 function getRequestedMarketplaceId(req) {
   return String(req.query.marketplaceId || EBAY_DEFAULT_MARKETPLACE_ID);
 }
@@ -1836,13 +2042,23 @@ async function ensureInventoryItemForMarketplace({
     imageUrls: shopifyVariant.product.imageUrls || [],
   });
 
+  const marketplaceDescriptionHtml = buildEbayAPlusDescription({
+    marketplaceId,
+    title: translation?.translatedTitle || shopifyVariant.product.title,
+    translatedDescription:
+      translation?.translatedDescription ||
+      shopifyVariant.product.descriptionHtml ||
+      shopifyVariant.product.descriptionText,
+    imageUrls: shopifyVariant.product.imageUrls || [],
+  });
+
   const upsert = await upsertOfferForMarketplace({
     sku,
     price: shopifyVariant.price,
     quantity: shopifyVariant.inventoryQuantity,
     marketplaceId,
     categoryId: finalCategoryId,
-    translatedDescription: professionalDescription,
+    translatedDescription: marketplaceDescriptionHtml,
   });
 
   const translation = (
