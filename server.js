@@ -1836,16 +1836,6 @@ async function ensureInventoryItemForMarketplace({
     imageUrls: shopifyVariant.product.imageUrls || [],
   });
 
-  const professionalDescription = buildProfessionalEbayDescription({
-    marketplaceId,
-    title: translation?.translatedTitle || shopifyVariant.product.title,
-    translatedDescription:
-      translation?.translatedDescription ||
-      shopifyVariant.product.descriptionHtml ||
-      shopifyVariant.product.descriptionText,
-    imageUrls: shopifyVariant.product.imageUrls || [],
-  });
-
   const upsert = await upsertOfferForMarketplace({
     sku,
     price: shopifyVariant.price,
