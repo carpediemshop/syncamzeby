@@ -1861,14 +1861,20 @@ async function publishOrUpdateSkuOnMarketplace({
       shopifyVariant,
     }));
 
+  const professionalDescription = buildProfessionalEbayDescription({
+    marketplaceId,
+    title: translation?.translatedTitle || shopifyVariant.product.title,
+    translatedDescription:
+      translation?.translatedDescription || shopifyVariant.product.descriptionHtml || shopifyVariant.product.descriptionText,
+  });
+
   const upsert = await upsertOfferForMarketplace({
     sku,
     price: shopifyVariant.price,
     quantity: shopifyVariant.inventoryQuantity,
     marketplaceId,
     categoryId: finalCategoryId,
-    translatedDescription:
-      translation?.translatedDescription || shopifyVariant.product.descriptionText,
+    translatedDescription: professionalDescription,
   });
 
   const publishResult = await publishOffer({ offerId: upsert.offerId });
