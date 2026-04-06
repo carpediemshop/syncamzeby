@@ -2211,10 +2211,7 @@ function buildProfessionalEbayGallery(imageUrls = []) {
     quantity: shopifyVariant.inventoryQuantity,
     marketplaceId,
     categoryId: finalCategoryId,
-    translatedDescription:
-  translation?.translatedDescription ||
-  shopifyVariant.product.descriptionText,
-    
+    translatedDescription: marketplaceDescriptionHtml,    
   });
 
   const publishResult = await publishOffer({ offerId: upsert.offerId });
