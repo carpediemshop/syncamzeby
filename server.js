@@ -2407,11 +2407,21 @@ async function syncShopifySkuToEbay({
     }
   }
 
-  let autoPublishedMarkets = [];
+    let autoPublishedMarkets = [];
   let autoPublishErrors = [];
 
-  if (!offers.length && autoPublishAllMarkets) {
-    for (const market of MARKETPLACES) {
+  if (autoPublishAllMarkets) {
+    const existingMarketplaceIds = new Set(
+      safeArray(offers)
+        .map((offer) => String(offer?.marketplaceId || "").trim())
+        .filter(Boolean)
+    );
+
+    const missingMarkets = MARKETPLACES.filter(
+      (market) => !existingMarketplaceIds.has(market.marketplaceId)
+    );
+
+    for (const market of missingMarkets) {
       try {
         const categoryId = await resolveCategoryIdForMarketplace({
           sku: safeSku,
