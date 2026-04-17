@@ -470,6 +470,18 @@ function getEbayAPlusLabels(marketplaceId) {
   };
 }
 
+function toPositiveNumber(value, fallback = 0) {
+  const n = Number(value);
+  if (Number.isFinite(n) && n > 0) return n;
+  return fallback;
+}
+
+function toNonNegativeNumber(value, fallback = 0) {
+  const n = Number(value);
+  if (Number.isFinite(n) && n >= 0) return n;
+  return fallback;
+}
+
 function normalizeEbayAPlusBody(content = "") {
   const raw = cleanHtmlForEbay(String(content || "").trim());
   if (!raw) return "";
