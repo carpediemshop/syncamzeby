@@ -1745,6 +1745,62 @@ async function getShopifyVariantBySku(sku) {
   };
 }
 
+async function getShopifyVariantsPage({ after = null, first = 100 } = {}) {
+  const query = `
+    query GetVariantsPage($first: Int!, $after: String) {
+      productVariants(first: $first, after: $after) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {
+          sku
+        }
+      }
+    }
+  `;
+
+  const data = await shopifyGraphQL(query, { first, after });
+  const page = data?.productVariants || {};
+
+  return {
+    nodes: Array.isArray(page?.nodes) ? page.nodes : [],
+    hasNextPage: Boolean(page?.pageInfo?.hasNextPage),
+    endCursor: page?.pageInfo?.endCursor || null,
+  };
+}
+
+async function getAllShopifySkus({ limit = 0 } = {}) {
+  const skus = [];
+  const seen = new Set();
+
+  let after = null;
+  let hasNextPage = true;
+
+  while (hasNextPage) {
+    const page = await getShopifyVariantsPage({ after, first: 100 });
+
+    for (const node of safeArray(page.nodes)) {
+      const sku = normalizeSku(node?.sku);
+      if (!sku || seen.has(sku)) continue;
+
+      seen.add(sku);
+      skus.push(sku);
+
+      if (limit > 0 && skus.length >= limit) {
+        return skus;
+      }
+    }
+
+    hasNextPage = Boolean(page.hasNextPage);
+    after = page.endCursor || null;
+
+    if (!after) break;
+  }
+
+  return skus;
+}
+
 // =========================
 // EBAY INVENTORY / OFFER HELPERS
 // =========================
@@ -2801,6 +2857,46 @@ async function publishSkuToMultipleEbayMarkets({
       imageCount: shopifyVariant.product.imageUrls.length,
     },
     markets: marketsResult,
+  };
+}
+
+async function repairAllEbayListings({
+  sourceLanguage = "it",
+  marketplaces = MARKETPLACES.map((m) => m.marketplaceId),
+  limit = 0,
+}) {
+  const skus = await getAllShopifySkus({ limit });
+
+  const results = [];
+
+  for (const sku of skus) {
+    try {
+      const result = await publishSkuToMultipleEbayMarkets({
+        sku,
+        sourceLanguage,
+        categoryMap: {},
+        marketplaces,
+      });
+
+      results.push({
+        sku,
+        ok: result?.ok === true,
+        result,
+      });
+    } catch (error) {
+      results.push({
+        sku,
+        ok: false,
+        error: errorToSerializable(error),
+      });
+    }
+  }
+
+  return {
+    ok: results.every((r) => r.ok),
+    total: skus.length,
+    processed: results.length,
+    results,
   };
 }
 
@@ -4300,6 +4396,63 @@ app.post("/ebay/migrate/listing", async (req, res) => {
       offersFound: offers.length,
       offers,
     });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: errorToSerializable(error),
+    });
+  }
+});
+
+app.get("/ebay/repair/category", async (req, res) => {
+  try {
+    const sku = String(req.query.sku || "").trim();
+    const sourceLanguage = getSourceLanguage(req.query.sourceLanguage || "it");
+    const marketplaces = String(req.query.marketplaces || "")
+      .split(",")
+      .map((x) => String(x || "").trim())
+      .filter(Boolean);
+
+    if (!sku) {
+      return res.status(400).json({ ok: false, error: "missing sku" });
+    }
+
+    const result = await publishSkuToMultipleEbayMarkets({
+      sku,
+      sourceLanguage,
+      categoryMap: {},
+      marketplaces: marketplaces.length
+        ? marketplaces
+        : MARKETPLACES.map((m) => m.marketplaceId),
+    });
+
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: errorToSerializable(error),
+    });
+  }
+});
+
+app.get("/ebay/repair/all", async (req, res) => {
+  try {
+    const sourceLanguage = getSourceLanguage(req.query.sourceLanguage || "it");
+    const limit = Number(req.query.limit || 0);
+    const marketplaces = String(req.query.marketplaces || "")
+      .split(",")
+      .map((x) => String(x || "").trim())
+      .filter(Boolean);
+
+    const result = await repairAllEbayListings({
+      sourceLanguage,
+      limit: Number.isFinite(limit) ? limit : 0,
+      marketplaces: marketplaces.length
+        ? marketplaces
+        : MARKETPLACES.map((m) => m.marketplaceId),
+    });
+
+    return res.json(result);
   } catch (error) {
     return res.status(500).json({
       ok: false,
