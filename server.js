@@ -233,6 +233,13 @@ const ebayOrderSyncState = {
   lastCheckedAt: null,
 };
 
+const ebayCategoryRepairState = {
+  lastRunAt: null,
+  cursor: 0,
+  processedSkus: new Set(),
+  lastBatch: [],
+};
+
 const ebayConnectionStore = {
   connected: false,
   connectedAt: null,
@@ -818,6 +825,17 @@ function serializeOrderSyncState() {
   };
 }
 
+function serializeCategoryRepairState() {
+  return {
+    lastRunAt: ebayCategoryRepairState.lastRunAt,
+    cursor: ebayCategoryRepairState.cursor,
+    processedSkus: Array.from(ebayCategoryRepairState.processedSkus).sort(),
+    lastBatch: Array.isArray(ebayCategoryRepairState.lastBatch)
+      ? ebayCategoryRepairState.lastBatch
+      : [],
+  };
+}
+
 // =========================
 // EBAY FILE PERSISTENCE
 // =========================
@@ -890,6 +908,14 @@ async function clearEbayConnectionOnDisk() {
   ebayConnectionStore.userInfo = null;
 
   await saveEbayConnectionToDisk();
+}
+
+async function resetEbayCategoryRepairState() {
+  ebayCategoryRepairState.lastRunAt = null;
+  ebayCategoryRepairState.cursor = 0;
+  ebayCategoryRepairState.processedSkus = new Set();
+  ebayCategoryRepairState.lastBatch = [];
+  await saveEbayCategoryRepairStateToDisk();
 }
 
 async function saveEbayListingMapToDisk() {
@@ -990,6 +1016,54 @@ async function loadEbayOrderSyncStateFromDisk() {
     }
 
     console.log("EBAY ORDER SYNC LOAD ERROR", error.message);
+  }
+}
+
+async function saveEbayCategoryRepairStateToDisk() {
+  await ensureEbayStateDir();
+
+  await fs.writeFile(
+    EBAY_CATEGORY_REPAIR_STATE_FILE,
+    JSON.stringify(
+      {
+        savedAt: nowIso(),
+        ...serializeCategoryRepairState(),
+      },
+      null,
+      2
+    ),
+    "utf8"
+  );
+}
+
+async function loadEbayCategoryRepairStateFromDisk() {
+  try {
+    await ensureEbayStateDir();
+    const raw = await fs.readFile(EBAY_CATEGORY_REPAIR_STATE_FILE, "utf8");
+    const data = JSON.parse(raw);
+
+    ebayCategoryRepairState.lastRunAt = data?.lastRunAt || null;
+    ebayCategoryRepairState.cursor = Number(data?.cursor || 0);
+    ebayCategoryRepairState.processedSkus = new Set(
+      safeArray(data?.processedSkus).map((x) => String(x).trim()).filter(Boolean)
+    );
+    ebayCategoryRepairState.lastBatch = safeArray(data?.lastBatch).map((x) =>
+      String(x).trim()
+    );
+
+    console.log("EBAY CATEGORY REPAIR STATE LOADED", {
+      lastRunAt: ebayCategoryRepairState.lastRunAt,
+      cursor: ebayCategoryRepairState.cursor,
+      processedCount: ebayCategoryRepairState.processedSkus.size,
+      lastBatchCount: ebayCategoryRepairState.lastBatch.length,
+    });
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      console.log("EBAY CATEGORY REPAIR STATE FILE NOT FOUND, STARTING CLEAN");
+      return;
+    }
+
+    console.log("EBAY CATEGORY REPAIR STATE LOAD ERROR", error.message);
   }
 }
 
@@ -2073,6 +2147,91 @@ async function getShopifyVariantBySku(sku) {
       onlineStoreUrl: variant.product?.onlineStoreUrl || "",
       imageUrls: images,
     },
+  };
+}
+
+async function getShopifyVariantsBatch({ first = 100, after = null }) {
+  const query = `
+    query GetVariantsBatch($first: Int!, $after: String) {
+      productVariants(first: $first, after: $after) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {
+          sku
+          title
+          barcode
+          price
+          inventoryQuantity
+          selectedOptions {
+            name
+            value
+          }
+          product {
+            id
+            title
+            descriptionHtml
+            vendor
+            productType
+            onlineStoreUrl
+            category {
+              fullName
+            }
+            images(first: 10) {
+              nodes {
+                url
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const data = await shopifyGraphQL(query, {
+    first,
+    after,
+  });
+
+  const root = data?.productVariants || {};
+  const nodes = safeArray(root?.nodes);
+
+  return {
+    nodes: nodes
+      .map((variant) => {
+        const images = safeArray(variant?.product?.images?.nodes)
+          .map((img) => img?.url)
+          .filter(Boolean);
+
+        const descriptionHtml = cleanHtmlForEbay(
+          variant?.product?.descriptionHtml || ""
+        );
+        const descriptionText = truncateText(stripHtml(descriptionHtml), 4000);
+
+        return {
+          sku: String(variant?.sku || "").trim(),
+          barcode: variant?.barcode || "",
+          price: normalizeMoney(variant?.price),
+          inventoryQuantity: Number(variant?.inventoryQuantity || 0),
+          variantTitle: variant?.title || "",
+          selectedOptions: safeArray(variant?.selectedOptions),
+          product: {
+            id: variant?.product?.id || null,
+            title: variant?.product?.title || "",
+            descriptionHtml,
+            descriptionText,
+            vendor: variant?.product?.vendor || "",
+            productType: variant?.product?.productType || "",
+            categoryFullName: variant?.product?.category?.fullName || "",
+            onlineStoreUrl: variant?.product?.onlineStoreUrl || "",
+            imageUrls: images,
+          },
+        };
+      })
+      .filter((x) => x.sku),
+    hasNextPage: Boolean(root?.pageInfo?.hasNextPage),
+    endCursor: root?.pageInfo?.endCursor || null,
   };
 }
 
@@ -4635,24 +4794,131 @@ app.get("/ebay/repair/category", async (req, res) => {
   }
 });
 
+async function runEbayCategoryRepairBatch({
+  limit = 10,
+  sourceLanguage = "it",
+  reset = false,
+}) {
+  if (reset) {
+    await resetEbayCategoryRepairState();
+  }
+
+  const safeLimit = Math.max(1, Math.min(100, Number(limit || 10)));
+
+  let cursor = null;
+  let pageIndex = 0;
+  let skippedAlreadyProcessed = 0;
+  let processed = [];
+  let scanned = 0;
+  let done = false;
+
+  while (processed.length < safeLimit) {
+    const batch = await getShopifyVariantsBatch({
+      first: 100,
+      after: cursor,
+    });
+
+    const nodes = safeArray(batch?.nodes);
+    if (!nodes.length) {
+      done = true;
+      break;
+    }
+
+    for (const variant of nodes) {
+      scanned += 1;
+      const sku = String(variant?.sku || "").trim();
+      if (!sku) continue;
+
+      if (ebayCategoryRepairState.processedSkus.has(sku)) {
+        skippedAlreadyProcessed += 1;
+        continue;
+      }
+
+      try {
+        const result = await repairEbayCategoryForSku({
+          sku,
+          sourceLanguage,
+        });
+
+        processed.push({
+          sku,
+          ok: Boolean(result?.ok),
+          result,
+        });
+
+        ebayCategoryRepairState.processedSkus.add(sku);
+        ebayCategoryRepairState.lastRunAt = nowIso();
+        ebayCategoryRepairState.lastBatch = processed.map((x) => x.sku);
+        await saveEbayCategoryRepairStateToDisk();
+      } catch (error) {
+        processed.push({
+          sku,
+          ok: false,
+          error: errorToSerializable(error),
+        });
+
+        ebayCategoryRepairState.processedSkus.add(sku);
+        ebayCategoryRepairState.lastRunAt = nowIso();
+        ebayCategoryRepairState.lastBatch = processed.map((x) => x.sku);
+        await saveEbayCategoryRepairStateToDisk();
+      }
+
+      if (processed.length >= safeLimit) {
+        break;
+      }
+    }
+
+    pageIndex += 1;
+    cursor = batch?.endCursor || null;
+
+    ebayCategoryRepairState.cursor = pageIndex;
+    await saveEbayCategoryRepairStateToDisk();
+
+    if (!batch?.hasNextPage) {
+      done = true;
+      break;
+    }
+  }
+
+  return {
+    ok: true,
+    limit: safeLimit,
+    processedCount: processed.length,
+    skippedAlreadyProcessed,
+    scanned,
+    done,
+    state: serializeCategoryRepairState(),
+    results: processed,
+  };
+}
+
 app.get("/ebay/repair/all", async (req, res) => {
   try {
+    const limit = Number(req.query.limit || 10);
     const sourceLanguage = getSourceLanguage(req.query.sourceLanguage || "it");
-    const limit = Number(req.query.limit || 0);
-    const marketplaces = String(req.query.marketplaces || "")
-      .split(",")
-      .map((x) => String(x || "").trim())
-      .filter(Boolean);
+    const reset = String(req.query.reset || "false") === "true";
 
-    const result = await repairAllEbayListings({
+    const result = await runEbayCategoryRepairBatch({
+      limit,
       sourceLanguage,
-      limit: Number.isFinite(limit) ? limit : 0,
-      marketplaces: marketplaces.length
-        ? marketplaces
-        : MARKETPLACES.map((m) => m.marketplaceId),
+      reset,
     });
 
     return res.json(result);
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: errorToSerializable(error),
+    });
+  }
+});
+
+app.get("/ebay/repair/state", async (req, res) => {
+  try {
+    return res.json({
+      ok: true,
+      state: serializeCategoryRepairState(),
+    });
   } catch (error) {
     return res.status(500).json({
       ok: false,
@@ -5082,10 +5348,11 @@ async function start() {
     validateBaseEnv();
 
     if (EBAY_ENABLED) {
-      await loadEbayConnectionFromDisk();
-      await loadEbayListingMapFromDisk();
-      await loadEbayOrderSyncStateFromDisk();
-    }
+  await loadEbayConnectionFromDisk();
+  await loadEbayListingMapFromDisk();
+  await loadEbayOrderSyncStateFromDisk();
+  await loadEbayCategoryRepairStateFromDisk();
+}
 
     app.listen(PORT, () => {
       console.log(`SyncAmzEby listening on port ${PORT}`);
