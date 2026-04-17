@@ -1757,81 +1757,75 @@ function buildDefaultAspects(shopifyVariant) {
     65
   );
 
-  const compatibleBrand = truncateAspectValue(
-    buildCompatibleBrandValue(shopifyVariant),
-    65
-  );
-
-  const modelValue = truncateAspectValue(
-    buildModelValue(shopifyVariant),
-    65
-  );
-
   const productType = truncateAspectValue(
     firstNonEmpty(
       shopifyVariant?.product?.productType,
       shopifyVariant?.product?.categoryFullName,
-      "Accessorio"
+      "Articolo"
     ),
     65
   );
 
-  const colourValue = truncateAspectValue(
-    buildColorValue(shopifyVariant),
+  const modelValue = truncateAspectValue(buildModelValue(shopifyVariant), 65);
+  const compatibleBrandValue = truncateAspectValue(
+    buildCompatibleBrandValue(shopifyVariant),
     65
   );
+  const colorValue = truncateAspectValue(buildColorValue(shopifyVariant), 65);
 
   aspects.Marca = [vendor];
   aspects.Brand = [vendor];
-  aspects.Marke = [vendor];
-  aspects.Marque = [vendor];
+  aspects["Compatible Brand"] = [compatibleBrandValue || vendor];
+  aspects["Marca compatible"] = [compatibleBrandValue || vendor];
+  aspects["Markenkompatibilität"] = [compatibleBrandValue || vendor];
+  aspects["Marque compatible"] = [compatibleBrandValue || vendor];
 
-  aspects["Marca compatibile"] = [compatibleBrand];
-  aspects["Compatible Brand"] = [compatibleBrand];
-  aspects["Markenkompatibilität"] = [compatibleBrand];
-  aspects["Marque compatible"] = [compatibleBrand];
-  aspects["Marca compatible"] = [compatibleBrand];
-
-  aspects.Modello = [modelValue];
-  aspects.Model = [modelValue];
-  aspects.Modèle = [modelValue];
-  aspects.Modelo = [modelValue];
+  aspects.Modello = [modelValue || vendor];
+  aspects.Model = [modelValue || vendor];
+  aspects.Modell = [modelValue || vendor];
+  aspects.Modelo = [modelValue || vendor];
 
   aspects.Tipo = [productType];
   aspects.Type = [productType];
   aspects.Produktart = [productType];
-  aspects["Type de produit"] = [productType];
   aspects["Tipo de producto"] = [productType];
+  aspects["Type de produit"] = [productType];
 
-  aspects.Colore = [colourValue];
-  aspects.Color = [colourValue];
-  aspects.Colour = [colourValue];
-  aspects.Farbe = [colourValue];
-  aspects.Couleur = [colourValue];
+  aspects.Colore = [colorValue];
+  aspects.Colour = [colorValue];
+  aspects.Color = [colorValue];
+  aspects.Farbe = [colorValue];
+  aspects.Couleur = [colorValue];
 
-  if (shopifyVariant?.barcode) {
-    const safeBarcode = truncateAspectValue(String(shopifyVariant.barcode), 65);
-    aspects.EAN = [safeBarcode];
-    aspects.MPN = [safeBarcode];
-    aspects.CodiceProduttore = [safeBarcode];
-    aspects.Herstellernummer = [safeBarcode];
-    aspects["Numéro de pièce fabricant"] = [safeBarcode];
-    aspects["Número de pieza del fabricante"] = [safeBarcode];
-  }
-
-  const variantTitle = truncateAspectValue(
-    firstNonEmpty(shopifyVariant?.variantTitle),
-    65
-  );
-
+  const variantTitle = String(shopifyVariant?.variantTitle || "").trim();
   if (
     variantTitle &&
     !["Default Title", "Titolo predefinito"].includes(variantTitle)
   ) {
-    aspects.Stile = [variantTitle];
-    aspects.Style = [variantTitle];
-    aspects.Stil = [variantTitle];
+    const safeVariantTitle = truncateAspectValue(variantTitle, 65);
+    aspects.Stile = [safeVariantTitle];
+    aspects.Style = [safeVariantTitle];
   }
+
+  for (const option of safeArray(shopifyVariant?.selectedOptions)) {
+    const rawName = String(option?.name || "").trim();
+    const rawValue = truncateAspectValue(firstNonEmpty(option?.value), 65);
+
+    if (!rawName || !rawValue) continue;
+    if (!aspects[rawName]) {
+      aspects[rawName] = [rawValue];
+    }
+  }
+
+  if (shopifyVariant?.barcode) {
+    const safeBarcode = truncateAspectValue(String(shopifyVariant.barcode), 65);
+    aspects.EAN = [safeBarcode];
+    aspects["Numero componente del fabbricante"] = [safeBarcode];
+    aspects.MPN = [safeBarcode];
+  }
+
+  return aspects;
+}
 
   for (const option of safeArray(shopifyVariant?.selectedOptions)) {
     const rawName = firstNonEmpty(option?.name);
