@@ -1356,6 +1356,7 @@ async function suggestEbayCategory({
   title,
   shopifyCategory,
   productType,
+  vendor = "",
 }) {
   const tree = await getDefaultCategoryTreeId(marketplaceId);
   const categoryTreeId = tree?.categoryTreeId;
@@ -1364,22 +1365,42 @@ async function suggestEbayCategory({
     throw new Error("Could not determine eBay default category tree");
   }
 
-  const queries = [
-    firstNonEmpty(shopifyCategory),
-    firstNonEmpty(productType),
-    firstNonEmpty(title),
-  ].filter(Boolean);
+  const fakeVariantForFiltering = {
+    product: {
+      title,
+      productType,
+      categoryFullName: shopifyCategory,
+    },
+  };
+
+  const queries = buildCategoryQueries({
+    title,
+    shopifyCategory,
+    productType,
+    vendor,
+  });
 
   const allSuggestions = [];
 
   for (const q of queries) {
     const suggestions = await getCategorySuggestions({ categoryTreeId, q });
-    const rows = safeArray(suggestions?.categorySuggestions).map((row) => ({
-      query: q,
-      categoryId: row?.category?.categoryId || row?.categoryId || null,
-      categoryName: row?.category?.categoryName || row?.categoryName || null,
-      categoryTreeId,
-    }));
+
+    const rows = safeArray(suggestions?.categorySuggestions)
+      .map((row) => ({
+        query: q,
+        categoryId: row?.category?.categoryId || row?.categoryId || null,
+        categoryName: row?.category?.categoryName || row?.categoryName || null,
+        categoryTreeId,
+      }))
+      .filter(
+        (row) =>
+          row.categoryId &&
+          row.categoryName &&
+          !isWrongCategorySuggestionForProduct(
+            fakeVariantForFiltering,
+            row.categoryName
+          )
+      );
 
     allSuggestions.push(...rows);
   }
@@ -1389,7 +1410,7 @@ async function suggestEbayCategory({
 
   for (const row of allSuggestions) {
     const key = `${row.categoryId}::${row.categoryName}`;
-    if (row.categoryId && !seen.has(key)) {
+    if (!seen.has(key)) {
       seen.add(key);
       deduped.push(row);
     }
@@ -1415,6 +1436,7 @@ async function resolveCategoryIdForMarketplace({
     title: shopifyVariant.product.title,
     shopifyCategory: shopifyVariant.product.categoryFullName,
     productType: shopifyVariant.product.productType,
+    vendor: shopifyVariant.product.vendor,
   });
 
   const categoryId = String(suggestion?.best?.categoryId || "").trim();
@@ -1581,27 +1603,134 @@ async function getShopifyVariantBySku(sku) {
 // EBAY INVENTORY / OFFER HELPERS
 // =========================
 
+function truncateAspectValue(value, max = 65) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  return text.length > max ? text.slice(0, max).trim() : text;
+}
+
+function buildModelValue(shopifyVariant) {
+  const barcode = truncateAspectValue(shopifyVariant?.barcode || "", 65);
+
+  const optionModel = safeArray(shopifyVariant?.selectedOptions)
+    .find((opt) => /modello|model/i.test(String(opt?.name || "").trim()));
+
+  const optionModelValue = truncateAspectValue(optionModel?.value || "", 65);
+  if (optionModelValue) return optionModelValue;
+
+  const variantTitle = String(shopifyVariant?.variantTitle || "").trim();
+  if (
+    variantTitle &&
+    !["Default Title", "Titolo predefinito"].includes(variantTitle)
+  ) {
+    return truncateAspectValue(variantTitle, 65);
+  }
+
+  if (barcode) return barcode;
+
+  const title = String(shopifyVariant?.product?.title || "").trim();
+  return truncateAspectValue(title, 65);
+}
+
+function buildCompatibleBrandValue(shopifyVariant) {
+  const vendor = truncateAspectValue(
+    firstNonEmpty(shopifyVariant?.product?.vendor, "Bialetti"),
+    65
+  );
+  return vendor || "Compatibile universale";
+}
+
+function normalizeCategoryText(value = "") {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function buildCategoryQueries({ title, shopifyCategory, productType, vendor }) {
+  const t = normalizeCategoryText(title);
+  const p = normalizeCategoryText(productType);
+  const c = normalizeCategoryText(shopifyCategory);
+  const v = String(vendor || "").trim();
+
+  const queries = [];
+
+  const isCoffeeMaker =
+    /moka|caffettiera|coffee maker|espresso maker|bialetti/.test(t) ||
+    /moka|caffettiera|coffee maker|espresso maker/.test(p) ||
+    /cucina|caffe/.test(c);
+
+  if (isCoffeeMaker) {
+    queries.push(
+      `${v} moka express`,
+      "caffettiera moka",
+      "coffee maker stovetop",
+      "espresso maker"
+    );
+  }
+
+  if (shopifyCategory) queries.push(String(shopifyCategory));
+  if (productType) queries.push(String(productType));
+  if (title) queries.push(String(title));
+
+  return [...new Set(queries.map((x) => String(x || "").trim()).filter(Boolean))];
+}
+
+function isWrongCategorySuggestionForProduct(shopifyVariant, categoryName) {
+  const name = normalizeCategoryText(categoryName);
+  const productText = normalizeCategoryText(
+    [
+      shopifyVariant?.product?.title,
+      shopifyVariant?.product?.productType,
+      shopifyVariant?.product?.categoryFullName,
+    ].join(" ")
+  );
+
+  const isCoffeeMaker =
+    /moka|caffettiera|coffee maker|espresso maker|bialetti/.test(productText);
+
+  if (!isCoffeeMaker) return false;
+
+  const badWords = [
+    "decor",
+    "dekor",
+    "decoration",
+    "décoration",
+    "decorazione",
+    "wand",
+    "wall",
+    "panel",
+    "pannell",
+    "poster",
+    "canvas",
+    "quadro",
+    "bild",
+    "home decor",
+  ];
+
+  return badWords.some((word) => name.includes(word));
+}
+
 function buildDefaultAspects(shopifyVariant) {
   const aspects = {};
 
-  const vendor = truncateText(
+  const vendor = truncateAspectValue(
     firstNonEmpty(shopifyVariant?.product?.vendor, "Generico"),
     65
   );
 
-  const rawModel = firstNonEmpty(
-    shopifyVariant?.variantTitle &&
-      !["Default Title", "Titolo predefinito"].includes(shopifyVariant.variantTitle)
-      ? shopifyVariant.variantTitle
-      : "",
-    shopifyVariant?.sku,
-    shopifyVariant?.product?.productType,
-    "Modello generico"
+  const compatibleBrand = truncateAspectValue(
+    buildCompatibleBrandValue(shopifyVariant),
+    65
   );
 
-  const model = truncateText(rawModel, 65);
+  const modelValue = truncateAspectValue(
+    buildModelValue(shopifyVariant),
+    65
+  );
 
-  const productType = truncateText(
+  const productType = truncateAspectValue(
     firstNonEmpty(
       shopifyVariant?.product?.productType,
       shopifyVariant?.product?.categoryFullName,
@@ -1613,25 +1742,42 @@ function buildDefaultAspects(shopifyVariant) {
   aspects.Marca = [vendor];
   aspects.Brand = [vendor];
 
-  aspects.Modello = [model];
-  aspects.Model = [model];
+  aspects["Marca compatibile"] = [compatibleBrand];
+  aspects["Compatible Brand"] = [compatibleBrand];
+  aspects["Markenkompatibilität"] = [compatibleBrand];
+  aspects["Marque compatible"] = [compatibleBrand];
+  aspects["Marca compatible"] = [compatibleBrand];
+
+  aspects.Modello = [modelValue];
+  aspects.Model = [modelValue];
+  aspects.Modèle = [modelValue];
+  aspects.Modelo = [modelValue];
 
   aspects.Tipo = [productType];
   aspects.Type = [productType];
 
-  const variantTitle = firstNonEmpty(shopifyVariant?.variantTitle);
+  if (shopifyVariant?.barcode) {
+    const safeBarcode = truncateAspectValue(String(shopifyVariant.barcode), 65);
+    aspects.MPN = [safeBarcode];
+    aspects.CodiceProduttore = [safeBarcode];
+  }
+
+  const variantTitle = truncateAspectValue(
+    firstNonEmpty(shopifyVariant?.variantTitle),
+    65
+  );
+
   if (
     variantTitle &&
     !["Default Title", "Titolo predefinito"].includes(variantTitle)
   ) {
-    const safeVariantTitle = truncateText(variantTitle, 65);
-    aspects.Stile = [safeVariantTitle];
-    aspects.Style = [safeVariantTitle];
+    aspects.Stile = [variantTitle];
+    aspects.Style = [variantTitle];
   }
 
   for (const option of safeArray(shopifyVariant?.selectedOptions)) {
     const name = firstNonEmpty(option?.name);
-    const value = truncateText(firstNonEmpty(option?.value), 65);
+    const value = truncateAspectValue(firstNonEmpty(option?.value), 65);
 
     if (name && value && !aspects[name]) {
       aspects[name] = [value];
@@ -1642,22 +1788,33 @@ function buildDefaultAspects(shopifyVariant) {
 }
 
 function buildInventoryItemPayload(shopifyVariant, translatedTitle = "") {
-  const titleBase = firstNonEmpty(translatedTitle, shopifyVariant?.product?.title);
-  const variantTitle = firstNonEmpty(shopifyVariant?.variantTitle);
-
-  const title =
-    variantTitle &&
-    !["Default Title", "Titolo predefinito"].includes(variantTitle)
-      ? `${titleBase} - ${variantTitle}`.slice(0, 80)
-      : titleBase.slice(0, 80);
-
-  const description = firstNonEmpty(
-    shopifyVariant?.product?.descriptionText,
-    titleBase,
+  const titleBase = firstNonEmpty(
+    translatedTitle,
+    shopifyVariant?.product?.title,
     shopifyVariant?.sku
   );
 
-  const imageUrls = shopifyVariant?.product?.imageUrls || [];
+  const variantTitle = firstNonEmpty(shopifyVariant?.variantTitle);
+
+  const rawTitle =
+    variantTitle &&
+    !["Default Title", "Titolo predefinito"].includes(variantTitle)
+      ? `${titleBase} - ${variantTitle}`
+      : titleBase;
+
+  const title = truncateText(String(rawTitle || "").trim(), 80);
+
+  const description = truncateText(
+    firstNonEmpty(
+      shopifyVariant?.product?.descriptionText,
+      stripHtml(shopifyVariant?.product?.descriptionHtml || ""),
+      titleBase,
+      shopifyVariant?.sku
+    ),
+    4000
+  );
+
+  const imageUrls = safeArray(shopifyVariant?.product?.imageUrls).filter(Boolean);
   if (!imageUrls.length) {
     throw new Error("Shopify product has no images. eBay publish requires images.");
   }
@@ -1678,7 +1835,7 @@ function buildInventoryItemPayload(shopifyVariant, translatedTitle = "") {
   };
 
   if (shopifyVariant?.barcode) {
-    payload.product.ean = [String(shopifyVariant.barcode)];
+    payload.product.ean = [String(shopifyVariant.barcode).trim()];
   }
 
   return payload;
