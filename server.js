@@ -2478,7 +2478,7 @@ async function syncShopifySkuToEbay({
     };
   }
 
-  let bulkUpdateResult = null;
+    let bulkUpdateResult = null;
   let bulkUpdateError = null;
 
   try {
@@ -2494,27 +2494,67 @@ async function syncShopifySkuToEbay({
 
   const responses = safeArray(bulkUpdateResult?.responses);
 
+  const unpublishedOffers = offers.filter((offer) => {
+    const status = String(offer?.status || "").trim().toUpperCase();
+    return Boolean(offer?.offerId) && status && status !== "PUBLISHED";
+  });
+
+  const republishResults = [];
+
+  for (const offer of unpublishedOffers) {
+    try {
+      const publishResult = await publishOffer({ offerId: offer.offerId });
+      republishResults.push({
+        offerId: offer.offerId,
+        marketplaceId: offer?.marketplaceId || null,
+        previousStatus: offer?.status || null,
+        ok: true,
+        publishResult,
+      });
+    } catch (error) {
+      republishResults.push({
+        offerId: offer.offerId,
+        marketplaceId: offer?.marketplaceId || null,
+        previousStatus: offer?.status || null,
+        ok: false,
+        error: errorToSerializable(error),
+      });
+    }
+  }
+
   const offerResults = offers.map((offer) => {
     const responseRow =
       responses.find((r) => String(r?.offerId || "") === String(offer?.offerId || "")) ||
       null;
 
+    const republishRow =
+      republishResults.find(
+        (r) => String(r?.offerId || "") === String(offer?.offerId || "")
+      ) || null;
+
     const errors = safeArray(responseRow?.errors);
     const warnings = safeArray(responseRow?.warnings);
+
+    const bulkOk = responseRow
+      ? Number(responseRow.statusCode || 0) >= 200 &&
+        Number(responseRow.statusCode || 0) < 300 &&
+        errors.length === 0
+      : !bulkUpdateError;
+
+    const republishOk = republishRow ? republishRow.ok === true : true;
 
     return {
       offerId: offer?.offerId || null,
       marketplaceId: offer?.marketplaceId || null,
       format: offer?.format || null,
+      status: offer?.status || null,
       statusCode: responseRow?.statusCode || null,
-      ok:
-        responseRow
-          ? Number(responseRow.statusCode || 0) >= 200 &&
-            Number(responseRow.statusCode || 0) < 300 &&
-            errors.length === 0
-          : !bulkUpdateError,
+      ok: bulkOk && republishOk,
       errors,
       warnings,
+      republished: Boolean(republishRow),
+      republishOk,
+      republishError: republishRow?.ok === false ? republishRow.error : null,
     };
   });
 
@@ -2540,6 +2580,8 @@ async function syncShopifySkuToEbay({
     autoPublishErrors,
     bulkUpdateError,
     bulkUpdateResult,
+    unpublishedOffersFound: unpublishedOffers.length,
+    republishResults,
     offerResults,
   };
 }
