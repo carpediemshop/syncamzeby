@@ -1431,20 +1431,136 @@ async function resolveCategoryIdForMarketplace({
   const configured = getConfiguredCategoryForMarketplace(sku, marketplaceId);
   if (configured) return configured;
 
-  const suggestion = await suggestEbayCategory({
-    marketplaceId,
-    title: shopifyVariant.product.title,
-    shopifyCategory: shopifyVariant.product.categoryFullName,
-    productType: shopifyVariant.product.productType,
-    vendor: shopifyVariant.product.vendor,
+  const productTitle = String(shopifyVariant?.product?.title || "").trim();
+  const productType = String(shopifyVariant?.product?.productType || "").trim();
+  const categoryFullName = String(
+    shopifyVariant?.product?.categoryFullName || ""
+  ).trim();
+  const vendor = String(shopifyVariant?.product?.vendor || "").trim();
+
+  const normalizedText = [
+    productTitle,
+    productType,
+    categoryFullName,
+    vendor,
+  ]
+    .join(" | ")
+    .toLowerCase();
+
+  const forcedQueries = [];
+
+  if (
+    /moka|caffettiera|bialetti|espresso|coffee maker|cafetiere/.test(
+      normalizedText
+    )
+  ) {
+    forcedQueries.push("caffettiera moka espresso bialetti");
+    forcedQueries.push("moka pot coffee maker");
+  }
+
+  if (
+    /shampoo|olio shampoo|emugen|fiocchi di riso|bagno|detergente|baby care|premaman|neonato/.test(
+      normalizedText
+    )
+  ) {
+    forcedQueries.push("olio shampoo bambino baby care");
+    forcedQueries.push("baby shampoo skincare");
+  }
+
+  if (
+    /capsule|caff[eè]|iperespresso|illy/.test(normalizedText)
+  ) {
+    forcedQueries.push("capsule caffè illy iperespresso");
+    forcedQueries.push("coffee capsules");
+  }
+
+  const tree = await getDefaultCategoryTreeId(marketplaceId);
+  const categoryTreeId = tree?.categoryTreeId;
+
+  if (!categoryTreeId) {
+    throw new Error(`No category tree found for ${marketplaceId}`);
+  }
+
+  const candidateQueries = [
+    ...forcedQueries,
+    categoryFullName,
+    productType,
+    `${vendor} ${productTitle}`.trim(),
+    productTitle,
+  ]
+    .map((x) => String(x || "").trim())
+    .filter(Boolean);
+
+  const seen = new Set();
+  const uniqueQueries = candidateQueries.filter((q) => {
+    const key = q.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
 
-  const categoryId = String(suggestion?.best?.categoryId || "").trim();
-  if (!categoryId) {
+  const collected = [];
+
+  for (const q of uniqueQueries) {
+    try {
+      const suggestions = await getCategorySuggestions({ categoryTreeId, q });
+      const rows = safeArray(suggestions?.categorySuggestions).map((row) => ({
+        query: q,
+        categoryId: row?.category?.categoryId || row?.categoryId || null,
+        categoryName: row?.category?.categoryName || row?.categoryName || "",
+      }));
+
+      collected.push(...rows);
+    } catch (error) {
+      console.log("CATEGORY SUGGEST ERROR", {
+        marketplaceId,
+        sku,
+        query: q,
+        error: errorToSerializable(error),
+      });
+    }
+  }
+
+  const deduped = [];
+  const seenIds = new Set();
+
+  for (const row of collected) {
+    const categoryId = String(row?.categoryId || "").trim();
+    if (!categoryId) continue;
+    if (seenIds.has(categoryId)) continue;
+    seenIds.add(categoryId);
+    deduped.push(row);
+  }
+
+  if (!deduped.length) {
     throw new Error(`No category found for ${marketplaceId}`);
   }
 
-  return categoryId;
+  const badPatterns = [
+    /wall art/i,
+    /panel/i,
+    /pannelli/i,
+    /decor/i,
+    /libri/i,
+    /books/i,
+    /isbn/i,
+    /pregnancy/i,
+    /maternity/i,
+    /altro infanzia/i,
+  ];
+
+  const filtered = deduped.filter((row) => {
+    const name = String(row?.categoryName || "");
+    return !badPatterns.some((rx) => rx.test(name));
+  });
+
+  const finalPick = (filtered[0] || deduped[0])?.categoryId;
+
+  if (!finalPick) {
+    throw new Error(`No category found for ${marketplaceId}`);
+  }
+
+  return String(finalPick).trim();
 }
 
 // =========================
@@ -1827,6 +1943,31 @@ function buildDefaultAspects(shopifyVariant) {
   return aspects;
 }
 
+function sanitizeEbayTitle(value, max = 80) {
+  let text = String(value || "").trim();
+  if (!text) return "";
+
+  text = text
+    .replace(/[|/\\]+/g, " ")
+    .replace(/[-–—,:;.!?()[\]{}"'`´]+/g, " ")
+    .replace(/\s*&\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (text.length <= max) return text;
+
+  const words = text.split(" ");
+  let out = "";
+
+  for (const word of words) {
+    const next = out ? `${out} ${word}` : word;
+    if (next.length > max) break;
+    out = next;
+  }
+
+  return out || text.slice(0, max).trim();
+}
+
 function buildInventoryItemPayload(shopifyVariant, translatedTitle = "") {
   const titleBase = firstNonEmpty(
     translatedTitle,
@@ -1838,26 +1979,24 @@ function buildInventoryItemPayload(shopifyVariant, translatedTitle = "") {
 
   const rawTitle =
     variantTitle &&
-    !["Default Title", "Titolo predefinito"].includes(variantTitle)
-      ? `${titleBase} - ${variantTitle}`
+    !["Default Title", "Titolo predefinito"].includes(String(variantTitle).trim())
+      ? `${titleBase} ${variantTitle}`
       : titleBase;
 
-  const title = truncateText(String(rawTitle || "").trim(), 80);
+  const title = sanitizeEbayTitle(rawTitle, 80);
 
-  const description = truncateText(
-    firstNonEmpty(
-      shopifyVariant?.product?.descriptionText,
-      stripHtml(shopifyVariant?.product?.descriptionHtml || ""),
-      titleBase,
-      shopifyVariant?.sku
-    ),
-    4000
+  const description = firstNonEmpty(
+    shopifyVariant?.product?.descriptionText,
+    titleBase,
+    shopifyVariant?.sku
   );
 
   const imageUrls = safeArray(shopifyVariant?.product?.imageUrls).filter(Boolean);
   if (!imageUrls.length) {
     throw new Error("Shopify product has no images. eBay publish requires images.");
   }
+
+  const aspects = buildDefaultAspects(shopifyVariant);
 
   const payload = {
     availability: {
@@ -1869,13 +2008,16 @@ function buildInventoryItemPayload(shopifyVariant, translatedTitle = "") {
     product: {
       title,
       description,
-      aspects: buildDefaultAspects(shopifyVariant),
+      aspects,
       imageUrls,
     },
   };
 
   if (shopifyVariant?.barcode) {
-    payload.product.ean = [String(shopifyVariant.barcode).trim()];
+    const safeBarcode = String(shopifyVariant.barcode).trim();
+    if (safeBarcode) {
+      payload.product.ean = [safeBarcode];
+    }
   }
 
   return payload;
