@@ -6,253 +6,511 @@
   <title>SyncAmzEby - eBay Publisher</title>
   <style>
     :root{
-      --bg:#f4f7fb;
+      --bg:#f3f6fb;
       --panel:#ffffff;
-      --text:#111827;
-      --muted:#6b7280;
-      --line:#e5e7eb;
+      --panel-soft:#f8fbff;
+      --text:#0f172a;
+      --muted:#64748b;
+      --line:#e2e8f0;
+      --line-strong:#cbd5e1;
       --primary:#2563eb;
       --primary-dark:#1d4ed8;
+      --primary-soft:#eff6ff;
       --secondary:#111827;
-      --gray:#6b7280;
+      --gray:#475569;
+      --gray-soft:#f8fafc;
       --danger:#b91c1c;
+      --danger-soft:#fef2f2;
       --ok:#047857;
-      --bad:#b91c1c;
+      --ok-soft:#ecfdf5;
       --warn:#b45309;
-      --shadow:0 10px 30px rgba(0,0,0,.08);
-      --radius:16px;
+      --warn-soft:#fff7ed;
+      --shadow:0 12px 36px rgba(15,23,42,.08);
+      --shadow-soft:0 8px 20px rgba(15,23,42,.06);
+      --radius:18px;
+      --radius-sm:14px;
+      --radius-xs:12px;
     }
+
     *{box-sizing:border-box}
-    body{
-      font-family:Arial,sans-serif;
-      background:var(--bg);
+
+    html,body{
       margin:0;
+      padding:0;
+      background:var(--bg);
       color:var(--text);
+      font-family:Inter,Arial,Helvetica,sans-serif;
     }
+
+    body{
+      min-height:100vh;
+    }
+
     .wrap{
-      max-width:1280px;
+      max-width:1440px;
       margin:24px auto;
-      padding:0 16px 60px;
+      padding:0 16px 72px;
     }
+
     .hero{
-      background:linear-gradient(135deg,#0f172a,#1e3a8a);
+      background:
+        radial-gradient(circle at top right, rgba(96,165,250,.18), transparent 30%),
+        linear-gradient(135deg,#0f172a,#1e3a8a 65%, #1d4ed8);
       color:#fff;
-      border-radius:22px;
-      padding:24px;
+      border-radius:26px;
+      padding:28px;
       margin-bottom:18px;
       box-shadow:var(--shadow);
       display:flex;
       justify-content:space-between;
       align-items:flex-start;
-      gap:20px;
+      gap:18px;
       flex-wrap:wrap;
+      border:1px solid rgba(255,255,255,.08);
     }
+
     .hero h1{
-      margin:0 0 8px;
-      font-size:32px;
+      margin:0 0 10px;
+      font-size:34px;
+      line-height:1.05;
+      letter-spacing:-.02em;
     }
+
     .hero p{
       margin:0;
       color:#dbeafe;
       font-size:14px;
-      line-height:1.45;
+      line-height:1.55;
+      max-width:760px;
     }
-    .status-badge{
+
+    .hero-right{
+      min-width:320px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+
+    .hero-topline{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .pill{
       display:inline-flex;
+      align-items:center;
+      gap:8px;
+      min-height:42px;
+      padding:10px 14px;
+      border-radius:999px;
+      font-weight:800;
+      font-size:13px;
+      background:rgba(255,255,255,.10);
+      border:1px solid rgba(255,255,255,.14);
+      backdrop-filter:blur(4px);
+    }
+
+    .status-badge{
+      display:flex;
       align-items:center;
       gap:10px;
       background:rgba(255,255,255,.12);
-      padding:12px 16px;
+      padding:14px 16px;
       border-radius:999px;
-      font-weight:700;
-      min-height:46px;
+      font-weight:800;
+      min-height:48px;
+      border:1px solid rgba(255,255,255,.14);
     }
+
     .dot{
       width:10px;
       height:10px;
       border-radius:50%;
       background:#f59e0b;
       display:inline-block;
+      flex:0 0 auto;
     }
     .dot.ok{background:#22c55e}
     .dot.bad{background:#ef4444}
     .dot.warn{background:#f59e0b}
-    .card{
+
+    .hero-stats{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:12px;
+    }
+
+    .hero-stat{
+      background:rgba(255,255,255,.10);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:16px;
+      padding:14px;
+    }
+
+    .hero-stat .k{
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      color:#bfdbfe;
+      font-weight:800;
+      margin-bottom:6px;
+    }
+
+    .hero-stat .v{
+      font-size:20px;
+      font-weight:900;
+      color:#fff;
+    }
+
+    .section{
       background:var(--panel);
       border-radius:var(--radius);
       padding:20px;
-      box-shadow:var(--shadow);
-      margin-bottom:18px;
+      box-shadow:var(--shadow-soft);
       border:1px solid var(--line);
+      margin-bottom:18px;
     }
-    h2{
-      margin:0 0 14px;
-      font-size:20px;
-    }
-    .row{
+
+    .section-header{
       display:flex;
-      gap:12px;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:14px;
       flex-wrap:wrap;
+      margin-bottom:16px;
     }
-    .col{
-      flex:1;
-      min-width:240px;
+
+    .section-title-wrap h2{
+      margin:0 0 4px;
+      font-size:21px;
+      letter-spacing:-.02em;
     }
-    input,select,button,textarea{
-      width:100%;
-      box-sizing:border-box;
-      padding:12px;
-      border-radius:12px;
-      border:1px solid #d1d5db;
-      font-size:14px;
-      background:#fff;
-    }
-    textarea{
-      resize:vertical;
-      min-height:44px;
-    }
-    input:focus,select:focus,textarea:focus{
-      outline:none;
-      border-color:#93c5fd;
-      box-shadow:0 0 0 4px rgba(37,99,235,.12);
-    }
-    button{
-      background:var(--primary);
-      color:#fff;
-      border:none;
-      font-weight:700;
-      cursor:pointer;
-      transition:.18s ease;
-    }
-    button:hover{background:var(--primary-dark)}
-    button.secondary{background:var(--secondary)}
-    button.gray{background:var(--gray)}
-    button.danger{background:var(--danger)}
-    button:disabled{opacity:.6;cursor:not-allowed}
-    .label{
-      font-size:12px;
-      font-weight:700;
-      margin:0 0 6px;
-      color:#374151;
-      text-transform:uppercase;
-      letter-spacing:.04em;
-    }
-    .grid{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:12px;
-    }
-    .muted{
+
+    .section-sub{
+      margin:0;
       color:var(--muted);
       font-size:13px;
+      line-height:1.5;
     }
-    .images{
+
+    .section-actions{
       display:flex;
       gap:10px;
       flex-wrap:wrap;
     }
-    .images img{
-      width:96px;
-      height:96px;
-      object-fit:cover;
-      border-radius:10px;
-      border:1px solid #e5e7eb;
-      background:#fff;
-    }
-    pre{
-      background:#0f172a;
-      color:#e5e7eb;
-      padding:14px;
-      border-radius:12px;
-      overflow:auto;
-      font-size:12px;
-      white-space:pre-wrap;
-      min-height:220px;
-    }
-    .success{color:#065f46;font-weight:700}
-    .error{color:#991b1b;font-weight:700}
-    .warning{color:#92400e;font-weight:700}
+
     .toolbar{
       display:flex;
       gap:12px;
       flex-wrap:wrap;
     }
+
     .toolbar .btn{
       flex:1;
       min-width:180px;
     }
+
+    .row{
+      display:flex;
+      gap:14px;
+      flex-wrap:wrap;
+    }
+
+    .col{
+      flex:1;
+      min-width:240px;
+    }
+
+    .col-2{
+      flex:2;
+      min-width:320px;
+    }
+
+    .label{
+      font-size:12px;
+      font-weight:800;
+      margin:0 0 7px;
+      color:#334155;
+      text-transform:uppercase;
+      letter-spacing:.05em;
+    }
+
+    input,select,button,textarea{
+      width:100%;
+      box-sizing:border-box;
+      padding:12px 14px;
+      border-radius:14px;
+      border:1px solid #d1d5db;
+      font-size:14px;
+      background:#fff;
+      color:var(--text);
+      transition:.18s ease;
+    }
+
+    textarea{
+      resize:vertical;
+      min-height:46px;
+    }
+
+    input:focus,select:focus,textarea:focus{
+      outline:none;
+      border-color:#93c5fd;
+      box-shadow:0 0 0 4px rgba(37,99,235,.12);
+    }
+
+    button{
+      background:var(--primary);
+      color:#fff;
+      border:none;
+      font-weight:800;
+      cursor:pointer;
+      transition:.18s ease;
+      min-height:46px;
+      letter-spacing:.01em;
+    }
+
+    button:hover{background:var(--primary-dark)}
+    button.secondary{background:var(--secondary)}
+    button.gray{background:var(--gray)}
+    button.ghost{
+      background:#fff;
+      color:var(--text);
+      border:1px solid var(--line-strong);
+    }
+    button.ghost:hover{
+      background:#f8fafc;
+    }
+    button.danger{background:var(--danger)}
+    button.success{background:var(--ok)}
+    button:disabled{opacity:.6;cursor:not-allowed}
+
+    .grid-2{
+      display:grid;
+      grid-template-columns:1.2fr .8fr;
+      gap:16px;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+    }
+
+    .muted{
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    .images{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    .image-item{
+      position:relative;
+      width:100px;
+      height:100px;
+      border-radius:14px;
+      overflow:hidden;
+      border:1px solid var(--line);
+      background:#fff;
+    }
+
+    .image-item img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+    }
+
+    pre{
+      background:#0f172a;
+      color:#e5e7eb;
+      padding:16px;
+      border-radius:14px;
+      overflow:auto;
+      font-size:12px;
+      white-space:pre-wrap;
+      min-height:220px;
+      margin:0;
+      line-height:1.5;
+      border:1px solid #1e293b;
+    }
+
+    .success-text{color:#065f46;font-weight:800}
+    .error-text{color:#991b1b;font-weight:800}
+    .warning-text{color:#92400e;font-weight:800}
+
     .meta-grid{
       display:grid;
       grid-template-columns:repeat(4,1fr);
       gap:12px;
       margin-top:10px;
     }
+
     .mini{
-      border:1px solid #e5e7eb;
-      border-radius:12px;
-      padding:12px;
-      background:#f8fafc;
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:14px;
+      background:var(--gray-soft);
     }
+
     .mini .k{
       font-size:11px;
-      color:#6b7280;
-      font-weight:700;
+      color:var(--muted);
+      font-weight:800;
       text-transform:uppercase;
-      margin-bottom:6px;
+      margin-bottom:7px;
+      letter-spacing:.06em;
     }
+
     .mini .v{
       font-size:14px;
-      font-weight:700;
+      font-weight:800;
       word-break:break-word;
+      line-height:1.4;
     }
+
     .market-grid{
       display:grid;
       grid-template-columns:repeat(2,1fr);
       gap:14px;
     }
+
     .market-card{
-      border:1px solid #e5e7eb;
-      border-radius:14px;
-      padding:14px;
-      background:#fafcff;
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:16px;
+      background:linear-gradient(180deg,#ffffff,#fbfdff);
+      box-shadow:0 8px 18px rgba(15,23,42,.04);
+      position:relative;
+      overflow:hidden;
     }
+
+    .market-card::before{
+      content:"";
+      position:absolute;
+      top:0;
+      left:0;
+      right:0;
+      height:4px;
+      background:#cbd5e1;
+    }
+
+    .market-card.state-published::before{background:#10b981}
+    .market-card.state-error::before{background:#ef4444}
+    .market-card.state-unpublished::before{background:#f59e0b}
+    .market-card.state-working::before{background:#3b82f6}
+
     .market-top{
       display:flex;
-      align-items:center;
+      align-items:flex-start;
       justify-content:space-between;
       gap:10px;
-      margin-bottom:10px;
+      margin-bottom:12px;
     }
+
     .market-title{
-      font-size:16px;
-      font-weight:800;
+      font-size:17px;
+      font-weight:900;
+      line-height:1.2;
     }
+
+    .market-sub{
+      color:var(--muted);
+      font-size:12px;
+      margin-top:4px;
+    }
+
     .chip{
-      display:inline-block;
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
       border:1px solid #dbeafe;
       background:#eff6ff;
       color:#1d4ed8;
       border-radius:999px;
       padding:6px 10px;
       font-size:12px;
-      font-weight:700;
+      font-weight:800;
+      white-space:nowrap;
     }
+
+    .chip.ok{
+      border-color:#bbf7d0;
+      background:#ecfdf5;
+      color:#047857;
+    }
+
+    .chip.bad{
+      border-color:#fecaca;
+      background:#fef2f2;
+      color:#b91c1c;
+    }
+
+    .chip.warn{
+      border-color:#fed7aa;
+      background:#fff7ed;
+      color:#b45309;
+    }
+
+    .chip.gray{
+      border-color:#e2e8f0;
+      background:#f8fafc;
+      color:#475569;
+    }
+
     .hint{
       font-size:12px;
-      color:#6b7280;
+      color:var(--muted);
       margin-top:8px;
-      line-height:1.4;
+      line-height:1.45;
     }
+
+    .status-line{
+      margin-top:12px;
+      padding:10px 12px;
+      border-radius:12px;
+      font-size:12px;
+      line-height:1.45;
+      border:1px solid var(--line);
+      background:#f8fafc;
+      color:#334155;
+      min-height:58px;
+    }
+
+    .status-line.ok{
+      border-color:#bbf7d0;
+      background:#ecfdf5;
+      color:#065f46;
+    }
+
+    .status-line.error{
+      border-color:#fecaca;
+      background:#fef2f2;
+      color:#991b1b;
+    }
+
+    .status-line.warn{
+      border-color:#fed7aa;
+      background:#fff7ed;
+      color:#92400e;
+    }
+
     .note{
       background:#fff7ed;
       border:1px solid #fed7aa;
       color:#9a3412;
-      border-radius:12px;
-      padding:12px 14px;
+      border-radius:14px;
+      padding:13px 15px;
       font-size:13px;
-      line-height:1.45;
-      margin-top:12px;
+      line-height:1.5;
+      margin-top:14px;
     }
+
     .overlay{
       position:fixed;
       inset:0;
@@ -263,45 +521,313 @@
       z-index:9999;
       backdrop-filter:blur(4px);
     }
+
     .overlay.show{display:flex}
+
     .overlay-card{
       background:#fff;
-      border-radius:20px;
+      border-radius:22px;
       padding:28px;
-      width:min(92vw,420px);
+      width:min(92vw,430px);
       box-shadow:0 30px 80px rgba(0,0,0,.25);
       text-align:center;
+      border:1px solid rgba(255,255,255,.2);
     }
+
     .spinner{
-      width:64px;
-      height:64px;
+      width:66px;
+      height:66px;
       border-radius:50%;
       border:6px solid #dbeafe;
       border-top-color:#2563eb;
       margin:0 auto 18px;
       animation:spin 1s linear infinite;
     }
+
     @keyframes spin{
       to{transform:rotate(360deg)}
     }
+
     .overlay-title{
       font-size:20px;
-      font-weight:800;
+      font-weight:900;
       margin-bottom:8px;
       color:#111827;
     }
+
     .overlay-sub{
       color:#6b7280;
       font-size:14px;
-      line-height:1.45;
+      line-height:1.5;
     }
-    @media (max-width: 980px){
-      .grid{grid-template-columns:1fr}
-      .meta-grid{grid-template-columns:1fr 1fr}
-      .market-grid{grid-template-columns:1fr}
+
+    .tabs{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom:16px;
     }
-    @media (max-width: 640px){
-      .meta-grid{grid-template-columns:1fr}
+
+    .tab-btn{
+      width:auto;
+      min-width:140px;
+      padding:10px 14px;
+      border-radius:999px;
+      background:#fff;
+      color:var(--text);
+      border:1px solid var(--line);
+      font-weight:800;
+    }
+
+    .tab-btn.active{
+      background:var(--primary);
+      border-color:var(--primary);
+      color:#fff;
+    }
+
+    .tab-panel{display:none}
+    .tab-panel.active{display:block}
+
+    .inline-stats{
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:12px;
+      margin-top:14px;
+    }
+
+    .inline-stat{
+      border:1px solid var(--line);
+      background:#fff;
+      border-radius:14px;
+      padding:14px;
+    }
+
+    .inline-stat .k{
+      font-size:11px;
+      text-transform:uppercase;
+      color:var(--muted);
+      font-weight:800;
+      letter-spacing:.06em;
+      margin-bottom:6px;
+    }
+
+    .inline-stat .v{
+      font-size:24px;
+      font-weight:900;
+      line-height:1;
+    }
+
+    .inline-stat.success .v{color:var(--ok)}
+    .inline-stat.warning .v{color:var(--warn)}
+    .inline-stat.error .v{color:var(--danger)}
+    .inline-stat.gray .v{color:#334155}
+
+    .translation-grid{
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:12px;
+    }
+
+    .translation-card{
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:14px;
+      background:var(--panel-soft);
+    }
+
+    .translation-title{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
+    }
+
+    .translation-title strong{
+      font-size:15px;
+    }
+
+    .translation-box{
+      border:1px solid var(--line);
+      background:#fff;
+      border-radius:12px;
+      padding:12px;
+      font-size:13px;
+      line-height:1.5;
+      color:#334155;
+      min-height:84px;
+      white-space:pre-wrap;
+      word-break:break-word;
+    }
+
+    .bulk-layout{
+      display:grid;
+      grid-template-columns:.95fr 1.05fr;
+      gap:16px;
+      align-items:start;
+    }
+
+    .textarea-lg{
+      min-height:220px;
+      font-family:inherit;
+      line-height:1.5;
+    }
+
+    .bulk-helper{
+      background:#f8fafc;
+      border:1px dashed var(--line-strong);
+      color:#475569;
+      border-radius:14px;
+      padding:14px;
+      font-size:13px;
+      line-height:1.55;
+    }
+
+    .table-wrap{
+      overflow:auto;
+      border:1px solid var(--line);
+      border-radius:16px;
+      background:#fff;
+    }
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      min-width:900px;
+    }
+
+    th,td{
+      padding:12px 14px;
+      border-bottom:1px solid var(--line);
+      text-align:left;
+      font-size:13px;
+      vertical-align:top;
+    }
+
+    th{
+      background:#f8fafc;
+      color:#334155;
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.05em;
+      font-weight:900;
+      position:sticky;
+      top:0;
+      z-index:1;
+    }
+
+    tr:hover td{
+      background:#fcfdff;
+    }
+
+    .sku-cell{
+      font-weight:900;
+      color:#0f172a;
+    }
+
+    .market-badges{
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+    }
+
+    .small-chip{
+      display:inline-flex;
+      align-items:center;
+      gap:5px;
+      border-radius:999px;
+      padding:5px 9px;
+      font-size:11px;
+      font-weight:900;
+      border:1px solid var(--line);
+      background:#f8fafc;
+      color:#334155;
+    }
+
+    .small-chip.ok{
+      background:#ecfdf5;
+      border-color:#bbf7d0;
+      color:#047857;
+    }
+
+    .small-chip.error{
+      background:#fef2f2;
+      border-color:#fecaca;
+      color:#b91c1c;
+    }
+
+    .small-chip.warn{
+      background:#fff7ed;
+      border-color:#fed7aa;
+      color:#b45309;
+    }
+
+    .small-chip.gray{
+      background:#f8fafc;
+      border-color:#e2e8f0;
+      color:#475569;
+    }
+
+    .empty{
+      border:1px dashed var(--line-strong);
+      border-radius:16px;
+      padding:22px;
+      text-align:center;
+      color:var(--muted);
+      background:#fbfdff;
+      font-size:14px;
+    }
+
+    .toolbar-compact{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:end;
+    }
+
+    .toolbar-compact > div{
+      min-width:180px;
+      flex:1;
+    }
+
+    .footer-note{
+      margin-top:12px;
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+    }
+
+    @media (max-width: 1180px){
+      .grid-2,
+      .bulk-layout{
+        grid-template-columns:1fr;
+      }
+      .market-grid{
+        grid-template-columns:1fr;
+      }
+      .meta-grid,
+      .inline-stats,
+      .hero-stats{
+        grid-template-columns:1fr 1fr;
+      }
+      .translation-grid{
+        grid-template-columns:1fr;
+      }
+    }
+
+    @media (max-width: 760px){
+      .grid,
+      .meta-grid,
+      .inline-stats,
+      .hero-stats{
+        grid-template-columns:1fr;
+      }
+      .hero h1{
+        font-size:28px;
+      }
+      .hero-right{
+        min-width:100%;
+      }
     }
   </style>
 </head>
@@ -319,23 +845,50 @@
       <div>
         <h1>eBay Publisher Multi-Market</h1>
         <p>
-          Pubblicazione simultanea su eBay IT / DE / FR / ES / GB.<br />
-          Le descrizioni vengono tradotte automaticamente per marketplace.<br />
-          Il titolo tradotto viene mostrato in preview/log, ma con Inventory API il titolo pubblicato resta condiviso dallo SKU.
+          Controllo visivo dei marketplace eBay, suggerimento categorie, preview traduzioni
+          e pubblicazione singola o bulk degli SKU Shopify su IT / DE / FR / ES / GB.
         </p>
       </div>
-      <div class="status-badge">
-        <span id="heroDot" class="dot warn"></span>
-        <span id="heroStatusText">Verifica connessione eBay...</span>
+
+      <div class="hero-right">
+        <div class="hero-topline">
+          <div class="pill">SyncAmzEby</div>
+          <div class="pill" id="heroMarketCount">0 mercati</div>
+        </div>
+
+        <div class="status-badge">
+          <span id="heroDot" class="dot warn"></span>
+          <span id="heroStatusText">Verifica connessione eBay...</span>
+        </div>
+
+        <div class="hero-stats">
+          <div class="hero-stat">
+            <div class="k">Mercati configurati</div>
+            <div class="v" id="heroConfiguredMarkets">0</div>
+          </div>
+          <div class="hero-stat">
+            <div class="k">Mercati pubblicati</div>
+            <div class="v" id="heroPublishedMarkets">0</div>
+          </div>
+          <div class="hero-stat">
+            <div class="k">Errori attivi</div>
+            <div class="v" id="heroErrorMarkets">0</div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="card">
-      <h2>Connessione eBay</h2>
-      <div class="toolbar" style="margin-bottom:14px;">
-        <div class="btn"><button id="connectBtn">Connetti a eBay</button></div>
-        <div class="btn"><button id="refreshConnBtn" class="secondary">Aggiorna stato connessione</button></div>
-        <div class="btn"><button id="disconnectBtn" class="danger">Disconnetti eBay</button></div>
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2>Connessione eBay</h2>
+          <p class="section-sub">Verifica account, ambiente, scadenza token e mercati disponibili.</p>
+        </div>
+        <div class="section-actions">
+          <button id="connectBtn">Connetti a eBay</button>
+          <button id="refreshConnBtn" class="secondary">Aggiorna stato</button>
+          <button id="disconnectBtn" class="danger">Disconnetti</button>
+        </div>
       </div>
 
       <div id="connectionStatus" class="muted">Controllo connessione in corso...</div>
@@ -360,82 +913,262 @@
       </div>
     </div>
 
-    <div class="card">
-      <h2>Publisher</h2>
-      <div class="row">
-        <div class="col">
-          <div class="label">SKU Shopify</div>
-          <input id="sku" value="17-GELO-ZHRW" />
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2>Modalità operativa</h2>
+          <p class="section-sub">Gestisci uno SKU singolo oppure una coda bulk di più SKU.</p>
         </div>
-        <div class="col">
-          <div class="label">Lingua sorgente prodotto</div>
-          <select id="sourceLanguage">
-            <option value="it" selected>Italiano</option>
-            <option value="en">Inglese</option>
-            <option value="de">Tedesco</option>
-            <option value="fr">Francese</option>
-            <option value="es">Spagnolo</option>
+      </div>
+
+      <div class="tabs">
+        <button id="tabSingleBtn" class="tab-btn active" type="button">SKU singolo</button>
+        <button id="tabBulkBtn" class="tab-btn" type="button">Bulk publish</button>
+      </div>
+
+      <div id="tabSingle" class="tab-panel active">
+        <div class="row">
+          <div class="col">
+            <div class="label">SKU Shopify</div>
+            <input id="sku" value="17-GELO-ZHRW" placeholder="Es. 17-GELO-ZHRW" />
+          </div>
+          <div class="col">
+            <div class="label">Lingua sorgente prodotto</div>
+            <select id="sourceLanguage">
+              <option value="it" selected>Italiano</option>
+              <option value="en">Inglese</option>
+              <option value="de">Tedesco</option>
+              <option value="fr">Francese</option>
+              <option value="es">Spagnolo</option>
+            </select>
+          </div>
+          <div class="col">
+            <div class="label">Ricerca rapida marketplace</div>
+            <input id="marketSearch" placeholder="Cerca IT, DE, FR, ES, GB..." />
+          </div>
+          <div class="col">
+            <div class="label">Filtro stato marketplace</div>
+            <select id="marketStatusFilter">
+              <option value="all">Tutti</option>
+              <option value="published">Published</option>
+              <option value="unpublished">Unpublished</option>
+              <option value="error">Errore</option>
+              <option value="idle">Da elaborare</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="toolbar" style="margin-top:14px;">
+          <div class="btn"><button id="loadBtn">Carica prodotto Shopify</button></div>
+          <div class="btn"><button id="suggestAllBtn" class="secondary">Suggerisci categorie</button></div>
+          <div class="btn"><button id="previewTranslationsBtn" class="secondary">Preview traduzioni</button></div>
+          <div class="btn"><button id="publishAllBtn" class="gray">Pubblica SKU corrente</button></div>
+          <div class="btn"><button id="resetMarketStateBtn" class="ghost">Reset stati UI</button></div>
+        </div>
+      </div>
+
+      <div id="tabBulk" class="tab-panel">
+        <div class="bulk-layout">
+          <div>
+            <div class="label">Lista SKU per bulk publish</div>
+            <textarea id="bulkSkuInput" class="textarea-lg" placeholder="Incolla uno SKU per riga&#10;oppure separati da virgola / punto e virgola&#10;&#10;Esempio:&#10;17-GELO-ZHRW&#10;SKU-002&#10;SKU-003"></textarea>
+
+            <div class="row" style="margin-top:12px;">
+              <div class="col">
+                <div class="label">Lingua sorgente bulk</div>
+                <select id="bulkSourceLanguage">
+                  <option value="it" selected>Italiano</option>
+                  <option value="en">Inglese</option>
+                  <option value="de">Tedesco</option>
+                  <option value="fr">Francese</option>
+                  <option value="es">Spagnolo</option>
+                </select>
+              </div>
+              <div class="col">
+                <div class="label">Modalità categorie</div>
+                <select id="bulkMode">
+                  <option value="auto" selected>Auto: suggerisci categorie e poi pubblica</option>
+                  <option value="current">Usa le categoryId correnti dei marketplace</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="toolbar" style="margin-top:14px;">
+              <div class="btn"><button id="bulkParseBtn" class="secondary">Analizza lista SKU</button></div>
+              <div class="btn"><button id="bulkPublishBtn" class="gray">Avvia bulk publish</button></div>
+              <div class="btn"><button id="bulkClearBtn" class="ghost">Svuota lista</button></div>
+            </div>
+
+            <div class="bulk-helper" style="margin-top:14px;">
+              La modalità bulk usa gli endpoint già esistenti del publisher:
+              carica ogni SKU, ricava le categorie e pubblica in sequenza.
+              Nessuna modifica a <strong>server.js</strong>.
+            </div>
+          </div>
+
+          <div>
+            <div class="inline-stats">
+              <div class="inline-stat gray">
+                <div class="k">Totale SKU</div>
+                <div class="v" id="bulkTotalCount">0</div>
+              </div>
+              <div class="inline-stat success">
+                <div class="k">Completati</div>
+                <div class="v" id="bulkDoneCount">0</div>
+              </div>
+              <div class="inline-stat warning">
+                <div class="k">Con warning</div>
+                <div class="v" id="bulkWarningCount">0</div>
+              </div>
+              <div class="inline-stat error">
+                <div class="k">Errori</div>
+                <div class="v" id="bulkErrorCount">0</div>
+              </div>
+            </div>
+
+            <div class="footer-note">
+              Durante il bulk publish, la UI aggiorna lo stato riga per riga
+              e mostra i marketplace con risultato published / unpublished / errore.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="section">
+        <div class="section-header">
+          <div class="section-title-wrap">
+            <h2>Dati prodotto Shopify</h2>
+            <p class="section-sub">Dettagli utili prima della pubblicazione su eBay.</p>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div>
+            <div class="label">Titolo</div>
+            <textarea id="shopifyTitle" rows="2" readonly></textarea>
+          </div>
+          <div>
+            <div class="label">Categoria Shopify</div>
+            <textarea id="shopifyCategory" rows="2" readonly></textarea>
+          </div>
+          <div>
+            <div class="label">Product type</div>
+            <input id="shopifyProductType" readonly />
+          </div>
+          <div>
+            <div class="label">Vendor</div>
+            <input id="shopifyVendor" readonly />
+          </div>
+          <div>
+            <div class="label">Prezzo</div>
+            <input id="shopifyPrice" readonly />
+          </div>
+          <div>
+            <div class="label">Quantità</div>
+            <input id="shopifyQty" readonly />
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="label">Descrizione</div>
+          <textarea id="shopifyDescription" rows="8" readonly></textarea>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="label">Immagini</div>
+          <div id="images" class="images"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-header">
+          <div class="section-title-wrap">
+            <h2>Preview traduzioni</h2>
+            <p class="section-sub">Anteprima frontend del materiale tradotto per i vari marketplace.</p>
+          </div>
+        </div>
+
+        <div id="translationPreview" class="translation-grid">
+          <div class="empty" style="grid-column:1/-1;">
+            Nessuna preview disponibile. Clicca “Preview traduzioni”.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2>Marketplace e categorie</h2>
+          <p class="section-sub">Visualizza categoryId, stato per mercato ed eventuali errori specifici.</p>
+        </div>
+      </div>
+
+      <div id="marketGrid" class="market-grid"></div>
+
+      <div class="note">
+        Le categorie eBay cambiano per marketplace. La UI mantiene categoryId separati per IT, DE, FR, ES e GB e mostra uno stato distinto per ogni mercato.
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2>Risultati bulk</h2>
+          <p class="section-sub">Monitoraggio degli SKU elaborati nella pubblicazione massiva.</p>
+        </div>
+      </div>
+
+      <div class="toolbar-compact" style="margin-bottom:14px;">
+        <div>
+          <div class="label">Ricerca nella tabella bulk</div>
+          <input id="bulkSearch" placeholder="Cerca SKU o esito..." />
+        </div>
+        <div>
+          <div class="label">Filtro stato bulk</div>
+          <select id="bulkStatusFilter">
+            <option value="all">Tutti</option>
+            <option value="success">Success</option>
+            <option value="warning">Warning</option>
+            <option value="error">Errore</option>
+            <option value="running">In corso</option>
           </select>
         </div>
       </div>
 
-      <div class="toolbar" style="margin-top:12px;">
-        <div class="btn"><button id="loadBtn">Carica prodotto Shopify</button></div>
-        <div class="btn"><button id="suggestAllBtn" class="secondary">Suggerisci categorie per tutti i mercati</button></div>
-        <div class="btn"><button id="previewTranslationsBtn" class="secondary">Preview traduzioni</button></div>
-        <div class="btn"><button id="publishAllBtn" class="gray">Pubblica su tutti i mercati</button></div>
+      <div id="bulkResultsWrap" class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:160px;">SKU</th>
+              <th style="width:130px;">Stato</th>
+              <th style="width:130px;">Progress</th>
+              <th style="width:340px;">Mercati</th>
+              <th>Messaggio</th>
+            </tr>
+          </thead>
+          <tbody id="bulkResultsBody">
+            <tr>
+              <td colspan="5">
+                <div class="empty">Nessun risultato bulk disponibile.</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
-    <div class="card">
-      <h2>Dati prodotto Shopify</h2>
-      <div class="grid">
-        <div>
-          <div class="label">Titolo</div>
-          <textarea id="shopifyTitle" rows="2" readonly></textarea>
-        </div>
-        <div>
-          <div class="label">Categoria Shopify</div>
-          <textarea id="shopifyCategory" rows="2" readonly></textarea>
-        </div>
-        <div>
-          <div class="label">Product type</div>
-          <input id="shopifyProductType" readonly />
-        </div>
-        <div>
-          <div class="label">Vendor</div>
-          <input id="shopifyVendor" readonly />
-        </div>
-        <div>
-          <div class="label">Prezzo</div>
-          <input id="shopifyPrice" readonly />
-        </div>
-        <div>
-          <div class="label">Quantità</div>
-          <input id="shopifyQty" readonly />
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2>Log</h2>
+          <p class="section-sub">Output tecnico utile per debug e controllo endpoint.</p>
         </div>
       </div>
-      <div style="margin-top:12px">
-        <div class="label">Descrizione</div>
-        <textarea id="shopifyDescription" rows="7" readonly></textarea>
-      </div>
-      <div style="margin-top:12px">
-        <div class="label">Immagini</div>
-        <div id="images" class="images"></div>
-      </div>
-    </div>
 
-    <div class="card">
-      <h2>Marketplace e categorie</h2>
-      <div id="marketGrid" class="market-grid"></div>
-      <div class="note">
-        Le categorie eBay sono diverse da marketplace a marketplace. Per questo il sistema suggerisce una categoria distinta per IT, DE, FR, ES e GB.
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>Log</h2>
-      <div id="status" class="muted">Pronto.</div>
+      <div id="status" class="muted" style="margin-bottom:10px;">Pronto.</div>
       <pre id="log"></pre>
     </div>
   </div>
@@ -445,6 +1178,9 @@ const el = (id) => document.getElementById(id);
 
 let APP_CONFIG = null;
 let MARKETPLACES = [];
+let MARKET_STATE = {};
+let BULK_RESULTS = [];
+let IS_BULK_RUNNING = false;
 
 function showOverlay(title, sub) {
   el("overlayTitle").textContent = title || "Il sistema sta lavorando";
@@ -460,9 +1196,10 @@ function setStatus(text, type = "success") {
   const node = el("status");
   node.textContent = text;
   node.className =
-    type === "error" ? "error" :
-    type === "warning" ? "warning" :
-    "success";
+    type === "error" ? "error-text" :
+    type === "warning" ? "warning-text" :
+    type === "muted" ? "muted" :
+    "success-text";
 }
 
 function setLog(obj) {
@@ -472,11 +1209,25 @@ function setLog(obj) {
 
 async function fetchJson(url, options = {}) {
   const res = await fetch(url, options);
-  const data = await res.json();
-  if (!res.ok || data.ok === false) {
-    throw new Error(JSON.stringify(data));
+  let data = null;
+  try {
+    data = await res.json();
+  } catch (e) {
+    throw new Error(`Risposta non JSON da ${url}`);
+  }
+  if (!res.ok || data?.ok === false) {
+    throw new Error(JSON.stringify(data || { ok:false, url, status:res.status }));
   }
   return data;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function getSku() {
@@ -487,17 +1238,86 @@ function getSourceLanguage() {
   return el("sourceLanguage").value.trim();
 }
 
+function getMarketState(marketplaceId) {
+  if (!MARKET_STATE[marketplaceId]) {
+    MARKET_STATE[marketplaceId] = {
+      state: "idle",
+      label: "Da elaborare",
+      message: "Nessun risultato disponibile.",
+      lastResult: null
+    };
+  }
+  return MARKET_STATE[marketplaceId];
+}
+
+function setMarketState(marketplaceId, patch = {}) {
+  const current = getMarketState(marketplaceId);
+  MARKET_STATE[marketplaceId] = { ...current, ...patch };
+  renderMarketCards();
+  updateHeroStats();
+}
+
+function resetAllMarketStates() {
+  MARKET_STATE = {};
+  MARKETPLACES.forEach((market) => {
+    setMarketState(market.marketplaceId, {
+      state: "idle",
+      label: "Da elaborare",
+      message: "Nessun risultato disponibile.",
+      lastResult: null
+    });
+  });
+  renderMarketCards();
+  updateHeroStats();
+}
+
+function getMarketStatusChip(state) {
+  if (state === "published") {
+    return `<span class="chip ok">Published</span>`;
+  }
+  if (state === "error") {
+    return `<span class="chip bad">Errore</span>`;
+  }
+  if (state === "unpublished") {
+    return `<span class="chip warn">Unpublished</span>`;
+  }
+  if (state === "working") {
+    return `<span class="chip">In lavorazione</span>`;
+  }
+  return `<span class="chip gray">Da elaborare</span>`;
+}
+
 function buildMarketCards() {
   const grid = el("marketGrid");
   grid.innerHTML = "";
 
   MARKETPLACES.forEach((market) => {
+    const state = getMarketState(market.marketplaceId);
+
     const wrap = document.createElement("div");
-    wrap.className = "market-card";
+    wrap.className = `market-card state-${state.state}`;
+    wrap.dataset.marketplaceId = market.marketplaceId;
+    wrap.dataset.marketLabel = `${market.label} ${market.marketplaceId} ${market.site} ${market.locale}`.toLowerCase();
+    wrap.dataset.marketState = state.state;
+
     wrap.innerHTML = `
       <div class="market-top">
-        <div class="market-title">${market.label}</div>
-        <div class="chip">${market.marketplaceId} • ${market.locale}</div>
+        <div>
+          <div class="market-title">${escapeHtml(market.label)}</div>
+          <div class="market-sub">${escapeHtml(market.site || "")} • ${escapeHtml(market.locale || "")}</div>
+        </div>
+        ${getMarketStatusChip(state.state)}
+      </div>
+
+      <div class="row" style="margin-bottom:10px;">
+        <div class="col">
+          <div class="label">Marketplace</div>
+          <div class="chip gray">${escapeHtml(market.marketplaceId)}</div>
+        </div>
+        <div class="col">
+          <div class="label">Locale</div>
+          <div class="chip gray">${escapeHtml(market.locale || "-")}</div>
+        </div>
       </div>
 
       <div class="label">Categoria suggerita / selezionata</div>
@@ -509,9 +1329,42 @@ function buildMarketCards() {
       <div class="hint" id="hint_${market.marketplaceId}">
         Nessuna categoria caricata.
       </div>
+
+      <div id="statusLine_${market.marketplaceId}" class="status-line ${state.state === "published" ? "ok" : state.state === "error" ? "error" : state.state === "unpublished" ? "warn" : ""}">
+        <strong>${escapeHtml(state.label || "Da elaborare")}</strong><br />
+        ${escapeHtml(state.message || "Nessun risultato disponibile.")}
+      </div>
     `;
+
     grid.appendChild(wrap);
   });
+
+  applyMarketFilters();
+}
+
+function renderMarketCards() {
+  MARKETPLACES.forEach((market) => {
+    const state = getMarketState(market.marketplaceId);
+    const card = document.querySelector(`.market-card[data-marketplace-id="${market.marketplaceId}"]`);
+    if (!card) return;
+
+    card.className = `market-card state-${state.state}`;
+    card.dataset.marketState = state.state;
+
+    const statusLine = el(`statusLine_${market.marketplaceId}`);
+    if (statusLine) {
+      statusLine.className = `status-line ${state.state === "published" ? "ok" : state.state === "error" ? "error" : state.state === "unpublished" ? "warn" : ""}`;
+      statusLine.innerHTML = `<strong>${escapeHtml(state.label || "Da elaborare")}</strong><br />${escapeHtml(state.message || "Nessun risultato disponibile.")}`;
+    }
+
+    const top = card.querySelector(".market-top");
+    if (top) {
+      const chip = top.querySelector(".chip");
+      if (chip) chip.outerHTML = getMarketStatusChip(state.state);
+    }
+  });
+
+  applyMarketFilters();
 }
 
 function setConnectionUi(connection) {
@@ -527,7 +1380,7 @@ function setConnectionUi(connection) {
 
   connectionStatus.textContent = connected
     ? "Connessione eBay attiva e persistente."
-    : "Connessione eBay assente. Clicca 'Connetti a eBay'.";
+    : "Connessione eBay assente. Clicca “Connetti a eBay”.";
 
   el("metaEnv").textContent = connection?.environment || "-";
   el("metaExpiry").textContent = connection?.accessTokenExpiresAt || "-";
@@ -535,7 +1388,21 @@ function setConnectionUi(connection) {
 
 function setStaticMeta() {
   el("metaLocation").textContent = APP_CONFIG?.merchantLocationKey || "-";
-  el("metaMarkets").textContent = MARKETPLACES.map((m) => m.marketplaceId.replace("EBAY_", "")).join(", ");
+  el("metaMarkets").textContent = MARKETPLACES.map((m) => m.marketplaceId.replace("EBAY_", "")).join(", ") || "-";
+  el("heroMarketCount").textContent = `${MARKETPLACES.length} mercati`;
+  el("heroConfiguredMarkets").textContent = String(MARKETPLACES.length);
+}
+
+function updateHeroStats() {
+  let published = 0;
+  let errors = 0;
+  MARKETPLACES.forEach((m) => {
+    const s = getMarketState(m.marketplaceId).state;
+    if (s === "published") published++;
+    if (s === "error") errors++;
+  });
+  el("heroPublishedMarkets").textContent = String(published);
+  el("heroErrorMarkets").textContent = String(errors);
 }
 
 async function loadConfig() {
@@ -544,6 +1411,7 @@ async function loadConfig() {
   MARKETPLACES = data.marketplaces || [];
   buildMarketCards();
   setStaticMeta();
+  resetAllMarketStates();
 }
 
 async function refreshConnection() {
@@ -558,6 +1426,33 @@ async function refreshConnection() {
   }
 }
 
+function renderProductImages(urls = []) {
+  const images = el("images");
+  images.innerHTML = "";
+  if (!urls.length) {
+    images.innerHTML = `<div class="empty" style="width:100%;">Nessuna immagine disponibile.</div>`;
+    return;
+  }
+
+  urls.forEach((url) => {
+    const box = document.createElement("div");
+    box.className = "image-item";
+    box.innerHTML = `<img src="${escapeHtml(url)}" alt="img" />`;
+    images.appendChild(box);
+  });
+}
+
+function populateProductUi(p = {}) {
+  el("shopifyTitle").value = p.title || "";
+  el("shopifyCategory").value = p.categoryFullName || "";
+  el("shopifyProductType").value = p.productType || "";
+  el("shopifyVendor").value = p.vendor || "";
+  el("shopifyPrice").value = String(p.price ?? "");
+  el("shopifyQty").value = String(p.inventoryQuantity ?? "");
+  el("shopifyDescription").value = p.descriptionText || "";
+  renderProductImages(p.imageUrls || []);
+}
+
 async function loadShopifyProduct() {
   const sku = getSku();
   if (!sku) {
@@ -569,25 +1464,7 @@ async function loadShopifyProduct() {
   setStatus("Caricamento prodotto Shopify...");
   try {
     const data = await fetchJson(`/ebay/shopify/product?sku=${encodeURIComponent(sku)}`);
-    const p = data.product;
-
-    el("shopifyTitle").value = p.title || "";
-    el("shopifyCategory").value = p.categoryFullName || "";
-    el("shopifyProductType").value = p.productType || "";
-    el("shopifyVendor").value = p.vendor || "";
-    el("shopifyPrice").value = String(p.price ?? "");
-    el("shopifyQty").value = String(p.inventoryQuantity ?? "");
-    el("shopifyDescription").value = p.descriptionText || "";
-
-    const images = el("images");
-    images.innerHTML = "";
-    (p.imageUrls || []).forEach((url) => {
-      const img = document.createElement("img");
-      img.src = url;
-      img.alt = "img";
-      images.appendChild(img);
-    });
-
+    populateProductUi(data.product || {});
     setStatus("Prodotto Shopify caricato.");
     setLog(data);
   } catch (err) {
@@ -596,6 +1473,28 @@ async function loadShopifyProduct() {
   } finally {
     hideOverlay();
   }
+}
+
+function setSuggestionsForMarket(marketplaceId, suggestions = [], infoText = "") {
+  const select = el(`select_${marketplaceId}`);
+  const hint = el(`hint_${marketplaceId}`);
+  if (!select || !hint) return;
+
+  select.innerHTML = "";
+
+  if (!suggestions.length) {
+    hint.textContent = infoText || "Nessuna categoria suggerita.";
+    return;
+  }
+
+  suggestions.forEach((row) => {
+    const opt = document.createElement("option");
+    opt.value = row.categoryId || "";
+    opt.textContent = `${row.categoryName || "Categoria"} [${row.categoryId || "-"}]`;
+    select.appendChild(opt);
+  });
+
+  hint.textContent = infoText || `${suggestions.length} categorie suggerite.`;
 }
 
 async function suggestAllCategories() {
@@ -612,26 +1511,39 @@ async function suggestAllCategories() {
 
     MARKETPLACES.forEach((market) => {
       const result = data.results?.[market.marketplaceId];
-      const select = el(`select_${market.marketplaceId}`);
-      const hint = el(`hint_${market.marketplaceId}`);
-      select.innerHTML = "";
 
       if (!result?.ok) {
-        hint.textContent = `Errore suggerimento: ${JSON.stringify(result?.error || "unknown")}`;
+        setSuggestionsForMarket(
+          market.marketplaceId,
+          [],
+          `Errore suggerimento: ${safeOneLine(result?.error || "unknown")}`
+        );
+        setMarketState(market.marketplaceId, {
+          state: "error",
+          label: "Errore categoria",
+          message: safeOneLine(result?.error || "Nessun suggerimento disponibile."),
+          lastResult: result || null
+        });
         return;
       }
 
       const suggestions = result?.suggestion?.suggestions || [];
-      suggestions.forEach((row) => {
-        const opt = document.createElement("option");
-        opt.value = row.categoryId;
-        opt.textContent = `${row.categoryName} [${row.categoryId}]`;
-        select.appendChild(opt);
-      });
+      setSuggestionsForMarket(
+        market.marketplaceId,
+        suggestions,
+        suggestions.length
+          ? `${suggestions.length} categorie suggerite per ${market.site}.`
+          : `Nessuna categoria suggerita per ${market.site}.`
+      );
 
-      hint.textContent = suggestions.length
-        ? `${suggestions.length} categorie suggerite per ${market.site}.`
-        : `Nessuna categoria suggerita per ${market.site}.`;
+      setMarketState(market.marketplaceId, {
+        state: suggestions.length ? "unpublished" : "idle",
+        label: suggestions.length ? "Categoria pronta" : "Nessun suggerimento",
+        message: suggestions.length
+          ? `Categoria pronta per la pubblicazione su ${market.site}.`
+          : `Nessuna categoria suggerita per ${market.site}.`,
+        lastResult: result || null
+      });
     });
 
     setStatus("Categorie caricate per tutti i mercati.");
@@ -647,11 +1559,86 @@ async function suggestAllCategories() {
 function buildCategoryMap() {
   const categoryMap = {};
   MARKETPLACES.forEach((market) => {
-    const manual = el(`manual_${market.marketplaceId}`).value.trim();
-    const selected = el(`select_${market.marketplaceId}`).value.trim();
+    const manual = el(`manual_${market.marketplaceId}`)?.value.trim() || "";
+    const selected = el(`select_${market.marketplaceId}`)?.value.trim() || "";
     categoryMap[market.marketplaceId] = manual || selected || "";
   });
   return categoryMap;
+}
+
+function safeOneLine(value) {
+  if (value == null) return "";
+  if (typeof value === "string") return value.replace(/\s+/g, " ").trim();
+  try {
+    return JSON.stringify(value);
+  } catch (e) {
+    return String(value);
+  }
+}
+
+function normalizeTranslationData(data) {
+  const out = [];
+
+  if (data?.results && typeof data.results === "object") {
+    Object.entries(data.results).forEach(([marketplaceId, result]) => {
+      const market = MARKETPLACES.find((m) => m.marketplaceId === marketplaceId);
+      out.push({
+        marketplaceId,
+        label: market?.label || marketplaceId,
+        locale: market?.locale || "",
+        title:
+          result?.titleTranslated ||
+          result?.translatedTitle ||
+          result?.title ||
+          result?.preview?.title ||
+          "",
+        description:
+          result?.descriptionTranslated ||
+          result?.translatedDescription ||
+          result?.description ||
+          result?.preview?.description ||
+          ""
+      });
+    });
+    return out;
+  }
+
+  if (Array.isArray(data?.translations)) {
+    return data.translations.map((row) => ({
+      marketplaceId: row.marketplaceId || row.market || "",
+      label: row.label || row.marketplaceId || row.market || "Marketplace",
+      locale: row.locale || "",
+      title: row.titleTranslated || row.translatedTitle || row.title || "",
+      description: row.descriptionTranslated || row.translatedDescription || row.description || ""
+    }));
+  }
+
+  return out;
+}
+
+function renderTranslationPreview(data) {
+  const wrap = el("translationPreview");
+  const rows = normalizeTranslationData(data);
+
+  if (!rows.length) {
+    wrap.innerHTML = `<div class="empty" style="grid-column:1/-1;">Nessuna preview disponibile dal backend.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = rows.map((row) => `
+    <div class="translation-card">
+      <div class="translation-title">
+        <strong>${escapeHtml(row.label)}</strong>
+        <span class="chip gray">${escapeHtml(row.marketplaceId || row.locale || "-")}</span>
+      </div>
+
+      <div class="label">Titolo tradotto</div>
+      <div class="translation-box">${escapeHtml(row.title || "-")}</div>
+
+      <div class="label" style="margin-top:10px;">Descrizione tradotta</div>
+      <div class="translation-box">${escapeHtml(row.description || "-")}</div>
+    </div>
+  `).join("");
 }
 
 async function previewTranslations() {
@@ -670,6 +1657,7 @@ async function previewTranslations() {
       `/ebay/translation/preview?sku=${encodeURIComponent(sku)}&sourceLanguage=${encodeURIComponent(sourceLanguage)}`
     );
 
+    renderTranslationPreview(data);
     setStatus("Preview traduzioni completata.");
     setLog(data);
   } catch (err) {
@@ -678,6 +1666,69 @@ async function previewTranslations() {
   } finally {
     hideOverlay();
   }
+}
+
+function inferMarketPublishState(result) {
+  if (!result) {
+    return {
+      state: "error",
+      label: "Errore",
+      message: "Nessun risultato ricevuto."
+    };
+  }
+
+  const rawText = safeOneLine(result);
+  const lowered = rawText.toLowerCase();
+
+  if (result.ok === true && (result.published === true || result.status === "PUBLISHED" || result.offerPublished === true)) {
+    return {
+      state: "published",
+      label: "Published",
+      message: result.listingId
+        ? `Pubblicato con listingId ${result.listingId}.`
+        : "Pubblicazione completata correttamente."
+    };
+  }
+
+  if (result.ok === true && (lowered.includes("published") || lowered.includes("listingid"))) {
+    return {
+      state: "published",
+      label: "Published",
+      message: "Pubblicazione completata correttamente."
+    };
+  }
+
+  if (result.ok === true) {
+    return {
+      state: "unpublished",
+      label: "Completato",
+      message: "Operazione completata ma senza conferma chiara di published."
+    };
+  }
+
+  return {
+    state: "error",
+    label: "Errore pubblicazione",
+    message: safeOneLine(result.error || result.message || result)
+  };
+}
+
+function applyPublishResults(data) {
+  const results = data?.results || data?.markets || data?.perMarketplace || {};
+  if (!results || typeof results !== "object") return;
+
+  MARKETPLACES.forEach((market) => {
+    const result = results[market.marketplaceId];
+    if (result == null) return;
+
+    const normalized = inferMarketPublishState(result);
+    setMarketState(market.marketplaceId, {
+      state: normalized.state,
+      label: normalized.label,
+      message: normalized.message,
+      lastResult: result
+    });
+  });
 }
 
 async function publishAllMarkets() {
@@ -699,9 +1750,17 @@ async function publishAllMarkets() {
     return;
   }
 
+  MARKETPLACES.forEach((m) => {
+    setMarketState(m.marketplaceId, {
+      state: "working",
+      label: "Pubblicazione in corso",
+      message: `Sto elaborando ${m.site || m.marketplaceId}...`
+    });
+  });
+
   showOverlay(
     "Pubblicazione multi-market",
-    "Sto creando/aggiornando gli offer e pubblicando su IT, DE, FR, ES e GB..."
+    "Sto creando/aggiornando gli offer e pubblicando sui marketplace configurati..."
   );
   setStatus("Pubblicazione multi-market in corso...");
   try {
@@ -717,19 +1776,347 @@ async function publishAllMarkets() {
       })
     });
 
+    applyPublishResults(data);
+
+    const anyError = Object.values(MARKET_STATE).some((s) => s.state === "error");
     setStatus(
-      data.ok ? "Pubblicazione completata." : "Pubblicazione completata con errori.",
-      data.ok ? "success" : "warning"
+      anyError ? "Pubblicazione completata con errori." : "Pubblicazione completata.",
+      anyError ? "warning" : "success"
     );
     setLog(data);
     await refreshConnection();
   } catch (err) {
+    MARKETPLACES.forEach((m) => {
+      setMarketState(m.marketplaceId, {
+        state: "error",
+        label: "Errore pubblicazione",
+        message: "Errore generale durante la pubblicazione."
+      });
+    });
     setStatus("Errore pubblicazione multi-market.", "error");
     setLog(err.message);
     await refreshConnection();
   } finally {
     hideOverlay();
   }
+}
+
+function applyMarketFilters() {
+  const search = (el("marketSearch")?.value || "").trim().toLowerCase();
+  const stateFilter = (el("marketStatusFilter")?.value || "all").trim();
+
+  document.querySelectorAll(".market-card").forEach((card) => {
+    const label = card.dataset.marketLabel || "";
+    const state = card.dataset.marketState || "idle";
+
+    const okSearch = !search || label.includes(search);
+    const okState = stateFilter === "all" || state === stateFilter;
+
+    card.style.display = okSearch && okState ? "" : "none";
+  });
+}
+
+function setSingleTab(active) {
+  const singleBtn = el("tabSingleBtn");
+  const bulkBtn = el("tabBulkBtn");
+  const single = el("tabSingle");
+  const bulk = el("tabBulk");
+
+  if (active === "single") {
+    singleBtn.classList.add("active");
+    bulkBtn.classList.remove("active");
+    single.classList.add("active");
+    bulk.classList.remove("active");
+  } else {
+    singleBtn.classList.remove("active");
+    bulkBtn.classList.add("active");
+    single.classList.remove("active");
+    bulk.classList.add("active");
+  }
+}
+
+function parseBulkSkuList(text) {
+  return Array.from(new Set(
+    String(text || "")
+      .split(/[\n,;]+/g)
+      .map((x) => x.trim())
+      .filter(Boolean)
+  ));
+}
+
+function upsertBulkResult(row) {
+  const idx = BULK_RESULTS.findIndex((x) => x.sku === row.sku);
+  if (idx === -1) {
+    BULK_RESULTS.push(row);
+  } else {
+    BULK_RESULTS[idx] = { ...BULK_RESULTS[idx], ...row };
+  }
+  renderBulkResults();
+  updateBulkStats();
+}
+
+function updateBulkStats() {
+  const total = BULK_RESULTS.length;
+  const done = BULK_RESULTS.filter((r) => r.status === "success").length;
+  const warning = BULK_RESULTS.filter((r) => r.status === "warning").length;
+  const error = BULK_RESULTS.filter((r) => r.status === "error").length;
+
+  el("bulkTotalCount").textContent = String(total);
+  el("bulkDoneCount").textContent = String(done);
+  el("bulkWarningCount").textContent = String(warning);
+  el("bulkErrorCount").textContent = String(error);
+}
+
+function marketStateToSmallChip(state, label) {
+  const safe = escapeHtml(label || state || "-");
+  if (state === "published") return `<span class="small-chip ok">${safe}</span>`;
+  if (state === "error") return `<span class="small-chip error">${safe}</span>`;
+  if (state === "unpublished") return `<span class="small-chip warn">${safe}</span>`;
+  if (state === "working") return `<span class="small-chip">${safe}</span>`;
+  return `<span class="small-chip gray">${safe}</span>`;
+}
+
+function renderBulkResults() {
+  const body = el("bulkResultsBody");
+  const search = (el("bulkSearch")?.value || "").trim().toLowerCase();
+  const statusFilter = el("bulkStatusFilter")?.value || "all";
+
+  const rows = BULK_RESULTS.filter((row) => {
+    const hay = `${row.sku || ""} ${row.status || ""} ${row.message || ""}`.toLowerCase();
+    const okSearch = !search || hay.includes(search);
+    const okStatus = statusFilter === "all" || row.status === statusFilter;
+    return okSearch && okStatus;
+  });
+
+  if (!rows.length) {
+    body.innerHTML = `
+      <tr>
+        <td colspan="5">
+          <div class="empty">Nessun risultato bulk visibile con i filtri correnti.</div>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  body.innerHTML = rows.map((row) => {
+    const stateChip =
+      row.status === "success"
+        ? `<span class="small-chip ok">Success</span>`
+        : row.status === "warning"
+        ? `<span class="small-chip warn">Warning</span>`
+        : row.status === "error"
+        ? `<span class="small-chip error">Errore</span>`
+        : `<span class="small-chip">In corso</span>`;
+
+    const markets = Array.isArray(row.markets)
+      ? row.markets.map((m) => marketStateToSmallChip(m.state, `${m.label}: ${m.short}`)).join("")
+      : `<span class="small-chip gray">-</span>`;
+
+    return `
+      <tr>
+        <td class="sku-cell">${escapeHtml(row.sku || "-")}</td>
+        <td>${stateChip}</td>
+        <td>${escapeHtml(row.progress || "-")}</td>
+        <td><div class="market-badges">${markets}</div></td>
+        <td>${escapeHtml(row.message || "-")}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function summarizePublishForBulk(data) {
+  const results = data?.results || data?.markets || data?.perMarketplace || {};
+  const marketRows = [];
+  let published = 0;
+  let errors = 0;
+  let warnings = 0;
+
+  MARKETPLACES.forEach((market) => {
+    const r = results?.[market.marketplaceId];
+    const normalized = inferMarketPublishState(r || { ok:false, error:"Nessun risultato marketplace" });
+
+    if (normalized.state === "published") published++;
+    else if (normalized.state === "error") errors++;
+    else warnings++;
+
+    marketRows.push({
+      label: market.marketplaceId.replace("EBAY_", ""),
+      short:
+        normalized.state === "published" ? "published" :
+        normalized.state === "error" ? "errore" :
+        "unpublished",
+      state: normalized.state
+    });
+  });
+
+  const status =
+    errors > 0 ? (published > 0 ? "warning" : "error")
+    : "success";
+
+  const message =
+    errors > 0
+      ? `Pubblicati ${published}/${MARKETPLACES.length} marketplace, con ${errors} errori.`
+      : `Pubblicazione completata su ${published}/${MARKETPLACES.length} marketplace.`;
+
+  return { status, message, marketRows };
+}
+
+async function bulkPublishQueue() {
+  const skuList = parseBulkSkuList(el("bulkSkuInput").value);
+  const sourceLanguage = el("bulkSourceLanguage").value;
+  const bulkMode = el("bulkMode").value;
+
+  if (!skuList.length) {
+    setStatus("Inserisci almeno uno SKU nel blocco bulk.", "error");
+    setSingleTab("bulk");
+    return;
+  }
+
+  if (IS_BULK_RUNNING) {
+    setStatus("Bulk publish già in esecuzione.", "warning");
+    return;
+  }
+
+  IS_BULK_RUNNING = true;
+  setSingleTab("bulk");
+  BULK_RESULTS = [];
+  renderBulkResults();
+  updateBulkStats();
+
+  showOverlay("Bulk publish in corso", `Sto elaborando ${skuList.length} SKU in sequenza...`);
+  setStatus(`Bulk publish avviato su ${skuList.length} SKU...`);
+
+  try {
+    for (let i = 0; i < skuList.length; i++) {
+      const sku = skuList[i];
+      const progress = `${i + 1}/${skuList.length}`;
+
+      upsertBulkResult({
+        sku,
+        status: "running",
+        progress,
+        message: "Caricamento prodotto Shopify...",
+        markets: MARKETPLACES.map((m) => ({
+          label: m.marketplaceId.replace("EBAY_", ""),
+          short: "attesa",
+          state: "idle"
+        }))
+      });
+
+      try {
+        const productData = await fetchJson(`/ebay/shopify/product?sku=${encodeURIComponent(sku)}`);
+
+        let categoryMap = {};
+
+        if (bulkMode === "auto") {
+          upsertBulkResult({
+            sku,
+            status: "running",
+            progress,
+            message: "Ricerca categorie per tutti i marketplace..."
+          });
+
+          const catData = await fetchJson(`/ebay/category/suggest-all?sku=${encodeURIComponent(sku)}`);
+          MARKETPLACES.forEach((market) => {
+            const result = catData.results?.[market.marketplaceId];
+            const firstSuggestion = result?.suggestion?.suggestions?.[0];
+            categoryMap[market.marketplaceId] = firstSuggestion?.categoryId || "";
+          });
+        } else {
+          categoryMap = buildCategoryMap();
+        }
+
+        const missing = MARKETPLACES.filter((m) => !categoryMap[m.marketplaceId]);
+        if (missing.length) {
+          upsertBulkResult({
+            sku,
+            status: "error",
+            progress,
+            message: `CategoryId mancante per: ${missing.map((m) => m.marketplaceId).join(", ")}`,
+            markets: MARKETPLACES.map((m) => ({
+              label: m.marketplaceId.replace("EBAY_", ""),
+              short: categoryMap[m.marketplaceId] ? "pronto" : "manca cat.",
+              state: categoryMap[m.marketplaceId] ? "unpublished" : "error"
+            }))
+          });
+          continue;
+        }
+
+        upsertBulkResult({
+          sku,
+          status: "running",
+          progress,
+          message: "Pubblicazione multi-market in corso..."
+        });
+
+        const publishData = await fetchJson("/ebay/publish/multi", {
+          method:"POST",
+          headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({
+            sku,
+            sourceLanguage,
+            categoryMap
+          })
+        });
+
+        const summary = summarizePublishForBulk(publishData);
+
+        upsertBulkResult({
+          sku,
+          status: summary.status,
+          progress,
+          message: summary.message,
+          markets: summary.marketRows
+        });
+
+        if (i === skuList.length - 1 || sku === getSku()) {
+          populateProductUi(productData.product || {});
+          applyPublishResults(publishData);
+          setLog(publishData);
+        }
+      } catch (err) {
+        upsertBulkResult({
+          sku,
+          status: "error",
+          progress,
+          message: safeOneLine(err.message),
+          markets: MARKETPLACES.map((m) => ({
+            label: m.marketplaceId.replace("EBAY_", ""),
+            short: "errore",
+            state: "error"
+          }))
+        });
+      }
+    }
+
+    setStatus("Bulk publish completato.");
+  } catch (err) {
+    setStatus("Errore generale nel bulk publish.", "error");
+    setLog(err.message);
+  } finally {
+    IS_BULK_RUNNING = false;
+    hideOverlay();
+    updateBulkStats();
+  }
+}
+
+function parseOnlyBulkList() {
+  const skuList = parseBulkSkuList(el("bulkSkuInput").value);
+  BULK_RESULTS = skuList.map((sku, idx) => ({
+    sku,
+    status: "running",
+    progress: `0/${skuList.length}`,
+    message: `In coda (${idx + 1}/${skuList.length})`,
+    markets: MARKETPLACES.map((m) => ({
+      label: m.marketplaceId.replace("EBAY_", ""),
+      short: "attesa",
+      state: "idle"
+    }))
+  }));
+  renderBulkResults();
+  updateBulkStats();
+  setStatus(`${skuList.length} SKU caricati in coda bulk.`);
 }
 
 el("connectBtn").addEventListener("click", () => {
@@ -771,6 +2158,30 @@ el("suggestAllBtn").addEventListener("click", suggestAllCategories);
 el("previewTranslationsBtn").addEventListener("click", previewTranslations);
 el("publishAllBtn").addEventListener("click", publishAllMarkets);
 
+el("marketSearch").addEventListener("input", applyMarketFilters);
+el("marketStatusFilter").addEventListener("change", applyMarketFilters);
+
+el("resetMarketStateBtn").addEventListener("click", () => {
+  resetAllMarketStates();
+  setStatus("Stati marketplace resettati.");
+});
+
+el("tabSingleBtn").addEventListener("click", () => setSingleTab("single"));
+el("tabBulkBtn").addEventListener("click", () => setSingleTab("bulk"));
+
+el("bulkParseBtn").addEventListener("click", parseOnlyBulkList);
+el("bulkPublishBtn").addEventListener("click", bulkPublishQueue);
+el("bulkClearBtn").addEventListener("click", () => {
+  el("bulkSkuInput").value = "";
+  BULK_RESULTS = [];
+  renderBulkResults();
+  updateBulkStats();
+  setStatus("Lista bulk svuotata.");
+});
+
+el("bulkSearch").addEventListener("input", renderBulkResults);
+el("bulkStatusFilter").addEventListener("change", renderBulkResults);
+
 (async function init() {
   try {
     showOverlay("Inizializzazione", "Sto preparando l'interfaccia del publisher...");
@@ -784,6 +2195,10 @@ el("publishAllBtn").addEventListener("click", publishAllMarkets);
     if (params.get("error") === "oauth") {
       setStatus("Errore nel callback OAuth eBay.", "error");
     }
+
+    renderBulkResults();
+    updateBulkStats();
+    applyMarketFilters();
   } catch (err) {
     setStatus("Errore inizializzazione interfaccia.", "error");
     setLog(err.message);
