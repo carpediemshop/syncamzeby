@@ -1470,8 +1470,6 @@ async function suggestEbayCategory({
   };
 }
 
-const ENV_CATEGORY_MAP = parseEnvJsonMap(EBAY_CATEGORY_MAP_JSON);
-
 function normalizeRuleText(value) {
   return String(value || "")
     .normalize("NFD")
