@@ -1753,7 +1753,7 @@ function buildDefaultAspects(shopifyVariant) {
   const aspects = {};
 
   const vendor = truncateAspectValue(
-    firstNonEmpty(shopifyVariant?.product?.vendor, "Bialetti"),
+    firstNonEmpty(shopifyVariant?.product?.vendor, "Generico"),
     65
   );
 
@@ -1761,7 +1761,7 @@ function buildDefaultAspects(shopifyVariant) {
     firstNonEmpty(
       shopifyVariant?.product?.productType,
       shopifyVariant?.product?.categoryFullName,
-      "Caffettiera"
+      "Articolo"
     ),
     65
   );
