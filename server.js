@@ -517,70 +517,6 @@ function buildPackageDimensions(shopifyVariant, fallbackCm = 20) {
   };
 }
 
-function normalizeShopifyWeight(shopifyVariant, fallbackKg = 0.3) {
-  const fallback = toPositiveNumber(fallbackKg, 0.3);
-
-  const product = shopifyVariant?.product || {};
-
-  const rawWeight =
-    product.weight ??
-    product.grams ??
-    product.weightGrams ??
-    shopifyVariant?.weight ??
-    shopifyVariant?.grams ??
-    shopifyVariant?.weightGrams;
-
-  if (rawWeight === undefined || rawWeight === null || rawWeight === "") {
-    return fallback;
-  }
-
-  const numeric = Number(rawWeight);
-
-  if (!Number.isFinite(numeric) || numeric <= 0) {
-    return fallback;
-  }
-
-  if (numeric > 1000) {
-    return Number((numeric / 1000).toFixed(3));
-  }
-
-  return Number(numeric.toFixed(3));
-}
-
-function normalizeShopifyWeightUnit(shopifyVariant) {
-  const product = shopifyVariant?.product || {};
-
-  const rawUnit =
-    product.weightUnit ??
-    product.weight_unit ??
-    shopifyVariant?.weightUnit ??
-    shopifyVariant?.weight_unit;
-
-  const unit = String(rawUnit || "").trim().toUpperCase();
-
-  if (["KG", "KGS", "KILOGRAM", "KILOGRAMS"].includes(unit)) {
-    return "KILOGRAM";
-  }
-
-  if (["G", "GRAM", "GRAMS"].includes(unit)) {
-    return "GRAM";
-  }
-
-  if (["LB", "LBS", "POUND", "POUNDS"].includes(unit)) {
-    return "POUND";
-  }
-
-  if (["OZ", "OUNCE", "OUNCES"].includes(unit)) {
-    return "OUNCE";
-  }
-
-  if (product.grams != null || product.weightGrams != null || shopifyVariant?.grams != null || shopifyVariant?.weightGrams != null) {
-    return "GRAM";
-  }
-
-  return "KILOGRAM";
-}
-
 function buildEbayAPlusGallery(imageUrls = []) {
   const images = safeArray(imageUrls).filter(Boolean).slice(0, 6);
   if (!images.length) return "";
@@ -2117,10 +2053,6 @@ function buildInventoryItemPayload(shopifyVariant, translatedTitle = "") {
     throw new Error("Shopify product has no images. eBay publish requires images.");
   }
 
-  const packageDimensions = buildPackageDimensions(shopifyVariant);
-  const packageWeightValue = normalizeShopifyWeight(shopifyVariant);
-  const packageWeightUnit = normalizeShopifyWeightUnit(shopifyVariant);
-
   const payload = {
     availability: {
       shipToLocationAvailability: {
@@ -2128,19 +2060,6 @@ function buildInventoryItemPayload(shopifyVariant, translatedTitle = "") {
       },
     },
     condition: EBAY_DEFAULT_CONDITION,
-    packageWeightAndSize: {
-      dimensions: {
-        height: packageDimensions.height,
-        length: packageDimensions.length,
-        width: packageDimensions.width,
-        unit: packageDimensions.unit,
-      },
-      packageType: "PACKAGE_THICK_ENVELOPE",
-      weight: {
-        value: packageWeightValue,
-        unit: packageWeightUnit,
-      },
-    },
     product: {
       title,
       description,
