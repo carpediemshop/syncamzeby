@@ -1584,25 +1584,30 @@ async function getShopifyVariantBySku(sku) {
 function buildDefaultAspects(shopifyVariant) {
   const aspects = {};
 
-  const vendor = firstNonEmpty(
-    shopifyVariant?.product?.vendor,
-    "Generico"
+  const vendor = truncateText(
+    firstNonEmpty(shopifyVariant?.product?.vendor, "Generico"),
+    65
   );
 
-  const model = firstNonEmpty(
+  const rawModel = firstNonEmpty(
     shopifyVariant?.variantTitle &&
       !["Default Title", "Titolo predefinito"].includes(shopifyVariant.variantTitle)
       ? shopifyVariant.variantTitle
       : "",
-    shopifyVariant?.product?.title,
     shopifyVariant?.sku,
+    shopifyVariant?.product?.productType,
     "Modello generico"
   );
 
-  const productType = firstNonEmpty(
-    shopifyVariant?.product?.productType,
-    shopifyVariant?.product?.categoryFullName,
-    "Altro"
+  const model = truncateText(rawModel, 65);
+
+  const productType = truncateText(
+    firstNonEmpty(
+      shopifyVariant?.product?.productType,
+      shopifyVariant?.product?.categoryFullName,
+      "Altro"
+    ),
+    65
   );
 
   aspects.Marca = [vendor];
@@ -1619,13 +1624,15 @@ function buildDefaultAspects(shopifyVariant) {
     variantTitle &&
     !["Default Title", "Titolo predefinito"].includes(variantTitle)
   ) {
-    aspects.Stile = [variantTitle];
-    aspects.Style = [variantTitle];
+    const safeVariantTitle = truncateText(variantTitle, 65);
+    aspects.Stile = [safeVariantTitle];
+    aspects.Style = [safeVariantTitle];
   }
 
   for (const option of safeArray(shopifyVariant?.selectedOptions)) {
     const name = firstNonEmpty(option?.name);
-    const value = firstNonEmpty(option?.value);
+    const value = truncateText(firstNonEmpty(option?.value), 65);
+
     if (name && value && !aspects[name]) {
       aspects[name] = [value];
     }
