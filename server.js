@@ -418,6 +418,26 @@ function cleanHtmlForEbay(html = "") {
     .trim();
 }
 
+function normalizeEbayAPlusBody(content = "") {
+  const raw = cleanHtmlForEbay(String(content || "").trim());
+  if (!raw) return "";
+
+  const hasHtml = /<\/?[a-z][\s\S]*>/i.test(raw);
+  if (hasHtml) {
+    return raw;
+  }
+
+  return raw
+    .split(/\n+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map(
+      (part) =>
+        `<p style="margin:0 0 12px 0;font-size:14px;line-height:1.7;color:#333;">${part}</p>`
+    )
+    .join("");
+}
+
 function getEbayAPlusLabels(marketplaceId) {
   const id = String(marketplaceId || "").trim();
 
