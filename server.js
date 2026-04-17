@@ -1753,7 +1753,7 @@ function buildDefaultAspects(shopifyVariant) {
   const aspects = {};
 
   const vendor = truncateAspectValue(
-    firstNonEmpty(shopifyVariant?.product?.vendor, "Generico"),
+    firstNonEmpty(shopifyVariant?.product?.vendor, "Bialetti"),
     65
   );
 
@@ -1761,7 +1761,7 @@ function buildDefaultAspects(shopifyVariant) {
     firstNonEmpty(
       shopifyVariant?.product?.productType,
       shopifyVariant?.product?.categoryFullName,
-      "Articolo"
+      "Caffettiera"
     ),
     65
   );
@@ -1822,50 +1822,6 @@ function buildDefaultAspects(shopifyVariant) {
     aspects.EAN = [safeBarcode];
     aspects["Numero componente del fabbricante"] = [safeBarcode];
     aspects.MPN = [safeBarcode];
-  }
-
-  return aspects;
-}
-
-  for (const option of safeArray(shopifyVariant?.selectedOptions)) {
-    const rawName = firstNonEmpty(option?.name);
-    const rawValue = truncateAspectValue(firstNonEmpty(option?.value), 65);
-
-    if (!rawName || !rawValue) continue;
-
-    if (!aspects[rawName]) {
-      aspects[rawName] = [rawValue];
-    }
-
-    if (/color|colour|colore|farbe|couleur/i.test(rawName)) {
-      aspects.Colore = [rawValue];
-      aspects.Color = [rawValue];
-      aspects.Colour = [rawValue];
-      aspects.Farbe = [rawValue];
-      aspects.Couleur = [rawValue];
-    }
-
-    if (/type|tipo|produktart|type de produit|tipo de producto/i.test(rawName)) {
-      aspects.Tipo = [rawValue];
-      aspects.Type = [rawValue];
-      aspects.Produktart = [rawValue];
-      aspects["Type de produit"] = [rawValue];
-      aspects["Tipo de producto"] = [rawValue];
-    }
-
-    if (/model|modello|modèle|modelo/i.test(rawName)) {
-      aspects.Modello = [rawValue];
-      aspects.Model = [rawValue];
-      aspects.Modèle = [rawValue];
-      aspects.Modelo = [rawValue];
-    }
-
-    if (/brand|marca|marke|marque/i.test(rawName)) {
-      aspects.Marca = [rawValue];
-      aspects.Brand = [rawValue];
-      aspects.Marke = [rawValue];
-      aspects.Marque = [rawValue];
-    }
   }
 
   return aspects;
