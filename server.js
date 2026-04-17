@@ -531,52 +531,54 @@ function normalizeShopifyWeight(shopifyVariant, fallbackKg = 0.3) {
     shopifyVariant?.weightGrams;
 
   if (rawWeight === undefined || rawWeight === null || rawWeight === "") {
-    return {
-      value: fallback,
-      unit: "KILOGRAM",
-    };
+    return fallback;
   }
 
   const numeric = Number(rawWeight);
 
   if (!Number.isFinite(numeric) || numeric <= 0) {
-    return {
-      value: fallback,
-      unit: "KILOGRAM",
-    };
+    return fallback;
   }
 
   if (numeric > 1000) {
-    return {
-      value: Number((numeric / 1000).toFixed(3)),
-      unit: "KILOGRAM",
-    };
+    return Number((numeric / 1000).toFixed(3));
   }
 
-  return {
-    value: Number(numeric.toFixed(3)),
-    unit: "KILOGRAM",
-  };
+  return Number(numeric.toFixed(3));
 }
 
-function normalizeEbayAPlusBody(content = "") {
-  const raw = cleanHtmlForEbay(String(content || "").trim());
-  if (!raw) return "";
+function normalizeShopifyWeightUnit(shopifyVariant) {
+  const product = shopifyVariant?.product || {};
 
-  const hasHtml = /<\/?[a-z][\s\S]*>/i.test(raw);
-  if (hasHtml) {
-    return raw;
+  const rawUnit =
+    product.weightUnit ??
+    product.weight_unit ??
+    shopifyVariant?.weightUnit ??
+    shopifyVariant?.weight_unit;
+
+  const unit = String(rawUnit || "").trim().toUpperCase();
+
+  if (["KG", "KGS", "KILOGRAM", "KILOGRAMS"].includes(unit)) {
+    return "KILOGRAM";
   }
 
-  return raw
-    .split(/\n+/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map(
-      (part) =>
-        `<p style="margin:0 0 12px 0;font-size:14px;line-height:1.7;color:#333;">${part}</p>`
-    )
-    .join("");
+  if (["G", "GRAM", "GRAMS"].includes(unit)) {
+    return "GRAM";
+  }
+
+  if (["LB", "LBS", "POUND", "POUNDS"].includes(unit)) {
+    return "POUND";
+  }
+
+  if (["OZ", "OUNCE", "OUNCES"].includes(unit)) {
+    return "OUNCE";
+  }
+
+  if (product.grams != null || product.weightGrams != null || shopifyVariant?.grams != null || shopifyVariant?.weightGrams != null) {
+    return "GRAM";
+  }
+
+  return "KILOGRAM";
 }
 
 function buildEbayAPlusGallery(imageUrls = []) {
