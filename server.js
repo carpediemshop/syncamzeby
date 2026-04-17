@@ -482,6 +482,41 @@ function toNonNegativeNumber(value, fallback = 0) {
   return fallback;
 }
 
+function buildPackageDimensions(shopifyVariant, fallbackCm = 20) {
+  const fallback = toPositiveNumber(fallbackCm, 20);
+
+  const product = shopifyVariant?.product || {};
+
+  const rawHeight =
+    product.height ??
+    product.packageHeight ??
+    product.shippingHeight ??
+    shopifyVariant?.height ??
+    shopifyVariant?.packageHeight;
+
+  const rawWidth =
+    product.width ??
+    product.packageWidth ??
+    product.shippingWidth ??
+    shopifyVariant?.width ??
+    shopifyVariant?.packageWidth;
+
+  const rawLength =
+    product.length ??
+    product.depth ??
+    product.packageLength ??
+    product.shippingLength ??
+    shopifyVariant?.length ??
+    shopifyVariant?.packageLength;
+
+  return {
+    height: toPositiveNumber(rawHeight, fallback),
+    width: toPositiveNumber(rawWidth, fallback),
+    length: toPositiveNumber(rawLength, fallback),
+    unit: "CENTIMETER",
+  };
+}
+
 function normalizeEbayAPlusBody(content = "") {
   const raw = cleanHtmlForEbay(String(content || "").trim());
   if (!raw) return "";
