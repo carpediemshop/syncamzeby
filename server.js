@@ -1470,144 +1470,480 @@ async function suggestEbayCategory({
   };
 }
 
+const ENV_CATEGORY_MAP = parseEnvJsonMap(EBAY_CATEGORY_MAP_JSON);
+
+function normalizeRuleText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function includesOneOf(text, keywords = []) {
+  const safe = normalizeRuleText(text);
+  return keywords.some((keyword) => safe.includes(normalizeRuleText(keyword)));
+}
+
+const CATEGORY_RULES = [
+  {
+    key: "macchine_per_pasta",
+    keywords: [
+      "marcato",
+      "macchina per pasta",
+      "macchine per pasta",
+      "pasta machine",
+      "sfogliatrice",
+      "tagliapasta",
+      "atlas 150",
+      "atlas 180",
+      "ampia 150",
+      "regina marcato",
+    ],
+    searchQuery: "macchine stampi presse per pasta",
+  },
+  {
+    key: "caffe_capsule_cialde",
+    keywords: [
+      "capsule",
+      "cialde",
+      "caffe",
+      "caffè",
+      "iperespresso",
+      "illy capsule",
+      "illy cialde",
+      "caffe macinato",
+      "caffe in grani",
+    ],
+    searchQuery: "capsule cialde caffe",
+  },
+  {
+    key: "macchine_caffe",
+    keywords: [
+      "macchina caffe",
+      "macchine caffe",
+      "macchina da caffe",
+      "macchine da caffe",
+      "espresso machine",
+      "macchina espresso",
+      "illy machine",
+      "bialetti elettrica",
+      "caffettiera elettrica",
+    ],
+    searchQuery: "macchine da caffe espresso",
+  },
+  {
+    key: "moka_caffettiere",
+    keywords: [
+      "moka",
+      "caffettiera",
+      "caffettiere",
+      "bialetti moka",
+      "moka express",
+      "venus",
+      "brikka",
+      "kitty",
+      "fiammetta",
+      "rainbow",
+    ],
+    searchQuery: "caffettiere moka",
+  },
+  {
+    key: "ricambi_caffettiere",
+    keywords: [
+      "guarnizione moka",
+      "ricambio moka",
+      "ricambi moka",
+      "ricambi caffettiera",
+      "imbuto moka",
+      "manico moka",
+      "pomolo moka",
+      "filtro moka",
+      "guarnizioni bialetti",
+    ],
+    searchQuery: "ricambi caffettiere moka",
+  },
+  {
+    key: "tazze",
+    keywords: [
+      "set tazzine",
+      "piattino",
+      "cucchiaino caffe",
+      "illy art collection",
+    ],
+    searchQuery: "tazze tazzine caffe",
+  },
+  {
+    key: "utensili_faidate",
+    keywords: [
+      "ryobi",
+      "milwaukee",
+      "beta",
+      "trapano",
+      "avvitatore",
+      "smerigliatrice",
+      "utensile",
+      "elettroutensile",
+      "chiave",
+      "cacciavite",
+      "martello",
+      "sega",
+      "batteria utensile",
+    ],
+    searchQuery: "utensili elettrici fai da te",
+  },
+  {
+    key: "elettrodomestici",
+    keywords: [
+      "ariete",
+      "stella",
+      "black+decker",
+      "friggitrice",
+      "frullatore",
+      "tostapane",
+      "bollitore",
+      "aspirapolvere",
+      "elettrodomestico",
+      "elettrodomestici",
+    ],
+    searchQuery: "piccoli elettrodomestici",
+  },
+  {
+    key: "accessori_cucina",
+    keywords: [
+      "calder",
+      "fackelmann",
+      "ghidini",
+      "accessori cucina",
+      "utensili cucina",
+      "mestolo",
+      "frusta",
+      "pelapatate",
+      "tagliere",
+      "grattugia",
+      "apriscatole",
+    ],
+    searchQuery: "accessori utensili cucina",
+  },
+  {
+    key: "posate_pentole_hotellerie",
+    keywords: [
+      "lagostina",
+      "sanelli ambrogio",
+      "pentola",
+      "pentole",
+      "padella",
+      "padelle",
+      "coltello cucina",
+      "coltelli cucina",
+      "posate",
+      "forchetta",
+      "cucchiaio",
+      "hotellerie",
+    ],
+    searchQuery: "pentole posate coltelli cucina",
+  },
+  {
+    key: "infanzia",
+    keywords: [
+      "chicco",
+      "infanzia",
+      "neonato",
+      "bambino",
+      "bambini",
+      "passeggino",
+      "passeggio",
+      "seggiolino",
+      "sicurezza bambino",
+      "allattamento",
+      "giocattolo chicco",
+      "giocattoli chicco",
+    ],
+    searchQuery: "prima infanzia bambini",
+  },
+  {
+    key: "igiene_bambini",
+    keywords: [
+      "fiocchi di riso",
+      "olio shampoo",
+      "detergente",
+      "crema corpo",
+      "talco",
+      "bagnetto",
+      "igiene bambini",
+      "igiene neonato",
+    ],
+    searchQuery: "igiene bambini neonato",
+  },
+  {
+    key: "igiene_persona",
+    keywords: [
+      "igiene persona",
+      "detergente corpo",
+      "sapone",
+      "shampoo",
+      "bagnodoccia",
+      "cura persona",
+    ],
+    searchQuery: "igiene cura persona",
+  },
+  {
+    key: "giardino_piscina",
+    keywords: [
+      "hozelock",
+      "gf garden",
+      "divina garden",
+      "piscina",
+      "giardino",
+      "irrigazione",
+      "tubo giardino",
+      "lancia irrigazione",
+      "pompa piscina",
+      "accessori piscina",
+    ],
+    searchQuery: "giardino piscina irrigazione",
+  },
+  {
+    key: "caminetti_elettrici",
+    keywords: [
+      "divina fire",
+      "caminetto elettrico",
+      "caminetti elettrici",
+      "fireplace",
+      "stufa elettrica",
+    ],
+    searchQuery: "caminetti elettrici",
+  },
+  {
+    key: "orologi",
+    keywords: [
+      "fumagazzi",
+      "orologio",
+      "orologi",
+      "watch",
+      "wrist watch",
+      "cronografo",
+    ],
+    searchQuery: "orologi da polso",
+  },
+  {
+    key: "personalizzati",
+    keywords: [
+      "carpe diem art",
+      "carpe diem shop",
+      "personalizzato",
+      "personalizzata",
+      "personalizzati",
+      "incisione",
+      "laser",
+      "plexiglass",
+      "legno",
+      "bomboniera",
+      "cake topper",
+      "segnatavolo",
+      "tavolo torta",
+    ],
+    searchQuery: "articoli personalizzati regalo",
+  },
+];
+
+function getShopifyCategoryContext(shopifyVariant) {
+  const product = shopifyVariant?.product || {};
+
+  const vendor = String(product.vendor || "").trim();
+  const productType = String(product.productType || "").trim();
+  const categoryFullName = String(product.categoryFullName || "").trim();
+  const title = String(product.title || "").trim();
+  const variantTitle = String(shopifyVariant?.variantTitle || "").trim();
+  const descriptionText = String(product.descriptionText || "").trim();
+
+  return {
+    vendor,
+    productType,
+    categoryFullName,
+    title,
+    variantTitle,
+    descriptionText,
+    combined: [
+      vendor,
+      productType,
+      categoryFullName,
+      title,
+      variantTitle,
+      descriptionText,
+    ]
+      .filter(Boolean)
+      .join(" | "),
+  };
+}
+
+function detectCategoryRule(shopifyVariant) {
+  const ctx = getShopifyCategoryContext(shopifyVariant);
+
+  for (const rule of CATEGORY_RULES) {
+    if (includesOneOf(ctx.combined, rule.keywords)) {
+      return rule;
+    }
+  }
+
+  return null;
+}
+
+function getConfiguredCategoryForMarketplace(sku, marketplaceId, shopifyVariant) {
+  const safeSku = String(sku || "").trim();
+  const safeMarketplaceId = String(marketplaceId || "").trim();
+
+  const bySku = ENV_CATEGORY_MAP[safeSku];
+  if (isPlainObject(bySku) && bySku[safeMarketplaceId]) {
+    return String(bySku[safeMarketplaceId]).trim();
+  }
+
+  if (typeof bySku === "string" && bySku.trim()) {
+    return bySku.trim();
+  }
+
+  const ctx = getShopifyCategoryContext(shopifyVariant);
+
+  const directKeys = [
+    ctx.productType,
+    ctx.categoryFullName,
+    ctx.vendor,
+  ].filter(Boolean);
+
+  for (const key of directKeys) {
+    const mapped = ENV_CATEGORY_MAP[key];
+    if (isPlainObject(mapped) && mapped[safeMarketplaceId]) {
+      return String(mapped[safeMarketplaceId]).trim();
+    }
+    if (typeof mapped === "string" && mapped.trim()) {
+      return mapped.trim();
+    }
+  }
+
+  const detectedRule = detectCategoryRule(shopifyVariant);
+  if (detectedRule) {
+    const mapped = ENV_CATEGORY_MAP[detectedRule.key];
+    if (isPlainObject(mapped) && mapped[safeMarketplaceId]) {
+      return String(mapped[safeMarketplaceId]).trim();
+    }
+    if (typeof mapped === "string" && mapped.trim()) {
+      return mapped.trim();
+    }
+  }
+
+  const byMarketplace = ENV_CATEGORY_MAP[safeMarketplaceId];
+  if (typeof byMarketplace === "string" && byMarketplace.trim()) {
+    return byMarketplace.trim();
+  }
+
+  return "";
+}
+
+function buildCategorySearchQueries(shopifyVariant) {
+  const ctx = getShopifyCategoryContext(shopifyVariant);
+  const detectedRule = detectCategoryRule(shopifyVariant);
+
+  const queries = [];
+
+  if (detectedRule?.searchQuery) {
+    queries.push(`${ctx.vendor} ${detectedRule.searchQuery}`.trim());
+    queries.push(`${ctx.productType} ${detectedRule.searchQuery}`.trim());
+  }
+
+  if (ctx.categoryFullName) queries.push(ctx.categoryFullName);
+  if (ctx.productType) queries.push(ctx.productType);
+  if (ctx.vendor && ctx.title) queries.push(`${ctx.vendor} ${ctx.title}`.trim());
+  if (ctx.title) queries.push(ctx.title);
+
+  const deduped = [];
+  const seen = new Set();
+
+  for (const q of queries.map((x) => String(x || "").trim()).filter(Boolean)) {
+    const key = normalizeRuleText(q);
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduped.push(q);
+    }
+  }
+
+  return deduped.slice(0, 6);
+}
+
+async function suggestEbayCategoryEnhanced({
+  marketplaceId,
+  shopifyVariant,
+}) {
+  const tree = await getDefaultCategoryTreeId(marketplaceId);
+  const categoryTreeId = tree?.categoryTreeId;
+
+  if (!categoryTreeId) {
+    throw new Error("Could not determine eBay default category tree");
+  }
+
+  const queries = buildCategorySearchQueries(shopifyVariant);
+  const allSuggestions = [];
+
+  for (const q of queries) {
+    const suggestions = await getCategorySuggestions({ categoryTreeId, q });
+
+    const rows = safeArray(suggestions?.categorySuggestions).map((row) => ({
+      query: q,
+      categoryId: row?.category?.categoryId || row?.categoryId || null,
+      categoryName: row?.category?.categoryName || row?.categoryName || null,
+      categoryTreeId,
+    }));
+
+    allSuggestions.push(...rows);
+  }
+
+  const deduped = [];
+  const seen = new Set();
+
+  for (const row of allSuggestions) {
+    const key = `${row.categoryId}::${row.categoryName}`;
+    if (row.categoryId && !seen.has(key)) {
+      seen.add(key);
+      deduped.push(row);
+    }
+  }
+
+  return {
+    categoryTreeId,
+    queries,
+    suggestions: deduped,
+    best: deduped[0] || null,
+  };
+}
+
 async function resolveCategoryIdForMarketplace({
   sku,
   marketplaceId,
   shopifyVariant,
 }) {
-  const configured = getConfiguredCategoryForMarketplace(sku, marketplaceId);
-  if (configured) return configured;
+  const configured = getConfiguredCategoryForMarketplace(
+    sku,
+    marketplaceId,
+    shopifyVariant
+  );
 
-  const productTitle = String(shopifyVariant?.product?.title || "").trim();
-  const productType = String(shopifyVariant?.product?.productType || "").trim();
-  const categoryFullName = String(
-    shopifyVariant?.product?.categoryFullName || ""
-  ).trim();
-  const vendor = String(shopifyVariant?.product?.vendor || "").trim();
-
-  const normalizedText = [
-    productTitle,
-    productType,
-    categoryFullName,
-    vendor,
-  ]
-    .join(" | ")
-    .toLowerCase();
-
-  const forcedQueries = [];
-
-  if (
-    /moka|caffettiera|bialetti|espresso|coffee maker|cafetiere/.test(
-      normalizedText
-    )
-  ) {
-    forcedQueries.push("caffettiera moka espresso bialetti");
-    forcedQueries.push("moka pot coffee maker");
+  if (configured) {
+    return configured;
   }
 
-  if (
-    /shampoo|olio shampoo|emugen|fiocchi di riso|bagno|detergente|baby care|premaman|neonato/.test(
-      normalizedText
-    )
-  ) {
-    forcedQueries.push("olio shampoo bambino baby care");
-    forcedQueries.push("baby shampoo skincare");
-  }
-
-  if (
-    /capsule|caff[eè]|iperespresso|illy/.test(normalizedText)
-  ) {
-    forcedQueries.push("capsule caffè illy iperespresso");
-    forcedQueries.push("coffee capsules");
-  }
-
-  const tree = await getDefaultCategoryTreeId(marketplaceId);
-  const categoryTreeId = tree?.categoryTreeId;
-
-  if (!categoryTreeId) {
-    throw new Error(`No category tree found for ${marketplaceId}`);
-  }
-
-  const candidateQueries = [
-    ...forcedQueries,
-    categoryFullName,
-    productType,
-    `${vendor} ${productTitle}`.trim(),
-    productTitle,
-  ]
-    .map((x) => String(x || "").trim())
-    .filter(Boolean);
-
-  const seen = new Set();
-  const uniqueQueries = candidateQueries.filter((q) => {
-    const key = q.toLowerCase();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
+  const suggestion = await suggestEbayCategoryEnhanced({
+    marketplaceId,
+    shopifyVariant,
   });
 
-  const collected = [];
+  const categoryId = String(suggestion?.best?.categoryId || "").trim();
 
-  for (const q of uniqueQueries) {
-    try {
-      const suggestions = await getCategorySuggestions({ categoryTreeId, q });
-      const rows = safeArray(suggestions?.categorySuggestions).map((row) => ({
-        query: q,
-        categoryId: row?.category?.categoryId || row?.categoryId || null,
-        categoryName: row?.category?.categoryName || row?.categoryName || "",
-      }));
-
-      collected.push(...rows);
-    } catch (error) {
-      console.log("CATEGORY SUGGEST ERROR", {
-        marketplaceId,
-        sku,
-        query: q,
-        error: errorToSerializable(error),
-      });
-    }
+  if (!categoryId) {
+    throw new Error(
+      `No category found for ${marketplaceId} and SKU ${sku || ""}`
+    );
   }
 
-  const deduped = [];
-  const seenIds = new Set();
-
-  for (const row of collected) {
-    const categoryId = String(row?.categoryId || "").trim();
-    if (!categoryId) continue;
-    if (seenIds.has(categoryId)) continue;
-    seenIds.add(categoryId);
-    deduped.push(row);
-  }
-
-  if (!deduped.length) {
-    throw new Error(`No category found for ${marketplaceId}`);
-  }
-
-  const badPatterns = [
-    /wall art/i,
-    /panel/i,
-    /pannelli/i,
-    /decor/i,
-    /libri/i,
-    /books/i,
-    /isbn/i,
-    /pregnancy/i,
-    /maternity/i,
-    /altro infanzia/i,
-  ];
-
-  const filtered = deduped.filter((row) => {
-    const name = String(row?.categoryName || "");
-    return !badPatterns.some((rx) => rx.test(name));
-  });
-
-  const finalPick = (filtered[0] || deduped[0])?.categoryId;
-
-  if (!finalPick) {
-    throw new Error(`No category found for ${marketplaceId}`);
-  }
-
-  return String(finalPick).trim();
+  return categoryId;
 }
 
 // =========================
