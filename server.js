@@ -1787,56 +1787,6 @@ function detectCategoryRule(shopifyVariant) {
   return null;
 }
 
-function getConfiguredCategoryForMarketplace(sku, marketplaceId, shopifyVariant) {
-  const safeSku = String(sku || "").trim();
-  const safeMarketplaceId = String(marketplaceId || "").trim();
-
-  const bySku = ENV_CATEGORY_MAP[safeSku];
-  if (isPlainObject(bySku) && bySku[safeMarketplaceId]) {
-    return String(bySku[safeMarketplaceId]).trim();
-  }
-
-  if (typeof bySku === "string" && bySku.trim()) {
-    return bySku.trim();
-  }
-
-  const ctx = getShopifyCategoryContext(shopifyVariant);
-
-  const directKeys = [
-    ctx.productType,
-    ctx.categoryFullName,
-    ctx.vendor,
-  ].filter(Boolean);
-
-  for (const key of directKeys) {
-    const mapped = ENV_CATEGORY_MAP[key];
-    if (isPlainObject(mapped) && mapped[safeMarketplaceId]) {
-      return String(mapped[safeMarketplaceId]).trim();
-    }
-    if (typeof mapped === "string" && mapped.trim()) {
-      return mapped.trim();
-    }
-  }
-
-  const detectedRule = detectCategoryRule(shopifyVariant);
-  if (detectedRule) {
-    const mapped = ENV_CATEGORY_MAP[detectedRule.key];
-    if (isPlainObject(mapped) && mapped[safeMarketplaceId]) {
-      return String(mapped[safeMarketplaceId]).trim();
-    }
-    if (typeof mapped === "string" && mapped.trim()) {
-      return mapped.trim();
-    }
-  }
-
-  const byMarketplace = ENV_CATEGORY_MAP[safeMarketplaceId];
-  if (typeof byMarketplace === "string" && byMarketplace.trim()) {
-    return byMarketplace.trim();
-  }
-
-  return "";
-}
-
 function buildCategorySearchQueries(shopifyVariant) {
   const ctx = getShopifyCategoryContext(shopifyVariant);
   const detectedRule = detectCategoryRule(shopifyVariant);
