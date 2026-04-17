@@ -1811,284 +1811,170 @@ function truncateAspectValue(value, max = 65) {
   return text.length > max ? text.slice(0, max).trim() : text;
 }
 
-function toPositiveNumber(value) {
-  const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-function normalizeShopifyWeight(shopifyVariant) {
-  const candidates = [
-    shopifyVariant?.weight,
-    shopifyVariant?.inventoryItem?.measurement?.weight?.value,
-    shopifyVariant?.inventoryItem?.weight,
-    shopifyVariant?.product?.weight,
-  ];
-
-  for (const candidate of candidates) {
-    const n = toPositiveNumber(candidate);
-    if (n) return n;
-  }
-
-  return 0.5;
-}
-
-function normalizeShopifyWeightUnit(shopifyVariant) {
-  const raw = String(
-    shopifyVariant?.weightUnit ||
-      shopifyVariant?.inventoryItem?.measurement?.weight?.unit ||
-      shopifyVariant?.inventoryItem?.weightUnit ||
-      ""
-  )
-    .trim()
-    .toUpperCase();
-
-  if (["KILOGRAMS", "KILOGRAM", "KG"].includes(raw)) return "KILOGRAM";
-  if (["GRAMS", "GRAM", "G"].includes(raw)) return "GRAM";
-  if (["POUNDS", "POUND", "LBS", "LB"].includes(raw)) return "POUND";
-  if (["OUNCES", "OUNCE", "OZ"].includes(raw)) return "OUNCE";
-
-  return "KILOGRAM";
-}
-
-function buildPackageDimensions(shopifyVariant) {
-  const fallback = 20;
-
-  const height = toPositiveNumber(
-    shopifyVariant?.packageHeight ||
-      shopifyVariant?.inventoryItem?.measurement?.packageDimensions?.height?.value
-  ) || fallback;
-
-  const width = toPositiveNumber(
-    shopifyVariant?.packageWidth ||
-      shopifyVariant?.inventoryItem?.measurement?.packageDimensions?.width?.value
-  ) || fallback;
-
-  const length = toPositiveNumber(
-    shopifyVariant?.packageLength ||
-      shopifyVariant?.inventoryItem?.measurement?.packageDimensions?.length?.value
-  ) || fallback;
-
-  return {
-    height,
-    width,
-    length,
-    unit: "CENTIMETER",
-  };
-}
-
-function buildColorValue(shopifyVariant) {
-  const options = safeArray(shopifyVariant?.selectedOptions);
-
-  const colorOption = options.find((opt) =>
-    /color|colour|colore|farbe|couleur/i.test(String(opt?.name || "").trim())
-  );
-
-  const colorFromOption = truncateAspectValue(
-    firstNonEmpty(colorOption?.value),
+function sanitizeAspectToken(value) {
+  return truncateAspectValue(
+    String(value || "")
+      .replace(/[|/\\]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim(),
     65
   );
-  if (colorFromOption) return colorFromOption;
+}
 
-  const text = [
-    shopifyVariant?.product?.title,
-    shopifyVariant?.variantTitle,
-    shopifyVariant?.product?.descriptionText,
-  ]
-    .map((x) => String(x || "").toLowerCase())
-    .join(" ");
+function buildBrandValue(shopifyVariant) {
+  return sanitizeAspectToken(
+    firstNonEmpty(
+      shopifyVariant?.product?.vendor,
+      shopifyVariant?.vendor,
+      ""
+    )
+  );
+}
 
-  if (/nero|black|schwarz|noir/.test(text)) return "Black";
-  if (/bianco|white|weiß|weiss|blanc/.test(text)) return "White";
-  if (/rosso|red|rot|rouge/.test(text)) return "Red";
-  if (/blu|blue|blau|bleu/.test(text)) return "Blue";
-  if (/verde|green|grün|vert/.test(text)) return "Green";
-  if (/giallo|yellow|gelb|jaune/.test(text)) return "Yellow";
-  if (/grigio|grey|gray|grau|gris/.test(text)) return "Grey";
-  if (/argento|silver|silber|argent/.test(text)) return "Silver";
-  if (/marrone|brown|braun|brun/.test(text)) return "Brown";
-  if (/rosa|pink/.test(text)) return "Pink";
-  if (/trasparente|transparent/.test(text)) return "Transparent";
-  if (/multicolor|multicolour|multicolore/.test(text)) return "Multicolour";
-
-  return "Multicolour";
+function buildProductValue(shopifyVariant) {
+  return sanitizeAspectToken(
+    firstNonEmpty(
+      shopifyVariant?.product?.productType,
+      shopifyVariant?.product?.categoryFullName,
+      shopifyVariant?.productType,
+      shopifyVariant?.product?.title,
+      ""
+    )
+  );
 }
 
 function buildModelValue(shopifyVariant) {
-  const barcode = truncateAspectValue(shopifyVariant?.barcode || "", 65);
+  const optionModel = safeArray(shopifyVariant?.selectedOptions).find((opt) =>
+    /modello|model|modell|mod[eè]le/i.test(String(opt?.name || "").trim())
+  );
 
-  const optionModel = safeArray(shopifyVariant?.selectedOptions)
-    .find((opt) => /modello|model/i.test(String(opt?.name || "").trim()));
-
-  const optionModelValue = truncateAspectValue(optionModel?.value || "", 65);
+  const optionModelValue = sanitizeAspectToken(optionModel?.value || "");
   if (optionModelValue) return optionModelValue;
+
+  const barcode = sanitizeAspectToken(shopifyVariant?.barcode || "");
+  if (barcode) return barcode;
 
   const variantTitle = String(shopifyVariant?.variantTitle || "").trim();
   if (
     variantTitle &&
     !["Default Title", "Titolo predefinito"].includes(variantTitle)
   ) {
-    return truncateAspectValue(variantTitle, 65);
+    return sanitizeAspectToken(variantTitle);
   }
 
-  if (barcode) return barcode;
+  return sanitizeAspectToken(shopifyVariant?.sku || "");
+}
 
-  const title = String(shopifyVariant?.product?.title || "").trim();
-  return truncateAspectValue(title, 65);
+function buildColorValue(shopifyVariant) {
+  const colorOption = safeArray(shopifyVariant?.selectedOptions).find((opt) =>
+    /colore|color|colour|farbe|couleur/i.test(String(opt?.name || "").trim())
+  );
+
+  const optionColorValue = sanitizeAspectToken(colorOption?.value || "");
+  if (optionColorValue) return optionColorValue;
+
+  const title = String(shopifyVariant?.product?.title || "").toLowerCase();
+
+  if (/\bblu|blue|bleu|azul\b/.test(title)) return "Blu";
+  if (/\bnero|black|noir|schwarz\b/.test(title)) return "Nero";
+  if (/\bbianco|white|blanc|weiß|weiss\b/.test(title)) return "Bianco";
+  if (/\brosso|red|rouge|rot\b/.test(title)) return "Rosso";
+  if (/\bverde|green|vert|grün|grun\b/.test(title)) return "Verde";
+  if (/\bgiallo|yellow|jaune|gelb\b/.test(title)) return "Giallo";
+  if (/\brosa|pink|rose\b/.test(title)) return "Rosa";
+  if (/\bgrigio|grey|gray|gris|grau\b/.test(title)) return "Grigio";
+
+  return "";
 }
 
 function buildCompatibleBrandValue(shopifyVariant) {
-  const vendor = truncateAspectValue(
-    firstNonEmpty(shopifyVariant?.product?.vendor, "Bialetti"),
-    65
+  return sanitizeAspectToken(
+    firstNonEmpty(
+      shopifyVariant?.product?.vendor,
+      ""
+    )
   );
-  return vendor || "Compatibile universale";
 }
 
-function normalizeCategoryText(value = "") {
-  return String(value || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
-}
-
-function buildCategoryQueries({ title, shopifyCategory, productType, vendor }) {
-  const t = normalizeCategoryText(title);
-  const p = normalizeCategoryText(productType);
-  const c = normalizeCategoryText(shopifyCategory);
-  const v = String(vendor || "").trim();
-
-  const queries = [];
-
-  const isCoffeeMaker =
-    /moka|caffettiera|coffee maker|espresso maker|bialetti/.test(t) ||
-    /moka|caffettiera|coffee maker|espresso maker/.test(p) ||
-    /cucina|caffe/.test(c);
-
-  if (isCoffeeMaker) {
-    queries.push(
-      `${v} moka express`,
-      "caffettiera moka",
-      "coffee maker stovetop",
-      "espresso maker"
-    );
-  }
-
-  if (shopifyCategory) queries.push(String(shopifyCategory));
-  if (productType) queries.push(String(productType));
-  if (title) queries.push(String(title));
-
-  return [...new Set(queries.map((x) => String(x || "").trim()).filter(Boolean))];
-}
-
-function isWrongCategorySuggestionForProduct(shopifyVariant, categoryName) {
-  const name = normalizeCategoryText(categoryName);
-  const productText = normalizeCategoryText(
-    [
-      shopifyVariant?.product?.title,
+function buildTypeValue(shopifyVariant) {
+  return sanitizeAspectToken(
+    firstNonEmpty(
       shopifyVariant?.product?.productType,
       shopifyVariant?.product?.categoryFullName,
-    ].join(" ")
+      shopifyVariant?.product?.title,
+      ""
+    )
   );
+}
 
-  const isCoffeeMaker =
-    /moka|caffettiera|coffee maker|espresso maker|bialetti/.test(productText);
+function setAspectIfValue(aspects, keys, value) {
+  const safeValue = sanitizeAspectToken(value);
+  if (!safeValue) return;
 
-  if (!isCoffeeMaker) return false;
-
-  const badWords = [
-    "decor",
-    "dekor",
-    "decoration",
-    "décoration",
-    "decorazione",
-    "wand",
-    "wall",
-    "panel",
-    "pannell",
-    "poster",
-    "canvas",
-    "quadro",
-    "bild",
-    "home decor",
-  ];
-
-  return badWords.some((word) => name.includes(word));
+  for (const key of keys) {
+    if (!aspects[key]) {
+      aspects[key] = [safeValue];
+    }
+  }
 }
 
 function buildDefaultAspects(shopifyVariant) {
   const aspects = {};
 
-  const vendor = truncateAspectValue(
-    firstNonEmpty(shopifyVariant?.product?.vendor, "Generico"),
-    65
+  const brandValue = buildBrandValue(shopifyVariant);
+  const productValue = buildProductValue(shopifyVariant);
+  const modelValue = buildModelValue(shopifyVariant);
+  const colorValue = buildColorValue(shopifyVariant);
+  const compatibleBrandValue = buildCompatibleBrandValue(shopifyVariant);
+  const typeValue = buildTypeValue(shopifyVariant);
+
+  setAspectIfValue(aspects, ["Brand", "Marca", "Marke", "Marque"], brandValue);
+
+  setAspectIfValue(
+    aspects,
+    ["Product", "Prodotto", "Producto", "Produit", "Produkt", "Produktart"],
+    productValue
   );
 
-  const productType = truncateAspectValue(
-    firstNonEmpty(
-      shopifyVariant?.product?.productType,
-      shopifyVariant?.product?.categoryFullName,
-      "Articolo"
-    ),
-    65
+  setAspectIfValue(
+    aspects,
+    ["Model", "Modello", "Modelo", "Modell", "Modèle"],
+    modelValue
   );
 
-  const modelValue = truncateAspectValue(buildModelValue(shopifyVariant), 65);
-  const compatibleBrandValue = truncateAspectValue(
-    buildCompatibleBrandValue(shopifyVariant),
-    65
+  setAspectIfValue(
+    aspects,
+    ["Compatible Brand", "Marca compatibile", "Compatible Brand/Model", "Markenkompatibilität", "Marque compatible"],
+    compatibleBrandValue
   );
-  const colorValue = truncateAspectValue(buildColorValue(shopifyVariant), 65);
 
-  aspects.Marca = [vendor];
-  aspects.Brand = [vendor];
-  aspects["Compatible Brand"] = [compatibleBrandValue || vendor];
-  aspects["Marca compatible"] = [compatibleBrandValue || vendor];
-  aspects["Markenkompatibilität"] = [compatibleBrandValue || vendor];
-  aspects["Marque compatible"] = [compatibleBrandValue || vendor];
+  setAspectIfValue(
+    aspects,
+    ["Type", "Tipo", "Tipo de producto", "Typ"],
+    typeValue
+  );
 
-  aspects.Modello = [modelValue || vendor];
-  aspects.Model = [modelValue || vendor];
-  aspects.Modell = [modelValue || vendor];
-  aspects.Modelo = [modelValue || vendor];
-
-  aspects.Tipo = [productType];
-  aspects.Type = [productType];
-  aspects.Produktart = [productType];
-  aspects["Tipo de producto"] = [productType];
-  aspects["Type de produit"] = [productType];
-
-  aspects.Colore = [colorValue];
-  aspects.Colour = [colorValue];
-  aspects.Color = [colorValue];
-  aspects.Farbe = [colorValue];
-  aspects.Couleur = [colorValue];
-
-  const variantTitle = String(shopifyVariant?.variantTitle || "").trim();
-  if (
-    variantTitle &&
-    !["Default Title", "Titolo predefinito"].includes(variantTitle)
-  ) {
-    const safeVariantTitle = truncateAspectValue(variantTitle, 65);
-    aspects.Stile = [safeVariantTitle];
-    aspects.Style = [safeVariantTitle];
-  }
+  setAspectIfValue(
+    aspects,
+    ["Color", "Colour", "Colore", "Farbe", "Couleur"],
+    colorValue
+  );
 
   for (const option of safeArray(shopifyVariant?.selectedOptions)) {
-    const rawName = String(option?.name || "").trim();
-    const rawValue = truncateAspectValue(firstNonEmpty(option?.value), 65);
+    const name = String(option?.name || "").trim();
+    const value = sanitizeAspectToken(option?.value || "");
+    if (!name || !value) continue;
 
-    if (!rawName || !rawValue) continue;
-    if (!aspects[rawName]) {
-      aspects[rawName] = [rawValue];
+    if (!aspects[name]) {
+      aspects[name] = [value];
     }
   }
 
   if (shopifyVariant?.barcode) {
-    const safeBarcode = truncateAspectValue(String(shopifyVariant.barcode), 65);
-    aspects.EAN = [safeBarcode];
-    aspects["Numero componente del fabbricante"] = [safeBarcode];
-    aspects.MPN = [safeBarcode];
+    const ean = sanitizeAspectToken(shopifyVariant.barcode);
+    if (ean) {
+      aspects.EAN = [ean];
+    }
   }
 
   return aspects;
