@@ -517,6 +517,48 @@ function buildPackageDimensions(shopifyVariant, fallbackCm = 20) {
   };
 }
 
+function normalizeShopifyWeight(shopifyVariant, fallbackKg = 0.3) {
+  const fallback = toPositiveNumber(fallbackKg, 0.3);
+
+  const product = shopifyVariant?.product || {};
+
+  const rawWeight =
+    product.weight ??
+    product.grams ??
+    product.weightGrams ??
+    shopifyVariant?.weight ??
+    shopifyVariant?.grams ??
+    shopifyVariant?.weightGrams;
+
+  if (rawWeight === undefined || rawWeight === null || rawWeight === "") {
+    return {
+      value: fallback,
+      unit: "KILOGRAM",
+    };
+  }
+
+  const numeric = Number(rawWeight);
+
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return {
+      value: fallback,
+      unit: "KILOGRAM",
+    };
+  }
+
+  if (numeric > 1000) {
+    return {
+      value: Number((numeric / 1000).toFixed(3)),
+      unit: "KILOGRAM",
+    };
+  }
+
+  return {
+    value: Number(numeric.toFixed(3)),
+    unit: "KILOGRAM",
+  };
+}
+
 function normalizeEbayAPlusBody(content = "") {
   const raw = cleanHtmlForEbay(String(content || "").trim());
   if (!raw) return "";
