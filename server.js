@@ -1609,6 +1609,43 @@ function truncateAspectValue(value, max = 65) {
   return text.length > max ? text.slice(0, max).trim() : text;
 }
 
+function buildColorValue(shopifyVariant) {
+  const options = safeArray(shopifyVariant?.selectedOptions);
+
+  const colorOption = options.find((opt) =>
+    /color|colour|colore|farbe|couleur/i.test(String(opt?.name || "").trim())
+  );
+
+  const colorFromOption = truncateAspectValue(
+    firstNonEmpty(colorOption?.value),
+    65
+  );
+  if (colorFromOption) return colorFromOption;
+
+  const text = [
+    shopifyVariant?.product?.title,
+    shopifyVariant?.variantTitle,
+    shopifyVariant?.product?.descriptionText,
+  ]
+    .map((x) => String(x || "").toLowerCase())
+    .join(" ");
+
+  if (/nero|black|schwarz|noir/.test(text)) return "Black";
+  if (/bianco|white|weiß|weiss|blanc/.test(text)) return "White";
+  if (/rosso|red|rot|rouge/.test(text)) return "Red";
+  if (/blu|blue|blau|bleu/.test(text)) return "Blue";
+  if (/verde|green|grün|vert/.test(text)) return "Green";
+  if (/giallo|yellow|gelb|jaune/.test(text)) return "Yellow";
+  if (/grigio|grey|gray|grau|gris/.test(text)) return "Grey";
+  if (/argento|silver|silber|argent/.test(text)) return "Silver";
+  if (/marrone|brown|braun|brun/.test(text)) return "Brown";
+  if (/rosa|pink/.test(text)) return "Pink";
+  if (/trasparente|transparent/.test(text)) return "Transparent";
+  if (/multicolor|multicolour|multicolore/.test(text)) return "Multicolour";
+
+  return "Multicolour";
+}
+
 function buildModelValue(shopifyVariant) {
   const barcode = truncateAspectValue(shopifyVariant?.barcode || "", 65);
 
@@ -1734,13 +1771,20 @@ function buildDefaultAspects(shopifyVariant) {
     firstNonEmpty(
       shopifyVariant?.product?.productType,
       shopifyVariant?.product?.categoryFullName,
-      "Altro"
+      "Accessorio"
     ),
+    65
+  );
+
+  const colourValue = truncateAspectValue(
+    buildColorValue(shopifyVariant),
     65
   );
 
   aspects.Marca = [vendor];
   aspects.Brand = [vendor];
+  aspects.Marke = [vendor];
+  aspects.Marque = [vendor];
 
   aspects["Marca compatibile"] = [compatibleBrand];
   aspects["Compatible Brand"] = [compatibleBrand];
@@ -1755,11 +1799,24 @@ function buildDefaultAspects(shopifyVariant) {
 
   aspects.Tipo = [productType];
   aspects.Type = [productType];
+  aspects.Produktart = [productType];
+  aspects["Type de produit"] = [productType];
+  aspects["Tipo de producto"] = [productType];
+
+  aspects.Colore = [colourValue];
+  aspects.Color = [colourValue];
+  aspects.Colour = [colourValue];
+  aspects.Farbe = [colourValue];
+  aspects.Couleur = [colourValue];
 
   if (shopifyVariant?.barcode) {
     const safeBarcode = truncateAspectValue(String(shopifyVariant.barcode), 65);
+    aspects.EAN = [safeBarcode];
     aspects.MPN = [safeBarcode];
     aspects.CodiceProduttore = [safeBarcode];
+    aspects.Herstellernummer = [safeBarcode];
+    aspects["Numéro de pièce fabricant"] = [safeBarcode];
+    aspects["Número de pieza del fabricante"] = [safeBarcode];
   }
 
   const variantTitle = truncateAspectValue(
@@ -1773,14 +1830,47 @@ function buildDefaultAspects(shopifyVariant) {
   ) {
     aspects.Stile = [variantTitle];
     aspects.Style = [variantTitle];
+    aspects.Stil = [variantTitle];
   }
 
   for (const option of safeArray(shopifyVariant?.selectedOptions)) {
-    const name = firstNonEmpty(option?.name);
-    const value = truncateAspectValue(firstNonEmpty(option?.value), 65);
+    const rawName = firstNonEmpty(option?.name);
+    const rawValue = truncateAspectValue(firstNonEmpty(option?.value), 65);
 
-    if (name && value && !aspects[name]) {
-      aspects[name] = [value];
+    if (!rawName || !rawValue) continue;
+
+    if (!aspects[rawName]) {
+      aspects[rawName] = [rawValue];
+    }
+
+    if (/color|colour|colore|farbe|couleur/i.test(rawName)) {
+      aspects.Colore = [rawValue];
+      aspects.Color = [rawValue];
+      aspects.Colour = [rawValue];
+      aspects.Farbe = [rawValue];
+      aspects.Couleur = [rawValue];
+    }
+
+    if (/type|tipo|produktart|type de produit|tipo de producto/i.test(rawName)) {
+      aspects.Tipo = [rawValue];
+      aspects.Type = [rawValue];
+      aspects.Produktart = [rawValue];
+      aspects["Type de produit"] = [rawValue];
+      aspects["Tipo de producto"] = [rawValue];
+    }
+
+    if (/model|modello|modèle|modelo/i.test(rawName)) {
+      aspects.Modello = [rawValue];
+      aspects.Model = [rawValue];
+      aspects.Modèle = [rawValue];
+      aspects.Modelo = [rawValue];
+    }
+
+    if (/brand|marca|marke|marque/i.test(rawName)) {
+      aspects.Marca = [rawValue];
+      aspects.Brand = [rawValue];
+      aspects.Marke = [rawValue];
+      aspects.Marque = [rawValue];
     }
   }
 
