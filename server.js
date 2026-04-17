@@ -122,6 +122,10 @@ const EBAY_STATE_DIR =
 const EBAY_STATE_FILE = path.join(EBAY_STATE_DIR, "ebay-connection.json");
 const EBAY_LISTING_MAP_FILE = path.join(EBAY_STATE_DIR, "ebay-listing-map.json");
 const EBAY_ORDER_SYNC_FILE = path.join(EBAY_STATE_DIR, "ebay-order-sync.json");
+const EBAY_CATEGORY_REPAIR_STATE_FILE = path.join(
+  EBAY_STATE_DIR,
+  "ebay-category-repair-state.json"
+);
 
 // Optional env JSON maps
 const EBAY_LISTING_ID_MAP_JSON = process.env.EBAY_LISTING_ID_MAP_JSON || "";
