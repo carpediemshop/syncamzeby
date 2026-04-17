@@ -4839,9 +4839,11 @@ async function runEbayCategoryRepairBatch({
       }
 
       try {
-        const result = await repairEbayCategoryForSku({
+        const result = await publishSkuToMultipleEbayMarkets({
           sku,
           sourceLanguage,
+          categoryMap: {},
+          marketplaces: MARKETPLACES.map((m) => m.marketplaceId),
         });
 
         processed.push({
