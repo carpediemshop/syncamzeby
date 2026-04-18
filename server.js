@@ -5283,6 +5283,161 @@ app.get("/ebay/dashboard/errors", async (req, res) => {
   }
 });
 
+app.get("/ebay/dashboard/sku", async (req, res) => {
+  try {
+    const sku = String(req.query.sku || "").trim();
+    const sourceLanguage = getSourceLanguage(req.query.sourceLanguage || "it");
+
+    if (!sku) {
+      return res.status(400).json({
+        ok: false,
+        error: "missing sku",
+      });
+    }
+
+    const shopifyVariant = await getShopifyVariantBySku(sku);
+
+    if (!shopifyVariant) {
+      return res.status(404).json({
+        ok: false,
+        sku,
+        error: `SKU ${sku} non trovato su Shopify`,
+      });
+    }
+
+    const product = shopifyVariant?.product || {};
+    const vendor = String(product.vendor || "").trim();
+    const title = String(product.title || "").trim();
+    const productType = String(product.productType || "").trim();
+    const categoryFullName = String(product.categoryFullName || "").trim();
+    const price = Number(shopifyVariant?.price || 0);
+    const inventoryQuantity = Number(shopifyVariant?.inventoryQuantity || 0);
+
+    const imageUrls = safeArray(product.imageUrls || shopifyVariant?.imageUrls || []);
+    const onlineStoreUrl = String(product.onlineStoreUrl || "").trim();
+    const barcode = String(shopifyVariant?.barcode || "").trim();
+
+    const translated = await translateProductTexts({
+      shopifyVariant,
+      sourceLanguage,
+      marketplaces: MARKETPLACES.map((m) => m.marketplaceId),
+    });
+
+    const publishProbe = await publishSkuToMultipleEbayMarkets({
+      sku,
+      sourceLanguage,
+      marketplaces: MARKETPLACES.map((m) => m.marketplaceId),
+      categoryMap: {},
+      dryRun: true,
+    }).catch((error) => ({
+      ok: false,
+      error: errorToSerializable(error),
+      marketplaceResults: [],
+      offerResults: [],
+    }));
+
+    const marketplaceResults =
+      safeArray(publishProbe?.marketplaceResults).length
+        ? safeArray(publishProbe.marketplaceResults)
+        : safeArray(publishProbe?.results);
+
+    const normalizedMarkets = MARKETPLACES.map((market) => {
+      const match = marketplaceResults.find(
+        (x) => String(x?.marketplaceId || "") === String(market.marketplaceId)
+      );
+
+      const listingId =
+        match?.listingIdUsed ||
+        match?.listingId ||
+        match?.existingListingId ||
+        null;
+
+      const offerId =
+        match?.offerId ||
+        match?.offer?.offerId ||
+        null;
+
+      const categoryId =
+        match?.categoryId ||
+        match?.resolvedCategoryId ||
+        match?.suggestedCategoryId ||
+        null;
+
+      const categoryName =
+        match?.categoryName ||
+        match?.resolvedCategoryName ||
+        "";
+
+      const hasError = !Boolean(match?.ok);
+      const error =
+        match?.error ||
+        match?.publishError ||
+        match?.republishError ||
+        null;
+
+      const present =
+        Boolean(match?.ok) ||
+        Boolean(listingId) ||
+        Boolean(offerId) ||
+        match?.status === "PUBLISHED";
+
+      return {
+        marketplaceId: market.marketplaceId,
+        locale: market.locale,
+        site: market.site,
+        title:
+          translated?.[market.marketplaceId]?.title ||
+          title,
+        description:
+          translated?.[market.marketplaceId]?.description ||
+          String(product.descriptionText || "").trim(),
+        present,
+        missing: !present,
+        listingId,
+        offerId,
+        categoryId,
+        categoryName,
+        status: match?.status || (present ? "PRESENT" : "MISSING"),
+        ok: Boolean(match?.ok),
+        error: error ? errorToSerializable(error) : null,
+      };
+    });
+
+    const missingMarkets = normalizedMarkets
+      .filter((m) => m.missing)
+      .map((m) => m.marketplaceId);
+
+    const presentMarkets = normalizedMarkets
+      .filter((m) => m.present)
+      .map((m) => m.marketplaceId);
+
+    return res.json({
+      ok: true,
+      sku,
+      product: {
+        sku,
+        title,
+        vendor,
+        productType,
+        categoryFullName,
+        price,
+        inventoryQuantity,
+        barcode,
+        onlineStoreUrl,
+        imageUrls,
+      },
+      presentMarkets,
+      missingMarkets,
+      markets: normalizedMarkets,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: errorToSerializable(error),
+    });
+  }
+});
+
 app.post("/ebay/publish/multi", async (req, res) => {
   try {
     const sku = String(req.body?.sku || "").trim();
