@@ -5317,11 +5317,21 @@ app.get("/ebay/dashboard/sku", async (req, res) => {
     const onlineStoreUrl = String(product.onlineStoreUrl || "").trim();
     const barcode = String(shopifyVariant?.barcode || "").trim();
 
-    const translated = await translateProductTexts({
+    let translated = {};
+
+if (typeof translateProductTexts === "function") {
+  try {
+    translated = await translateProductTexts({
       shopifyVariant,
       sourceLanguage,
       marketplaces: MARKETPLACES.map((m) => m.marketplaceId),
     });
+  } catch (error) {
+    translated = {};
+  }
+} else {
+  translated = {};
+}
 
     const publishProbe = await publishSkuToMultipleEbayMarkets({
       sku,
