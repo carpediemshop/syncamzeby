@@ -5052,6 +5052,28 @@ function flattenErrorMarkets(item) {
   return rows;
 }
 
+async function runMissingMarketplaceAnalysis({ sku, sourceLanguage = "it" }) {
+  if (typeof analyzeMissingMarketplacesForSku === "function") {
+    return await analyzeMissingMarketplacesForSku({ sku, sourceLanguage });
+  }
+
+  if (typeof analyzeMissingMarketplaceForSku === "function") {
+    return await analyzeMissingMarketplaceForSku({ sku, sourceLanguage });
+  }
+
+  if (typeof inspectMissingMarketplacesForSku === "function") {
+    return await inspectMissingMarketplacesForSku({ sku, sourceLanguage });
+  }
+
+  if (typeof getMissingMarketplaceAnalysisForSku === "function") {
+    return await getMissingMarketplaceAnalysisForSku({ sku, sourceLanguage });
+  }
+
+  throw new Error(
+    "Missing marketplace analysis helper not found in server.js"
+  );
+}
+
 async function buildEbayDashboardBatch({
   limit = 20,
   sourceLanguage = "it",
