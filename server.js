@@ -5074,6 +5074,101 @@ async function runMissingMarketplaceAnalysis({ sku, sourceLanguage = "it" }) {
   );
 }
 
+async function findOffersBySkuAcrossMarkets(sku) {
+  const cleanSku = String(sku || "").trim();
+  const byMarketplace = {};
+
+  for (const market of MARKETPLACES) {
+    try {
+      const result = await getOffersBySku(cleanSku, market.marketplaceId);
+      byMarketplace[market.marketplaceId] = safeArray(
+        result?.offers || result?.offerSummaries || result?.items || []
+      );
+    } catch (error) {
+      byMarketplace[market.marketplaceId] = [];
+      console.log("FIND OFFERS BY SKU ACROSS MARKETS ERROR", {
+        sku: cleanSku,
+        marketplaceId: market.marketplaceId,
+        error: errorToSerializable(error),
+      });
+    }
+  }
+
+  return { sku: cleanSku, byMarketplace };
+}
+
+async function analyzeMissingMarketplacesForSku({
+  sku,
+  sourceLanguage = "it",
+}) {
+  const cleanSku = String(sku || "").trim();
+  if (!cleanSku) {
+    throw new Error("missing sku");
+  }
+
+  const shopifyVariant = await getShopifyVariantBySku(cleanSku);
+  if (!shopifyVariant) {
+    return {
+      sku: cleanSku,
+      foundOnShopify: false,
+      title: "",
+      vendor: "",
+      price: null,
+      imageUrl: "",
+      missingMarketplaces: [],
+      markets: [],
+    };
+  }
+
+  const title = String(shopifyVariant?.product?.title || "").trim();
+  const vendor = String(shopifyVariant?.product?.vendor || "").trim();
+  const price = Number(shopifyVariant?.price || 0) || 0;
+  const imageUrl =
+    safeArray(shopifyVariant?.product?.imageUrls)[0] ||
+    safeArray(shopifyVariant?.imageUrls)[0] ||
+    "";
+
+  const offerLookup = await findOffersBySkuAcrossMarkets(cleanSku);
+
+  const markets = MARKETPLACES.map((market) => {
+    const marketplaceId = market.marketplaceId;
+    const offers = safeArray(offerLookup?.byMarketplace?.[marketplaceId]);
+    const publishedOffers = offers.filter((offer) => {
+      const status = String(
+        offer?.status || offer?.listingStatus || ""
+      ).toUpperCase();
+      return status === "PUBLISHED" || status === "ACTIVE";
+    });
+
+    return {
+      marketplaceId,
+      locale: market.locale,
+      site: market.site,
+      hasOffer: offers.length > 0,
+      published: publishedOffers.length > 0,
+      offerCount: offers.length,
+      publishedCount: publishedOffers.length,
+      offers,
+    };
+  });
+
+  const missingMarketplaces = markets
+    .filter((m) => !m.published)
+    .map((m) => m.marketplaceId);
+
+  return {
+    sku: cleanSku,
+    foundOnShopify: true,
+    title,
+    vendor,
+    price,
+    imageUrl,
+    sourceLanguage,
+    missingMarketplaces,
+    markets,
+  };
+}
+
 async function buildEbayDashboardBatch({
   limit = 20,
   sourceLanguage = "it",
