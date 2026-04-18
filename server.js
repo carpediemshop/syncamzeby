@@ -4933,6 +4933,239 @@ app.get("/ebay/repair/state", async (req, res) => {
   }
 });
 
+// =========================
+// EBAY DASHBOARD HELPERS
+// =========================
+
+function getMarketplaceStatusMapFromAnalysis(analysis) {
+  const result = {};
+
+  for (const market of MARKETPLACES) {
+    result[market.marketplaceId] = {
+      marketplaceId: market.marketplaceId,
+      locale: market.locale,
+      site: market.site,
+      status: "unknown",
+      error: "",
+    };
+  }
+
+  const missing = new Set(
+    safeArray(analysis?.missingMarkets).map((x) => String(x || "").trim())
+  );
+
+  const okMarkets = new Set(
+    safeArray(analysis?.okMarkets).map((x) => String(x || "").trim())
+  );
+
+  const errorMarkets = isPlainObject(analysis?.errorMarkets)
+    ? analysis.errorMarkets
+    : {};
+
+  for (const marketplaceId of Object.keys(result)) {
+    if (okMarkets.has(marketplaceId)) {
+      result[marketplaceId].status = "ok";
+      continue;
+    }
+
+    if (missing.has(marketplaceId)) {
+      result[marketplaceId].status = "missing";
+      continue;
+    }
+
+    if (errorMarkets[marketplaceId]) {
+      result[marketplaceId].status = "error";
+      result[marketplaceId].error = String(errorMarkets[marketplaceId] || "");
+      continue;
+    }
+  }
+
+  const rawMarkets = safeArray(analysis?.markets);
+  for (const row of rawMarkets) {
+    const marketplaceId = String(row?.marketplaceId || "").trim();
+    if (!marketplaceId || !result[marketplaceId]) continue;
+
+    if (row?.ok === true) {
+      result[marketplaceId].status = "ok";
+      result[marketplaceId].error = "";
+      continue;
+    }
+
+    if (row?.ok === false && row?.error) {
+      result[marketplaceId].status = "error";
+      result[marketplaceId].error = String(row.error || "");
+    }
+  }
+
+  return result;
+}
+
+function toDashboardItem(shopifyVariant, analysis) {
+  const product = shopifyVariant?.product || {};
+
+  return {
+    sku: String(shopifyVariant?.sku || "").trim(),
+    title: String(product?.title || "").trim(),
+    vendor: String(product?.vendor || "").trim(),
+    productType: String(product?.productType || "").trim(),
+    categoryFullName: String(product?.categoryFullName || "").trim(),
+    price: shopifyVariant?.price ?? null,
+    inventoryQuantity: shopifyVariant?.inventoryQuantity ?? null,
+    imageUrl:
+      safeArray(product?.imageUrls)[0] ||
+      safeArray(shopifyVariant?.imageUrls)[0] ||
+      "",
+    markets: getMarketplaceStatusMapFromAnalysis(analysis),
+  };
+}
+
+function hasAtLeastOneMissingMarket(marketsMap) {
+  return Object.values(marketsMap || {}).some(
+    (row) => String(row?.status || "") === "missing"
+  );
+}
+
+function hasAtLeastOneErrorMarket(marketsMap) {
+  return Object.values(marketsMap || {}).some(
+    (row) => String(row?.status || "") === "error"
+  );
+}
+
+function flattenErrorMarkets(item) {
+  const rows = [];
+
+  for (const market of Object.values(item?.markets || {})) {
+    if (String(market?.status || "") !== "error") continue;
+
+    rows.push({
+      sku: item.sku,
+      title: item.title,
+      vendor: item.vendor,
+      imageUrl: item.imageUrl,
+      marketplaceId: market.marketplaceId,
+      locale: market.locale,
+      site: market.site,
+      error: String(market.error || ""),
+    });
+  }
+
+  return rows;
+}
+
+async function buildEbayDashboardBatch({
+  limit = 20,
+  sourceLanguage = "it",
+  mode = "missing", // "missing" | "errors" | "all"
+  after = null,
+}) {
+  const safeLimit = Math.max(1, Math.min(100, Number(limit || 20)));
+
+  const batch = await getShopifyVariantsBatch({
+    first: safeLimit,
+    after: after || null,
+  });
+
+  const nodes = safeArray(batch?.nodes);
+  const nextCursor = batch?.pageInfo?.endCursor || null;
+  const hasNextPage = Boolean(batch?.pageInfo?.hasNextPage);
+
+  const items = [];
+  const errorRows = [];
+  const scanErrors = [];
+
+  for (const variant of nodes) {
+    const sku = String(variant?.sku || "").trim();
+    if (!sku) continue;
+
+    try {
+      const analysis = await analyzeMissingMarketplacesForSku({
+        sku,
+        sourceLanguage,
+      });
+
+      const item = toDashboardItem(variant, analysis);
+
+      if (mode === "missing") {
+        if (hasAtLeastOneMissingMarket(item.markets)) {
+          items.push(item);
+        }
+      } else if (mode === "errors") {
+        if (hasAtLeastOneErrorMarket(item.markets)) {
+          items.push(item);
+          errorRows.push(...flattenErrorMarkets(item));
+        }
+      } else {
+        items.push(item);
+        errorRows.push(...flattenErrorMarkets(item));
+      }
+    } catch (error) {
+      scanErrors.push({
+        sku,
+        error: errorToSerializable(error),
+      });
+    }
+  }
+
+  return {
+    ok: true,
+    limit: safeLimit,
+    scanned: nodes.length,
+    hasNextPage,
+    nextCursor,
+    items,
+    errors: errorRows,
+    scanErrors,
+  };
+}
+
+// =========================
+// EBAY DASHBOARD ROUTES
+// =========================
+
+app.get("/ebay/dashboard/missing", async (req, res) => {
+  try {
+    const limit = Number(req.query.limit || 20);
+    const sourceLanguage = getSourceLanguage(req.query.sourceLanguage || "it");
+    const after = String(req.query.after || "").trim() || null;
+
+    const result = await buildEbayDashboardBatch({
+      limit,
+      sourceLanguage,
+      mode: "missing",
+      after,
+    });
+
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: errorToSerializable(error),
+    });
+  }
+});
+
+app.get("/ebay/dashboard/errors", async (req, res) => {
+  try {
+    const limit = Number(req.query.limit || 20);
+    const sourceLanguage = getSourceLanguage(req.query.sourceLanguage || "it");
+    const after = String(req.query.after || "").trim() || null;
+
+    const result = await buildEbayDashboardBatch({
+      limit,
+      sourceLanguage,
+      mode: "errors",
+      after,
+    });
+
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({
+      ok: false,
+      error: errorToSerializable(error),
+    });
+  }
+});
+
 app.post("/ebay/publish/multi", async (req, res) => {
   try {
     const sku = String(req.body?.sku || "").trim();
