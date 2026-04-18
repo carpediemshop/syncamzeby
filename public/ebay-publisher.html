@@ -44,7 +44,7 @@
     }
 
     .shell {
-      max-width: 1600px;
+      max-width: 1620px;
       margin: 0 auto;
       display: grid;
       gap: 18px;
@@ -80,18 +80,10 @@
 
     .hero p {
       margin: 0;
-      max-width: 900px;
+      max-width: 960px;
       color: rgba(255,255,255,0.92);
       line-height: 1.55;
       font-size: 1rem;
-    }
-
-    .hero-top {
-      display: flex;
-      justify-content: space-between;
-      gap: 20px;
-      align-items: flex-start;
-      flex-wrap: wrap;
     }
 
     .hero-badges {
@@ -258,7 +250,7 @@
       font: inherit;
       font-weight: 800;
       cursor: pointer;
-      transition: transform 0.14s ease, box-shadow 0.14s ease, opacity 0.14s ease;
+      transition: transform 0.14s ease, box-shadow 0.14s ease, opacity 0.14s ease, filter 0.14s ease;
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -268,7 +260,7 @@
     }
 
     .btn:hover { transform: translateY(-1px); }
-    .btn:disabled { cursor: not-allowed; opacity: 0.62; transform: none; }
+    .btn:disabled { cursor: not-allowed; opacity: 0.62; transform: none; filter: grayscale(0.2); }
 
     .btn-primary {
       background: var(--primary);
@@ -426,7 +418,7 @@
       border: 1px solid var(--line);
       border-radius: 18px;
       padding: 14px;
-      min-height: 210px;
+      min-height: 235px;
       display: flex;
       flex-direction: column;
       gap: 10px;
@@ -602,13 +594,190 @@
       line-height: 1.55;
     }
 
+    .feedback-row {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .status-box {
+      border-radius: 18px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .status-box h4 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+    }
+
+    .progress-wrap {
+      height: 14px;
+      background: #edf3ff;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid #d3def5;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #2f67e8, #4d8cff);
+      transition: width 0.25s ease;
+    }
+
+    .status-meta {
+      margin-top: 10px;
+      display: grid;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+
+    .toast-wrap {
+      position: fixed;
+      top: 18px;
+      right: 18px;
+      z-index: 3000;
+      display: grid;
+      gap: 10px;
+      width: min(420px, calc(100vw - 24px));
+    }
+
+    .toast {
+      background: #fff;
+      border-radius: 18px;
+      padding: 14px 16px;
+      box-shadow: 0 18px 42px rgba(15,23,42,0.16);
+      border: 1px solid var(--line);
+      display: grid;
+      gap: 6px;
+    }
+
+    .toast.success { border-left: 6px solid var(--success); }
+    .toast.error { border-left: 6px solid var(--danger); }
+    .toast.info { border-left: 6px solid var(--primary); }
+
+    .toast-title {
+      font-weight: 900;
+      color: var(--navy);
+    }
+
+    .toast-text {
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 0.95rem;
+      word-break: break-word;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 2500;
+      background: rgba(8, 17, 40, 0.42);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .overlay.active {
+      display: flex;
+    }
+
+    .overlay-card {
+      width: min(760px, 100%);
+      background: #fff;
+      border-radius: 26px;
+      box-shadow: 0 28px 60px rgba(15,23,42,0.25);
+      overflow: hidden;
+      border: 1px solid rgba(15,23,42,0.06);
+    }
+
+    .overlay-head {
+      background: linear-gradient(135deg, #0a1531 0%, #2248aa 100%);
+      color: #fff;
+      padding: 20px 22px;
+    }
+
+    .overlay-head h3 {
+      margin: 0 0 6px;
+      font-size: 1.35rem;
+    }
+
+    .overlay-head p {
+      margin: 0;
+      color: rgba(255,255,255,0.9);
+      line-height: 1.45;
+    }
+
+    .overlay-body {
+      padding: 20px 22px 22px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .overlay-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,0.35);
+      border-top-color: #fff;
+      animation: spin 0.9s linear infinite;
+    }
+
+    .spinner.dark {
+      border: 2px solid rgba(15,23,42,0.16);
+      border-top-color: var(--primary);
+    }
+
+    .loading-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      color: var(--navy);
+    }
+
+    .monitor-highlight {
+      border: 1px solid #d3def5;
+      background: #f7faff;
+      border-radius: 18px;
+      padding: 16px;
+    }
+
+    .monitor-highlight strong {
+      color: var(--navy);
+    }
+
+    .market-mini-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
     @media (max-width: 1300px) {
       .actions-grid,
       .market-grid,
       .grid-2,
       .grid-3,
       .bulk-area,
-      .hero-stats {
+      .hero-stats,
+      .feedback-row {
         grid-template-columns: 1fr;
       }
 
@@ -625,27 +794,56 @@
   </style>
 </head>
 <body>
-  <div class="shell">
-    <section class="hero">
-      <div class="hero-top">
-        <div>
-          <h1>eBay Publisher Multi-Market</h1>
-          <p>
-            Controllo visivo di Shopify + eBay, pubblicazione singola e bulk,
-            monitor errori, monitor mancanti marketplace, repair categoria e controllo sincronizzazione.
-          </p>
+  <div class="toast-wrap" id="toastWrap"></div>
 
-          <div class="hero-badges">
-            <span class="badge">SyncAmzEby</span>
-            <span class="badge">5 mercati: IT / DE / FR / ES / GB</span>
-            <span class="badge">UI operativa</span>
+  <div class="overlay" id="actionOverlay">
+    <div class="overlay-card">
+      <div class="overlay-head">
+        <h3 id="overlayTitle">Operazione in corso</h3>
+        <p id="overlayText">Attendi qualche secondo...</p>
+      </div>
+      <div class="overlay-body">
+        <div class="loading-inline">
+          <span class="spinner dark"></span>
+          <span id="overlayStatus">Preparazione operazione...</span>
+        </div>
+
+        <div class="status-box">
+          <h4>Progresso</h4>
+          <div class="progress-wrap">
+            <div class="progress-bar" id="overlayProgressBar"></div>
           </div>
-
-          <div class="status-pill">
-            <span class="status-dot" id="heroStatusDot"></span>
-            <span id="heroStatusText">Controllo stato eBay in corso...</span>
+          <div class="status-meta" id="overlayMeta">
+            <div>Stato: in attesa</div>
           </div>
         </div>
+
+        <div class="log-box" id="overlayLog" style="max-height:220px;">Nessun log disponibile.</div>
+
+        <div class="overlay-actions">
+          <button class="btn btn-light" id="overlayCloseBtn">Chiudi</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="shell">
+    <section class="hero">
+      <h1>eBay Publisher Multi-Market</h1>
+      <p>
+        Controllo visivo di Shopify + eBay, pubblicazione singola e bulk,
+        monitor errori, controllo marketplace mancanti, repair categoria e verifica sincronizzazione.
+      </p>
+
+      <div class="hero-badges">
+        <span class="badge">SyncAmzEby</span>
+        <span class="badge">5 mercati: IT / DE / FR / ES / GB</span>
+        <span class="badge">UI operativa</span>
+      </div>
+
+      <div class="status-pill">
+        <span class="status-dot" id="heroStatusDot"></span>
+        <span id="heroStatusText">Controllo stato eBay in corso...</span>
       </div>
 
       <div class="hero-stats">
@@ -662,7 +860,7 @@
           <span class="v" id="statLoadedSku">0</span>
         </div>
         <div class="hero-card">
-          <span class="k">Ultimo repair batch</span>
+          <span class="k">Repair cursor</span>
           <span class="v" id="statRepairCursor">-</span>
         </div>
       </div>
@@ -734,7 +932,7 @@
             <button class="btn btn-warning" id="btnRepairReset">Reset state</button>
           </div>
           <div class="helper">
-            Il repair batch lavora sugli SKU non ancora processati. Il reset azzera il cursore e lo stato.
+            Ora ogni repair mostra popup, progresso, polling sullo state file e log visivo.
           </div>
         </div>
       </div>
@@ -785,12 +983,12 @@
               <option value="all">Tutti</option>
               <option value="ok">OK</option>
               <option value="error">Errore</option>
-              <option value="missing">Mancante category / non pubblicato</option>
+              <option value="missing">Mancante / non OK</option>
             </select>
           </div>
 
           <div class="field">
-            <label>Mercati</label>
+            <label for="singleMarketMode">Mercati</label>
             <select id="singleMarketMode">
               <option value="all">Tutti i mercati</option>
               <option value="custom">Selezione manuale</option>
@@ -812,6 +1010,25 @@
           <label class="small-btn"><input type="checkbox" class="market-check" value="EBAY_FR" checked> FR</label>
           <label class="small-btn"><input type="checkbox" class="market-check" value="EBAY_ES" checked> ES</label>
           <label class="small-btn"><input type="checkbox" class="market-check" value="EBAY_GB" checked> GB</label>
+        </div>
+
+        <div class="feedback-row">
+          <div class="status-box">
+            <h4>Stato operazione corrente</h4>
+            <div class="progress-wrap">
+              <div class="progress-bar" id="singleProgressBar"></div>
+            </div>
+            <div class="status-meta" id="singleProgressMeta">
+              <div>Stato: inattivo</div>
+            </div>
+          </div>
+
+          <div class="status-box">
+            <h4>Ultimo feedback</h4>
+            <div class="monitor-highlight" id="lastActionFeedback">
+              Nessuna operazione eseguita.
+            </div>
+          </div>
         </div>
 
         <div class="grid-2" style="margin-top:18px;">
@@ -959,21 +1176,50 @@
       <div class="tab-panel" id="tab-missing">
         <div class="panel-header">
           <div>
-            <h2 style="margin:0 0 6px; font-size:1.5rem;">Prodotti non ancora presenti su eBay</h2>
-            <p class="panel-sub">Vista pratica per capire quali SKU Shopify mancano e in quali marketplace.</p>
-          </div>
-          <div class="inline-actions">
-            <button class="btn btn-primary" id="btnRefreshMissing">Aggiorna elenco</button>
+            <h2 style="margin:0 0 6px; font-size:1.5rem;">Mancanti su eBay</h2>
+            <p class="panel-sub">Qui analizzi una lista di SKU Shopify e vedi in quali mercati non risultano OK.</p>
           </div>
         </div>
 
-        <div class="table-wrap">
+        <div class="grid-2">
+          <div class="subpanel">
+            <h3>Analizza lista SKU</h3>
+            <p>Incolla uno SKU per riga e clicca il pulsante. La UI usa la route di repair categoria come sonda per capire i mercati problematici.</p>
+
+            <div class="field">
+              <label for="missingSkuList">Lista SKU da analizzare</label>
+              <textarea id="missingSkuList" placeholder="IG-YXIV-7HMB&#10;8J-KK9L-AKE9&#10;..."></textarea>
+            </div>
+
+            <div class="toolbar">
+              <button class="btn btn-primary" id="btnAnalyzeMissing">Analizza mancanti</button>
+              <button class="btn btn-light" id="btnCopyBulkToMissing">Copia da bulk</button>
+              <button class="btn btn-light" id="btnClearMissingInput">Pulisci</button>
+            </div>
+          </div>
+
+          <div class="subpanel">
+            <h3>Legenda</h3>
+            <p>
+              <strong>OK</strong> = il marketplace ha restituito esito positivo.<br>
+              <strong>Mancante / Errore</strong> = c’è un problema da correggere oppure l’inserzione non è a posto.
+            </p>
+
+            <div class="market-mini-list">
+              <span class="chip success">OK</span>
+              <span class="chip danger">Errore</span>
+              <span class="chip warning">Da verificare</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-wrap" style="margin-top:18px;">
           <table>
             <thead>
               <tr>
                 <th>SKU</th>
                 <th>Titolo</th>
-                <th>Mercati mancanti</th>
+                <th>Mercati non OK</th>
                 <th>Azione</th>
               </tr>
             </thead>
@@ -1025,8 +1271,8 @@
           <div class="subpanel">
             <h3>Nota pratica</h3>
             <p class="footer-note">
-              Questa UI usa le route già presenti nel backend. Se una route restituisce errore o non esiste,
-              viene mostrato l’esito senza bloccare le altre funzioni.
+              Questa UI usa le route già presenti nel backend. Se una route non esiste,
+              la schermata continua a lavorare usando le route disponibili.
             </p>
           </div>
         </div>
@@ -1048,38 +1294,14 @@
       { id: "EBAY_GB", label: "GB", locale: "en-GB", site: "ebay.co.uk" }
     ];
 
-    const API_ROUTES = {
+    const API = {
       health: "/ebay/health",
       repairState: "/ebay/repair/state",
-      repairCategory: (sku, sourceLanguage = "it", marketplaces = "") =>
-        `/ebay/repair/category?sku=${encodeURIComponent(sku)}&sourceLanguage=${encodeURIComponent(sourceLanguage)}${marketplaces ? `&marketplaces=${encodeURIComponent(marketplaces)}` : ""}`,
       repairAll: (limit = 20, reset = false, sourceLanguage = "it") =>
         `/ebay/repair/all?limit=${encodeURIComponent(limit)}&reset=${reset ? "true" : "false"}&sourceLanguage=${encodeURIComponent(sourceLanguage)}`,
-      publishMulti: "/ebay/publish/multi",
-
-      /* Queste route sono opzionali. Se esistono, la UI le usa. Se non esistono, la UI non si rompe. */
-      productBySkuCandidates: [
-        (sku) => `/ebay/product/by-sku?sku=${encodeURIComponent(sku)}`,
-        (sku) => `/ebay/product?sku=${encodeURIComponent(sku)}`,
-        (sku) => `/shopify/product/by-sku?sku=${encodeURIComponent(sku)}`,
-        (sku) => `/ebay/shopify/sku?sku=${encodeURIComponent(sku)}`,
-        (sku) => `/ebay/publisher/product?sku=${encodeURIComponent(sku)}`
-      ],
-      errorMonitorCandidates: [
-        "/ebay/monitor/errors",
-        "/ebay/errors",
-        "/ebay/publisher/errors"
-      ],
-      missingMonitorCandidates: [
-        "/ebay/monitor/missing",
-        "/ebay/missing",
-        "/ebay/publisher/missing"
-      ],
-      syncMonitorCandidates: [
-        "/ebay/monitor/sync",
-        "/ebay/sync/status",
-        "/ebay/publisher/sync"
-      ]
+      repairCategory: (sku, sourceLanguage = "it", marketplaces = "") =>
+        `/ebay/repair/category?sku=${encodeURIComponent(sku)}&sourceLanguage=${encodeURIComponent(sourceLanguage)}${marketplaces ? `&marketplaces=${encodeURIComponent(marketplaces)}` : ""}`,
+      publishMulti: "/ebay/publish/multi"
     };
 
     const state = {
@@ -1115,6 +1337,58 @@
       }
     }
 
+    function showToast(title, text, type = "info") {
+      const wrap = document.getElementById("toastWrap");
+      const el = document.createElement("div");
+      el.className = `toast ${type}`;
+      el.innerHTML = `
+        <div class="toast-title">${escapeHtml(title)}</div>
+        <div class="toast-text">${escapeHtml(text)}</div>
+      `;
+      wrap.prepend(el);
+      setTimeout(() => el.remove(), 5000);
+    }
+
+    function openOverlay(title, text) {
+      document.getElementById("overlayTitle").textContent = title;
+      document.getElementById("overlayText").textContent = text;
+      document.getElementById("overlayStatus").textContent = "Operazione avviata...";
+      document.getElementById("overlayProgressBar").style.width = "8%";
+      document.getElementById("overlayMeta").innerHTML = `<div>Stato: avvio...</div>`;
+      document.getElementById("overlayLog").textContent = "Nessun log disponibile.";
+      document.getElementById("actionOverlay").classList.add("active");
+    }
+
+    function closeOverlay() {
+      document.getElementById("actionOverlay").classList.remove("active");
+    }
+
+    function appendOverlayLog(message, payload) {
+      const el = document.getElementById("overlayLog");
+      const time = new Date().toLocaleTimeString("it-IT");
+      const line = payload !== undefined
+        ? `[${time}] ${message}\n${formatJson(payload)}\n`
+        : `[${time}] ${message}\n`;
+      el.textContent = `${el.textContent}\n${line}`.trim();
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function setOverlayStatus(text, percent = 15, meta = []) {
+      document.getElementById("overlayStatus").textContent = text;
+      document.getElementById("overlayProgressBar").style.width = `${Math.max(0, Math.min(100, percent))}%`;
+      document.getElementById("overlayMeta").innerHTML = meta.length
+        ? meta.map(x => `<div>${escapeHtml(x)}</div>`).join("")
+        : `<div>Stato: ${escapeHtml(text)}</div>`;
+    }
+
+    function setSingleProgress(text, percent = 0, meta = []) {
+      document.getElementById("singleProgressBar").style.width = `${Math.max(0, Math.min(100, percent))}%`;
+      document.getElementById("singleProgressMeta").innerHTML = meta.length
+        ? meta.map(x => `<div>${escapeHtml(x)}</div>`).join("")
+        : `<div>${escapeHtml(text)}</div>`;
+      document.getElementById("lastActionFeedback").innerHTML = escapeHtml(text);
+    }
+
     async function fetchJson(url, options = {}) {
       const res = await fetch(url, {
         headers: {
@@ -1140,19 +1414,6 @@
       return data;
     }
 
-    async function tryCandidateRoutes(routeBuilders, value) {
-      for (const routeBuilder of routeBuilders) {
-        const route = typeof routeBuilder === "function" ? routeBuilder(value) : routeBuilder;
-        try {
-          const data = await fetchJson(route);
-          return { route, data };
-        } catch (error) {
-          // continua
-        }
-      }
-      throw new Error("Nessuna route disponibile per questa funzione.");
-    }
-
     function setHeroStatus(connected, text) {
       document.getElementById("heroStatusText").textContent = text;
       document.getElementById("heroStatusDot").style.background = connected ? "#35d067" : "#d21a1a";
@@ -1165,30 +1426,37 @@
       return value === undefined || value === null || value === "" ? "-" : String(value);
     }
 
+    function escapeHtml(str) {
+      return String(str || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
     function getSelectedMarketplaces() {
       const mode = document.getElementById("singleMarketMode").value;
       if (mode === "all") return MARKETPLACES.map(m => m.id);
-
       const checks = Array.from(document.querySelectorAll(".market-check:checked")).map(x => x.value);
       return checks.length ? checks : MARKETPLACES.map(m => m.id);
     }
 
     function normalizeProductPayload(data) {
-      if (!data) return null;
-      const product = data.product || data.shopify || data.shopifyVariant?.product || data;
-      const imageUrls = product.imageUrls || product.images || product.image_urls || [];
+      const shopify = data?.shopify || data?.product || data?.shopifyVariant?.product || null;
+      if (!shopify) return null;
+
       return {
-        sku: data.sku || product.sku || state.currentSku,
-        title: product.title || "",
-        categoryFullName: product.categoryFullName || product.category || "",
-        productType: product.productType || "",
-        vendor: product.vendor || "",
-        price: product.price ?? data.price ?? "",
-        inventoryQuantity: product.inventoryQuantity ?? data.inventoryQuantity ?? "",
-        descriptionText: product.descriptionText || product.description || "",
-        descriptionHtml: product.descriptionHtml || "",
-        barcode: product.barcode || data.barcode || "",
-        imageUrls: Array.isArray(imageUrls) ? imageUrls : []
+        sku: data?.sku || state.currentSku || "",
+        title: shopify.title || "",
+        categoryFullName: shopify.categoryFullName || shopify.category || "",
+        productType: shopify.productType || "",
+        vendor: shopify.vendor || "",
+        price: shopify.price ?? data?.price ?? "",
+        inventoryQuantity: shopify.inventoryQuantity ?? data?.inventoryQuantity ?? "",
+        descriptionText: shopify.descriptionText || shopify.description || "",
+        descriptionHtml: shopify.descriptionHtml || "",
+        barcode: shopify.barcode || data?.barcode || "",
+        imageUrls: Array.isArray(shopify.imageUrls) ? shopify.imageUrls : []
       };
     }
 
@@ -1206,7 +1474,6 @@
 
       const imgWrap = document.getElementById("productImages");
       imgWrap.innerHTML = "";
-
       const imgs = Array.isArray(product?.imageUrls) ? product.imageUrls.slice(0, 8) : [];
       if (!imgs.length) {
         imgWrap.innerHTML = `<div class="empty" style="width:100%;">Nessuna immagine disponibile.</div>`;
@@ -1234,34 +1501,20 @@
         <div class="meta-card">
           <span class="meta-k">${m.label} • ${m.locale}</span>
           <div class="meta-v">
-            <strong>${safeString(product.title)}</strong><br>
-            <span style="color:var(--muted);">${safeString(product.vendor)} • ${safeString(product.productType)}</span><br><br>
-            <span>${safeString((product.descriptionText || "").slice(0, 220))}${(product.descriptionText || "").length > 220 ? "..." : ""}</span>
+            <strong>${escapeHtml(safeString(product.title))}</strong><br>
+            <span style="color:var(--muted);">${escapeHtml(safeString(product.vendor))} • ${escapeHtml(safeString(product.productType))}</span><br><br>
+            <span>${escapeHtml((product.descriptionText || "").slice(0, 220))}${(product.descriptionText || "").length > 220 ? "..." : ""}</span>
           </div>
         </div>
       `).join("");
 
-      document.getElementById("translationPreview").innerHTML = `
-        <div class="product-meta">
-          ${rows}
-        </div>
-      `;
+      document.getElementById("translationPreview").innerHTML = `<div class="product-meta">${rows}</div>`;
     }
 
-    function renderMarketGrid(result) {
-      const wrap = document.getElementById("marketGrid");
-      const search = document.getElementById("searchMarket").value.trim().toUpperCase();
-      const filter = document.getElementById("marketStatusFilter").value;
-
-      let markets = [];
-      if (Array.isArray(result?.markets)) {
-        markets = result.markets;
-      } else {
-        markets = MARKETPLACES.map(m => ({ marketplaceId: m.id }));
-      }
-
-      const normalized = MARKETPLACES.map(m => {
-        const found = markets.find(x => x.marketplaceId === m.id) || {};
+    function normalizeMarketRowsFromResult(result) {
+      const rows = Array.isArray(result?.markets) ? result.markets : [];
+      return MARKETPLACES.map(m => {
+        const found = rows.find(x => x.marketplaceId === m.id) || {};
         return {
           marketplaceId: m.id,
           label: m.label,
@@ -1272,11 +1525,18 @@
           raw: found
         };
       });
+    }
+
+    function renderMarketGrid(result) {
+      const wrap = document.getElementById("marketGrid");
+      const search = document.getElementById("searchMarket").value.trim().toUpperCase();
+      const filter = document.getElementById("marketStatusFilter").value;
+
+      const normalized = normalizeMarketRowsFromResult(result);
 
       const filtered = normalized.filter(item => {
         const bySearch = !search || item.marketplaceId.includes(search) || item.label.includes(search);
         if (!bySearch) return false;
-
         if (filter === "ok") return item.ok;
         if (filter === "error") return !item.ok && !!item.error;
         if (filter === "missing") return !item.ok;
@@ -1291,9 +1551,6 @@
       wrap.innerHTML = filtered.map(item => {
         const chipClass = item.ok ? "success" : (item.error ? "danger" : "warning");
         const chipLabel = item.ok ? "OK" : (item.error ? "Errore" : "Da verificare");
-        const errorText = item.error
-          ? `<div><strong>Errore:</strong><br>${escapeHtml(item.error)}</div>`
-          : `<div>Nessun errore esplicito restituito.</div>`;
 
         return `
           <div class="market-card">
@@ -1309,13 +1566,13 @@
 
             <div class="market-box">
               ${item.ok
-                ? `<div><strong>Esito positivo</strong><br>Marketplace pronto / pubblicato / nessun errore UI.</div>`
-                : errorText}
+                ? `<div><strong>Esito positivo</strong><br>Marketplace attivo / risposta OK.</div>`
+                : `<div><strong>Problema marketplace</strong><br>${escapeHtml(item.error || "Nessun dettaglio disponibile.")}</div>`}
             </div>
 
             <div class="market-actions">
               <button class="small-btn primary" onclick="publishSingleMarketplace('${item.marketplaceId}')">Pubblica ${item.label}</button>
-              <button class="small-btn warning" onclick="repairSingleMarketplace('${item.marketplaceId}')">Repair categoria ${item.label}</button>
+              <button class="small-btn warning" onclick="repairSingleMarketplace('${item.marketplaceId}')">Repair ${item.label}</button>
               <button class="small-btn" onclick="reloadCurrentSku()">Ricarica SKU</button>
             </div>
           </div>
@@ -1323,35 +1580,14 @@
       }).join("");
     }
 
-    function escapeHtml(str) {
-      return String(str || "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;");
-    }
-
     async function refreshStatus() {
       try {
-        const health = await fetchJson(API_ROUTES.health);
+        const health = await fetchJson(API.health);
         log("Health endpoint OK", health);
 
-        const env =
-          health.environment ||
-          health.ebayEnvironment ||
-          health.env ||
-          "production";
-
-        const moduleEnabled =
-          health.ebayEnabled ??
-          health.ebayModuleEnabled ??
-          health.ok ??
-          true;
-
-        const tokenConfigured =
-          health.verificationTokenConfigured ??
-          health.ebayVerificationTokenConfigured ??
-          true;
+        const env = health.environment || health.ebayEnvironment || health.env || "production";
+        const moduleEnabled = health.ebayEnabled ?? health.ebayModuleEnabled ?? health.ok ?? true;
+        const tokenConfigured = health.verificationTokenConfigured ?? health.ebayVerificationTokenConfigured ?? true;
 
         document.getElementById("metaEnvironment").textContent = safeString(env);
         document.getElementById("metaModule").textContent = String(moduleEnabled);
@@ -1366,14 +1602,14 @@
       }
 
       try {
-        const repair = await fetchJson(API_ROUTES.repairState);
+        const repair = await fetchJson(API.repairState);
         log("Repair state OK", repair);
-        const stateObj = repair.state || {};
-        document.getElementById("repairLastRun").textContent = safeString(stateObj.lastRunAt);
-        document.getElementById("repairCursor").textContent = safeString(stateObj.cursor);
-        document.getElementById("repairLastBatch").textContent = Array.isArray(stateObj.lastBatch) ? stateObj.lastBatch.join(", ") : safeString(stateObj.lastBatch);
-        document.getElementById("repairProcessedCount").textContent = Array.isArray(stateObj.processedSkus) ? String(stateObj.processedSkus.length) : safeString(stateObj.processedCount);
-        document.getElementById("statRepairCursor").textContent = safeString(stateObj.cursor);
+        const st = repair.state || {};
+        document.getElementById("repairLastRun").textContent = safeString(st.lastRunAt);
+        document.getElementById("repairCursor").textContent = safeString(st.cursor);
+        document.getElementById("repairLastBatch").textContent = Array.isArray(st.lastBatch) ? st.lastBatch.join(", ") : safeString(st.lastBatch);
+        document.getElementById("repairProcessedCount").textContent = Array.isArray(st.processedSkus) ? String(st.processedSkus.length) : safeString(st.processedCount);
+        document.getElementById("statRepairCursor").textContent = safeString(st.cursor);
         document.getElementById("syncRepairState").textContent = "OK";
       } catch (error) {
         log("Repair state endpoint in errore", error.message);
@@ -1388,121 +1624,222 @@
     async function loadProductBySku() {
       const sku = document.getElementById("skuInput").value.trim();
       if (!sku) {
-        alert("Inserisci uno SKU Shopify.");
+        showToast("SKU mancante", "Inserisci uno SKU Shopify.", "error");
         return;
       }
 
       state.currentSku = sku;
-      document.getElementById("syncLastSku").textContent = sku;
-      log(`Caricamento prodotto Shopify per SKU ${sku}`);
+      setSingleProgress(`Caricamento SKU ${sku}...`, 18, [
+        `SKU: ${sku}`,
+        "Ricerca dati Shopify in corso"
+      ]);
+
+      openOverlay("Caricamento prodotto Shopify", `Sto cercando i dati del prodotto per ${sku}.`);
+      appendOverlayLog(`Avvio caricamento SKU ${sku}`);
 
       try {
-        const { route, data } = await tryCandidateRoutes(API_ROUTES.productBySkuCandidates, sku);
-        log(`Prodotto caricato via ${route}`, data);
+        const route = API.repairCategory(sku, document.getElementById("sourceLanguage").value || "it", "");
+        const data = await fetchJson(route);
 
+        appendOverlayLog("Dati ricevuti dalla route repair/category", data);
         const product = normalizeProductPayload(data);
+
+        if (!product) {
+          throw new Error("La route ha risposto ma non ha restituito i dati Shopify del prodotto.");
+        }
+
         state.currentProductRaw = data;
         renderProduct(product);
+        renderMarketGrid(data);
         buildTranslationPreview(product);
 
-        const emptyResult = {
-          markets: MARKETPLACES.map(m => ({
-            marketplaceId: m.id,
-            ok: false,
-            error: ""
-          }))
-        };
-        renderMarketGrid(emptyResult);
+        setSingleProgress(`SKU ${sku} caricato correttamente.`, 100, [
+          `SKU: ${sku}`,
+          `Vendor: ${product.vendor || "-"}`,
+          `Prezzo: ${product.price || "-"}`,
+          "Dati Shopify caricati"
+        ]);
+
+        setOverlayStatus("Caricamento completato", 100, [
+          `SKU caricato: ${sku}`,
+          "Puoi proseguire con repair, preview o publish"
+        ]);
+
+        showToast("Prodotto caricato", `SKU ${sku} caricato correttamente.`, "success");
+        log(`SKU ${sku} caricato`, data);
       } catch (error) {
-        log(`Impossibile caricare il prodotto ${sku}`, error.message);
-        alert(`Non riesco a caricare il prodotto Shopify per SKU ${sku}.\n\nControlla se nel backend esiste una route prodotto-by-sku.`);
+        setSingleProgress(`Errore caricamento SKU ${sku}`, 100, [
+          `SKU: ${sku}`,
+          `Errore: ${error.message}`
+        ]);
+        setOverlayStatus("Errore durante il caricamento", 100, [
+          `SKU: ${sku}`,
+          `Errore: ${error.message}`
+        ]);
+        appendOverlayLog("Errore caricamento SKU", error.message);
+        showToast("Errore caricamento SKU", error.message, "error");
+        log(`Errore caricamento SKU ${sku}`, error.message);
       }
     }
 
     async function publishSkuRequest(sku, marketplaces) {
       const sourceLanguage = document.getElementById("sourceLanguage").value || "it";
-
-      const body = {
-        sku,
-        sourceLanguage,
-        marketplaces
-      };
-
-      return fetchJson(API_ROUTES.publishMulti, {
+      return fetchJson(API.publishMulti, {
         method: "POST",
-        body: JSON.stringify(body)
+        body: JSON.stringify({
+          sku,
+          sourceLanguage,
+          marketplaces
+        })
       });
     }
 
     async function publishSingleSku() {
       const sku = document.getElementById("skuInput").value.trim();
       if (!sku) {
-        alert("Inserisci lo SKU.");
+        showToast("SKU mancante", "Inserisci uno SKU.", "error");
         return;
       }
 
       const marketplaces = getSelectedMarketplaces();
-      log(`Pubblicazione SKU singolo ${sku}`, { marketplaces });
+      openOverlay("Pubblicazione SKU", `Sto pubblicando ${sku} sui marketplace selezionati.`);
+      appendOverlayLog("Avvio publish singolo", { sku, marketplaces });
 
       try {
+        setSingleProgress(`Pubblicazione SKU ${sku} in corso...`, 20, [
+          `SKU: ${sku}`,
+          `Mercati: ${marketplaces.join(", ")}`
+        ]);
+
         const result = await publishSkuRequest(sku, marketplaces);
         state.singlePublishResult = result;
         renderMarketGrid(result);
+
+        const marketRows = normalizeMarketRowsFromResult(result);
+        const okCount = marketRows.filter(x => x.ok).length;
+        const failCount = marketRows.filter(x => !x.ok).length;
+
+        setSingleProgress(`Pubblicazione completata per ${sku}`, 100, [
+          `Mercati OK: ${okCount}`,
+          `Mercati con errore: ${failCount}`
+        ]);
+
+        setOverlayStatus("Pubblicazione completata", 100, [
+          `SKU: ${sku}`,
+          `OK: ${okCount}`,
+          `Errori: ${failCount}`
+        ]);
+        appendOverlayLog("Risultato publish", result);
+
+        document.getElementById("syncLastPublish").textContent = failCount ? "Completato con errori" : "OK";
+        document.getElementById("statErrors").textContent = String(failCount);
+
+        showToast("Pubblicazione completata", `SKU ${sku} elaborato. OK: ${okCount}, errori: ${failCount}.`, failCount ? "info" : "success");
         log(`Pubblicazione SKU ${sku} completata`, result);
-
-        const hasErrors = Array.isArray(result?.markets)
-          ? result.markets.some(x => !x.ok)
-          : false;
-
-        document.getElementById("syncLastPublish").textContent = hasErrors ? "Completato con errori" : "OK";
-        document.getElementById("statErrors").textContent = Array.isArray(result?.markets)
-          ? String(result.markets.filter(x => !x.ok).length)
-          : "0";
       } catch (error) {
+        setSingleProgress(`Errore pubblicazione SKU ${sku}`, 100, [
+          `SKU: ${sku}`,
+          `Errore: ${error.message}`
+        ]);
+        setOverlayStatus("Errore publish", 100, [
+          `SKU: ${sku}`,
+          `Errore: ${error.message}`
+        ]);
+        appendOverlayLog("Errore publish", error.message);
         document.getElementById("syncLastPublish").textContent = error.message;
-        log(`Errore pubblicazione SKU ${sku}`, error.message);
-        alert(`Errore durante la pubblicazione dello SKU ${sku}.\n\n${error.message}`);
+        showToast("Errore publish", error.message, "error");
+        log(`Errore publish ${sku}`, error.message);
       }
     }
 
     async function publishSingleMarketplace(marketplaceId) {
       const sku = document.getElementById("skuInput").value.trim();
       if (!sku) {
-        alert("Inserisci prima lo SKU.");
+        showToast("SKU mancante", "Inserisci prima lo SKU.", "error");
         return;
       }
 
+      openOverlay("Pubblicazione marketplace singolo", `Sto pubblicando ${sku} su ${marketplaceId}.`);
+      appendOverlayLog("Avvio publish marketplace", { sku, marketplaceId });
+
       try {
-        log(`Pubblicazione singola marketplace ${marketplaceId} per SKU ${sku}`);
         const result = await publishSkuRequest(sku, [marketplaceId]);
         renderMarketGrid(result);
-        log(`Pubblicazione ${marketplaceId} completata`, result);
+        setSingleProgress(`Pubblicato ${sku} su ${marketplaceId}`, 100, [
+          `SKU: ${sku}`,
+          `Marketplace: ${marketplaceId}`
+        ]);
+        setOverlayStatus("Publish marketplace completato", 100, [
+          `SKU: ${sku}`,
+          `Marketplace: ${marketplaceId}`
+        ]);
+        appendOverlayLog("Risultato publish marketplace", result);
+        showToast("Publish marketplace completato", `${sku} -> ${marketplaceId}`, "success");
       } catch (error) {
-        log(`Errore pubblicazione ${marketplaceId}`, error.message);
-        alert(`Errore ${marketplaceId}: ${error.message}`);
+        setSingleProgress(`Errore ${marketplaceId}`, 100, [
+          `SKU: ${sku}`,
+          `Errore: ${error.message}`
+        ]);
+        setOverlayStatus("Errore marketplace", 100, [
+          `SKU: ${sku}`,
+          `Marketplace: ${marketplaceId}`,
+          `Errore: ${error.message}`
+        ]);
+        appendOverlayLog("Errore publish marketplace", error.message);
+        showToast("Errore marketplace", `${marketplaceId}: ${error.message}`, "error");
       }
     }
 
     async function repairCurrentSku(marketplaceId = "") {
       const sku = document.getElementById("skuInput").value.trim();
       if (!sku) {
-        alert("Inserisci prima lo SKU.");
+        showToast("SKU mancante", "Inserisci prima lo SKU.", "error");
         return;
       }
 
       const sourceLanguage = document.getElementById("sourceLanguage").value || "it";
       const marketParam = marketplaceId || getSelectedMarketplaces().join(",");
 
+      openOverlay("Repair categoria SKU", `Sto eseguendo il repair categoria per ${sku}.`);
+      appendOverlayLog("Avvio repair SKU", { sku, sourceLanguage, marketParam });
+
       try {
-        const route = API_ROUTES.repairCategory(sku, sourceLanguage, marketParam);
-        log(`Repair categoria SKU ${sku}`, { route });
-        const result = await fetchJson(route);
-        log(`Repair completato per SKU ${sku}`, result);
+        setSingleProgress(`Repair categoria in corso per ${sku}...`, 22, [
+          `SKU: ${sku}`,
+          `Mercati: ${marketParam || "tutti"}`
+        ]);
+
+        const result = await fetchJson(API.repairCategory(sku, sourceLanguage, marketParam));
         renderMarketGrid(result);
-        alert(`Repair categoria completato per SKU ${sku}.`);
+
+        const marketRows = normalizeMarketRowsFromResult(result);
+        const okCount = marketRows.filter(x => x.ok).length;
+        const failCount = marketRows.filter(x => !x.ok).length;
+
+        setSingleProgress(`Repair completato per ${sku}`, 100, [
+          `Mercati OK: ${okCount}`,
+          `Mercati con errore: ${failCount}`
+        ]);
+        setOverlayStatus("Repair completato", 100, [
+          `SKU: ${sku}`,
+          `OK: ${okCount}`,
+          `Errori: ${failCount}`
+        ]);
+        appendOverlayLog("Risultato repair", result);
+        showToast("Repair categoria completato", `SKU ${sku}. OK: ${okCount}, errori: ${failCount}.`, failCount ? "info" : "success");
+        log(`Repair completato per ${sku}`, result);
       } catch (error) {
-        log(`Errore repair SKU ${sku}`, error.message);
-        alert(`Repair non riuscito.\n\n${error.message}`);
+        setSingleProgress(`Errore repair per ${sku}`, 100, [
+          `SKU: ${sku}`,
+          `Errore: ${error.message}`
+        ]);
+        setOverlayStatus("Errore repair", 100, [
+          `SKU: ${sku}`,
+          `Errore: ${error.message}`
+        ]);
+        appendOverlayLog("Errore repair", error.message);
+        showToast("Errore repair", error.message, "error");
+        log(`Errore repair ${sku}`, error.message);
       }
     }
 
@@ -1520,7 +1857,22 @@
         `<div class="empty">Nessuna preview disponibile. Clicca “Preview traduzioni”.</div>`;
       document.getElementById("marketGrid").innerHTML = "";
       document.getElementById("statErrors").textContent = "0";
+      setSingleProgress("Reset UI completato.", 0, ["Interfaccia ripulita"]);
+      showToast("Reset UI", "Stati grafici ripuliti.", "info");
       log("Reset stati UI eseguito.");
+    }
+
+    function buildTranslationPreviewFromState() {
+      if (!state.currentProduct) {
+        showToast("Nessun prodotto", "Carica prima uno SKU.", "error");
+        return;
+      }
+      buildTranslationPreview(state.currentProduct);
+      setSingleProgress("Preview traduzioni generata.", 100, [
+        `SKU: ${state.currentSku || "-"}`,
+        "Anteprime disponibili"
+      ]);
+      showToast("Preview disponibile", "Anteprima traduzioni generata.", "success");
     }
 
     function getBulkSkuList() {
@@ -1554,7 +1906,7 @@
     async function bulkPublish() {
       const skus = getBulkSkuList();
       if (!skus.length) {
-        alert("Inserisci almeno uno SKU nella lista bulk.");
+        showToast("Lista vuota", "Inserisci almeno uno SKU nella lista bulk.", "error");
         return;
       }
 
@@ -1568,19 +1920,27 @@
       };
       renderBulkRows();
 
-      log("Avvio bulk publish", { total: skus.length, marketplaces });
+      openOverlay("Bulk publish", `Sto pubblicando ${skus.length} SKU.`);
+      appendOverlayLog("Avvio bulk publish", { total: skus.length, marketplaces });
 
-      for (const sku of skus) {
+      for (const [index, sku] of skus.entries()) {
+        const pct = Math.round(((index) / skus.length) * 100);
+        setOverlayStatus(`Elaborazione SKU ${index + 1} di ${skus.length}`, pct, [
+          `SKU corrente: ${sku}`,
+          `Mercati: ${marketplaces.join(", ")}`
+        ]);
+
         try {
           const result = await publishSkuRequest(sku, marketplaces);
-          const hasErrors = Array.isArray(result?.markets) && result.markets.some(x => !x.ok);
+          const hasErrors = normalizeMarketRowsFromResult(result).some(x => !x.ok);
+
           state.bulk.done += 1;
           if (hasErrors) {
             state.bulk.fail += 1;
             state.bulk.rows.unshift({
               sku,
               ok: false,
-              detail: JSON.stringify(result?.markets || result).slice(0, 600)
+              detail: JSON.stringify(result).slice(0, 600)
             });
           } else {
             state.bulk.ok += 1;
@@ -1590,6 +1950,7 @@
               detail: "Pubblicazione completata"
             });
           }
+          appendOverlayLog(`Elaborato ${sku}`, result);
         } catch (error) {
           state.bulk.done += 1;
           state.bulk.fail += 1;
@@ -1598,59 +1959,110 @@
             ok: false,
             detail: error.message
           });
+          appendOverlayLog(`Errore ${sku}`, error.message);
         }
         renderBulkRows();
       }
 
+      setOverlayStatus("Bulk publish completato", 100, [
+        `Totale: ${state.bulk.total}`,
+        `OK: ${state.bulk.ok}`,
+        `Errori: ${state.bulk.fail}`
+      ]);
       log("Bulk publish completato", state.bulk);
-      alert(`Bulk completato.\nOK: ${state.bulk.ok}\nErrori: ${state.bulk.fail}`);
+      showToast("Bulk completato", `OK: ${state.bulk.ok}, errori: ${state.bulk.fail}.`, state.bulk.fail ? "info" : "success");
+    }
+
+    async function pollRepairState(maxPolls = 20, delayMs = 2000) {
+      let last = null;
+
+      for (let i = 0; i < maxPolls; i++) {
+        try {
+          const data = await fetchJson(API.repairState);
+          last = data;
+          const st = data.state || {};
+          setOverlayStatus(`Polling stato repair (${i + 1}/${maxPolls})`, Math.min(95, 15 + (i + 1) * 4), [
+            `Last run: ${st.lastRunAt || "-"}`,
+            `Cursor: ${st.cursor ?? "-"}`,
+            `Processed: ${Array.isArray(st.processedSkus) ? st.processedSkus.length : "-"}`,
+            `Last batch: ${Array.isArray(st.lastBatch) ? st.lastBatch.join(", ") : "-"}`
+          ]);
+          appendOverlayLog("Repair state", data);
+        } catch (error) {
+          appendOverlayLog("Errore polling repair state", error.message);
+        }
+
+        await new Promise(r => setTimeout(r, delayMs));
+      }
+
+      return last;
     }
 
     async function runRepairBatch(limit, reset = false) {
+      openOverlay(reset ? "Reset repair state + batch" : `Repair batch ${limit}`, "Operazione in corso...");
+      appendOverlayLog("Avvio repair batch", { limit, reset });
+
       try {
-        const route = API_ROUTES.repairAll(limit, reset, document.getElementById("sourceLanguage").value || "it");
-        log("Avvio repair batch", { route });
+        setOverlayStatus("Invio richiesta batch...", 12, [
+          `Limit: ${limit}`,
+          `Reset: ${reset ? "true" : "false"}`
+        ]);
+
+        const route = API.repairAll(limit, reset, document.getElementById("sourceLanguage").value || "it");
         const result = await fetchJson(route);
-        log("Repair batch completato", result);
+        appendOverlayLog("Risposta batch iniziale", result);
+
+        setOverlayStatus("Batch lanciato, controllo avanzamento...", 35, [
+          `ProcessedCount: ${result.processedCount ?? result.processed ?? "-"}`,
+          `Scanned: ${result.scanned ?? "-"}`
+        ]);
+
+        const latest = await pollRepairState(12, 1800);
         await refreshStatus();
-        alert(`Repair batch eseguito.\nProcessed: ${result.processedCount ?? result.processed ?? "-"}\nSkipped: ${result.skippedAlreadyProcessed ?? "-"}`);
+
+        setOverlayStatus("Repair batch completato", 100, [
+          `ProcessedCount: ${result.processedCount ?? result.processed ?? "-"}`,
+          `Skipped: ${result.skippedAlreadyProcessed ?? "-"}`,
+          `Cursor finale: ${latest?.state?.cursor ?? "-"}`
+        ]);
+
+        showToast("Repair batch completato", `Limit ${limit} eseguito.`, "success");
+        log("Repair batch completato", { start: result, final: latest });
       } catch (error) {
+        setOverlayStatus("Errore repair batch", 100, [
+          `Errore: ${error.message}`
+        ]);
+        appendOverlayLog("Errore repair batch", error.message);
+        showToast("Errore repair batch", error.message, "error");
         log("Repair batch errore", error.message);
-        alert(`Errore repair batch.\n\n${error.message}`);
       }
     }
 
     async function loadErrorMonitor() {
-      try {
-        const { data } = await tryCandidateRoutes(API_ROUTES.errorMonitorCandidates, null);
-        const rows = Array.isArray(data?.rows) ? data.rows : Array.isArray(data) ? data : [];
-        state.errorRows = rows;
-      } catch {
-        const fallback = [];
-        const markets = state.singlePublishResult?.markets || [];
-        markets.forEach(m => {
-          if (!m.ok) {
-            fallback.push({
-              sku: state.currentSku || "-",
-              marketplaceId: m.marketplaceId || "-",
-              error: m.error || "Errore marketplace"
-            });
-          }
-        });
-        state.errorRows = fallback;
-      }
+      const rows = [];
+      const markets = state.singlePublishResult?.markets || [];
+      markets.forEach(m => {
+        if (!m.ok) {
+          rows.push({
+            sku: state.currentSku || "-",
+            marketplaceId: m.marketplaceId || "-",
+            error: m.error || "Errore marketplace"
+          });
+        }
+      });
+      state.errorRows = rows;
 
       const body = document.getElementById("errorTableBody");
       if (!state.errorRows.length) {
-        body.innerHTML = `<tr><td colspan="4"><div class="empty">Nessun errore visibile al momento.</div></td></tr>`;
+        body.innerHTML = `<tr><td colspan="4"><div class="empty">Nessun errore visibile al momento nella sessione corrente.</div></td></tr>`;
         return;
       }
 
       body.innerHTML = state.errorRows.map(row => `
         <tr>
           <td class="mono">${escapeHtml(row.sku || "-")}</td>
-          <td class="mono">${escapeHtml(row.marketplaceId || row.market || "-")}</td>
-          <td>${escapeHtml(row.error || row.message || "-")}</td>
+          <td class="mono">${escapeHtml(row.marketplaceId || "-")}</td>
+          <td>${escapeHtml(row.error || "-")}</td>
           <td>
             <div class="inline-actions">
               <button class="small-btn primary" onclick="quickLoadSku('${escapeHtml(row.sku || "")}')">Apri SKU</button>
@@ -1662,43 +2074,111 @@
       `).join("");
     }
 
-    async function loadMissingMonitor() {
-      try {
-        const { data } = await tryCandidateRoutes(API_ROUTES.missingMonitorCandidates, null);
-        state.missingRows = Array.isArray(data?.rows) ? data.rows : Array.isArray(data) ? data : [];
-      } catch {
-        state.missingRows = [];
-      }
+    async function analyzeMissingFromList() {
+      const sourceLanguage = document.getElementById("sourceLanguage").value || "it";
+      const skus = document.getElementById("missingSkuList").value
+        .split(/\r?\n/)
+        .map(x => x.trim())
+        .filter(Boolean);
 
-      const body = document.getElementById("missingTableBody");
-      if (!state.missingRows.length) {
-        body.innerHTML = `<tr><td colspan="4"><div class="empty">Nessuna route backend dedicata ai mancanti. Quando sarà disponibile, questa tab la mostrerà automaticamente.</div></td></tr>`;
+      if (!skus.length) {
+        showToast("Lista vuota", "Incolla almeno uno SKU da analizzare.", "error");
         return;
       }
 
-      body.innerHTML = state.missingRows.map(row => `
-        <tr>
-          <td class="mono">${escapeHtml(row.sku || "-")}</td>
-          <td>${escapeHtml(row.title || "-")}</td>
-          <td>${escapeHtml((row.missingMarkets || row.marketplaces || []).join(", ") || "-")}</td>
-          <td>
-            <div class="inline-actions">
-              <button class="small-btn primary" onclick="quickLoadSku('${escapeHtml(row.sku || "")}')">Apri SKU</button>
-              <button class="small-btn" onclick="quickPublishSku('${escapeHtml(row.sku || "")}', '')">Pubblica tutti</button>
-            </div>
-          </td>
-        </tr>
-      `).join("");
+      openOverlay("Analisi mancanti su eBay", `Sto analizzando ${skus.length} SKU.`);
+      appendOverlayLog("Avvio analisi mancanti", { total: skus.length });
+
+      const rows = [];
+
+      for (const [index, sku] of skus.entries()) {
+        setOverlayStatus(`Analisi SKU ${index + 1} di ${skus.length}`, Math.round(((index) / skus.length) * 100), [
+          `SKU: ${sku}`
+        ]);
+
+        try {
+          const result = await fetchJson(API.repairCategory(sku, sourceLanguage, ""));
+          const product = normalizeProductPayload(result);
+          const marketRows = normalizeMarketRowsFromResult(result);
+          const missing = marketRows.filter(x => !x.ok).map(x => x.label);
+
+          rows.push({
+            sku,
+            title: product?.title || "-",
+            missingMarkets: missing,
+            raw: result
+          });
+
+          appendOverlayLog(`Analizzato ${sku}`, {
+            sku,
+            missingMarkets: missing
+          });
+        } catch (error) {
+          rows.push({
+            sku,
+            title: "-",
+            missingMarkets: ["errore lettura"],
+            error: error.message
+          });
+          appendOverlayLog(`Errore analisi ${sku}`, error.message);
+        }
+      }
+
+      state.missingRows = rows;
+      renderMissingTable();
+      setOverlayStatus("Analisi completata", 100, [
+        `SKU analizzati: ${skus.length}`,
+        "Consulta la tabella risultati"
+      ]);
+      showToast("Analisi completata", `Analizzati ${skus.length} SKU.`, "success");
+    }
+
+    function renderMissingTable() {
+      const body = document.getElementById("missingTableBody");
+      if (!state.missingRows.length) {
+        body.innerHTML = `<tr><td colspan="4"><div class="empty">Nessuna analisi eseguita.</div></td></tr>`;
+        return;
+      }
+
+      body.innerHTML = state.missingRows.map(row => {
+        const missingText = row.error
+          ? row.error
+          : (Array.isArray(row.missingMarkets) && row.missingMarkets.length
+              ? row.missingMarkets.join(", ")
+              : "Nessun mercato problematico rilevato");
+
+        return `
+          <tr>
+            <td class="mono">${escapeHtml(row.sku || "-")}</td>
+            <td>${escapeHtml(row.title || "-")}</td>
+            <td>${escapeHtml(missingText)}</td>
+            <td>
+              <div class="inline-actions">
+                <button class="small-btn primary" onclick="quickLoadSku('${escapeHtml(row.sku || "")}')">Apri SKU</button>
+                <button class="small-btn warning" onclick="quickRepairSku('${escapeHtml(row.sku || "")}', '')">Repair</button>
+                <button class="small-btn" onclick="quickPublishSku('${escapeHtml(row.sku || "")}', '')">Pubblica</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join("");
     }
 
     async function loadSyncMonitor() {
-      try {
-        const { data } = await tryCandidateRoutes(API_ROUTES.syncMonitorCandidates, null);
-        log("Sync monitor", data);
-      } catch {
-        // opzionale
-      }
       await refreshStatus();
+      await loadErrorMonitor();
+      showToast("Monitor aggiornato", "Stato sincronizzazione aggiornato.", "info");
+    }
+
+    function bindTabs() {
+      document.querySelectorAll(".tab").forEach(btn => {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+          document.querySelectorAll(".tab-panel").forEach(x => x.classList.remove("active"));
+          btn.classList.add("active");
+          document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
+        });
+      });
     }
 
     async function quickLoadSku(sku) {
@@ -1724,14 +2204,9 @@
     }
 
     function bindEvents() {
-      document.querySelectorAll(".tab").forEach(btn => {
-        btn.addEventListener("click", () => {
-          document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
-          document.querySelectorAll(".tab-panel").forEach(x => x.classList.remove("active"));
-          btn.classList.add("active");
-          document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
-        });
-      });
+      bindTabs();
+
+      document.getElementById("overlayCloseBtn").addEventListener("click", closeOverlay);
 
       document.getElementById("singleMarketMode").addEventListener("change", (e) => {
         document.getElementById("marketSelectionRow").style.display =
@@ -1740,37 +2215,52 @@
 
       document.getElementById("btnRefreshStatus").addEventListener("click", refreshStatus);
       document.getElementById("btnOpenRepairState").addEventListener("click", () => {
-        window.open(API_ROUTES.repairState, "_blank");
+        window.open(API.repairState, "_blank");
       });
 
       document.getElementById("btnLoadProduct").addEventListener("click", loadProductBySku);
-      document.getElementById("btnPreviewTranslations").addEventListener("click", () => buildTranslationPreview(state.currentProduct));
-      document.getElementById("btnPublishSingle").addEventListener("click", publishSingleSku);
       document.getElementById("btnRepairSingle").addEventListener("click", () => repairCurrentSku());
+      document.getElementById("btnPreviewTranslations").addEventListener("click", buildTranslationPreviewFromState);
+      document.getElementById("btnPublishSingle").addEventListener("click", publishSingleSku);
       document.getElementById("btnResetUi").addEventListener("click", resetUi);
 
       document.getElementById("btnBulkPublish").addEventListener("click", bulkPublish);
       document.getElementById("btnBulkRepair20").addEventListener("click", () => runRepairBatch(20, false));
       document.getElementById("btnBulkClear").addEventListener("click", () => {
         document.getElementById("bulkSkuList").value = "";
+        showToast("Lista pulita", "La lista bulk è stata svuotata.", "info");
       });
 
       document.getElementById("btnRefreshErrorMonitor").addEventListener("click", loadErrorMonitor);
-      document.getElementById("btnRefreshMissing").addEventListener("click", loadMissingMonitor);
+
+      document.getElementById("btnAnalyzeMissing").addEventListener("click", analyzeMissingFromList);
+      document.getElementById("btnCopyBulkToMissing").addEventListener("click", () => {
+        document.getElementById("missingSkuList").value = document.getElementById("bulkSkuList").value;
+        showToast("Lista copiata", "La lista bulk è stata copiata nella sezione mancanti.", "info");
+      });
+      document.getElementById("btnClearMissingInput").addEventListener("click", () => {
+        document.getElementById("missingSkuList").value = "";
+        showToast("Lista pulita", "La lista mancanti è stata svuotata.", "info");
+      });
+
       document.getElementById("btnRefreshSync").addEventListener("click", loadSyncMonitor);
 
       document.getElementById("btnRepair20").addEventListener("click", () => runRepairBatch(20, false));
       document.getElementById("btnRepair50").addEventListener("click", () => runRepairBatch(50, false));
       document.getElementById("btnRepairReset").addEventListener("click", () => runRepairBatch(20, true));
+
+      document.getElementById("searchMarket").addEventListener("input", () => renderMarketGrid(state.singlePublishResult || state.currentProductRaw || { markets: [] }));
+      document.getElementById("marketStatusFilter").addEventListener("change", () => renderMarketGrid(state.singlePublishResult || state.currentProductRaw || { markets: [] }));
     }
 
     async function bootstrap() {
       bindEvents();
+      renderMissingTable();
       renderBulkRows();
       renderMarketGrid({ markets: [] });
+      setSingleProgress("UI pronta.", 0, ["In attesa di una azione"]);
       await refreshStatus();
       await loadErrorMonitor();
-      await loadMissingMonitor();
     }
 
     window.publishSingleMarketplace = publishSingleMarketplace;
