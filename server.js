@@ -5100,7 +5100,7 @@ async function buildEbayDashboardBatch({
     if (!sku) continue;
 
     try {
-      const analysis = await analyzeMissingMarketplacesForSku({
+      const analysis = await runMissingMarketplaceAnalysis({
         sku,
         sourceLanguage,
       });
