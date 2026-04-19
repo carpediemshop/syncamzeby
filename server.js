@@ -3088,6 +3088,7 @@ async function publishOrUpdateSkuOnMarketplace({
   marketplaceId,
   sourceLanguage = "it",
   categoryId = "",
+  marketplacePriceAdjustment = 0,
 }) {
   const meta = getMarketplaceMeta(marketplaceId);
   if (!meta) {
@@ -3128,9 +3129,12 @@ async function publishOrUpdateSkuOnMarketplace({
     imageUrls: shopifyVariant.product.imageUrls || [],
   });
 
+const basePrice = Number(shopifyVariant?.price || 0);
+const adjustedPrice = Number((basePrice + marketplacePriceAdjustment).toFixed(2));
+  
   const upsert = await upsertOfferForMarketplace({
     sku,
-    price: shopifyVariant.price,
+    price: adjustedPrice,
     quantity: shopifyVariant.inventoryQuantity,
     marketplaceId,
     categoryId: finalCategoryId,
@@ -3165,6 +3169,8 @@ async function publishSkuToMultipleEbayMarkets({
   sourceLanguage = "it",
   categoryMap = {},
   marketplaces = MARKETPLACES.map((m) => m.marketplaceId),
+  marketplacePriceAdjustments = {},
+  dryRun = false,
 }) {
   const shopifyVariant = await getShopifyVariantBySku(sku);
   if (!shopifyVariant) {
@@ -3186,12 +3192,13 @@ async function publishSkuToMultipleEbayMarkets({
 
     try {
       const result = await publishOrUpdateSkuOnMarketplace({
-        sku,
-        shopifyVariant,
-        marketplaceId,
-        sourceLanguage,
-        categoryId: String(categoryMap?.[marketplaceId] || "").trim(),
-      });
+  sku,
+  shopifyVariant,
+  marketplaceId,
+  sourceLanguage,
+  categoryId: String(categoryMap?.[marketplaceId] || "").trim(),
+  marketplacePriceAdjustment: Number(marketplacePriceAdjustments?.[marketplaceId] || 0),
+});
 
       marketsResult.push(result);
     } catch (error) {
@@ -5448,17 +5455,53 @@ if (typeof translateProductTexts === "function") {
   }
 });
 
+function normalizeMarketplacePriceAdjustments(input = {}) {
+  const raw = isPlainObject(input) ? input : {};
+
+  const normalized = {};
+  for (const market of MARKETPLACES) {
+    const marketplaceId = String(market.marketplaceId || "").trim();
+    const value = Number(raw[marketplaceId] || 0);
+    normalized[marketplaceId] = Number.isFinite(value) ? value : 0;
+  }
+
+  return normalized;
+}
+
+function getAdjustedPriceForMarketplace(basePrice, marketplaceId, adjustments = {}) {
+  const safeBase = Number(basePrice || 0);
+  const safeAdj = Number(adjustments?.[marketplaceId] || 0);
+
+  const finalPrice = safeBase + safeAdj;
+
+  if (!Number.isFinite(finalPrice) || finalPrice <= 0) {
+    return Number(safeBase.toFixed(2));
+  }
+
+  return Number(finalPrice.toFixed(2));
+}
+
 app.post("/ebay/publish/multi", async (req, res) => {
   try {
     const sku = String(req.body?.sku || "").trim();
     const sourceLanguage = getSourceLanguage(req.body?.sourceLanguage || "it");
     const categoryMap = isPlainObject(req.body?.categoryMap) ? req.body.categoryMap : {};
+
     const marketplaces = Array.isArray(req.body?.marketplaces)
       ? req.body.marketplaces
+          .map((x) => String(x || "").trim())
+          .filter(Boolean)
       : MARKETPLACES.map((m) => m.marketplaceId);
 
+    const marketplacePriceAdjustments = normalizeMarketplacePriceAdjustments(
+      req.body?.marketplacePriceAdjustments || req.body?.priceAdjustments || {}
+    );
+
     if (!sku) {
-      return res.status(400).json({ ok: false, error: "missing sku" });
+      return res.status(400).json({
+        ok: false,
+        error: "missing sku",
+      });
     }
 
     const result = await publishSkuToMultipleEbayMarkets({
@@ -5466,9 +5509,14 @@ app.post("/ebay/publish/multi", async (req, res) => {
       sourceLanguage,
       categoryMap,
       marketplaces,
+      marketplacePriceAdjustments,
     });
 
-    return res.json(result);
+    return res.json({
+      ok: true,
+      ...result,
+      marketplacePriceAdjustments,
+    });
   } catch (error) {
     return res.status(500).json({
       ok: false,
