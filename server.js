@@ -3130,11 +3130,12 @@ async function publishOrUpdateSkuOnMarketplace({
   });
 
 const basePrice = Number(shopifyVariant?.price || 0);
-const adjustedPrice = Number((basePrice + marketplacePriceAdjustment).toFixed(2));
+const marketplacePriceAdjustmentValue = Number(marketplacePriceAdjustment || 0);
+const finalPrice = Number((basePrice + marketplacePriceAdjustmentValue).toFixed(2));
   
   const upsert = await upsertOfferForMarketplace({
     sku,
-    price: adjustedPrice,
+    price: finalPrice,
     quantity: shopifyVariant.inventoryQuantity,
     marketplaceId,
     categoryId: finalCategoryId,
@@ -3161,6 +3162,9 @@ const adjustedPrice = Number((basePrice + marketplacePriceAdjustment).toFixed(2)
     offerMode: upsert.mode,
     offerId: upsert.offerId,
     publishResult,
+    basePrice,
+    marketplacePriceAdjustment: marketplacePriceAdjustmentValue,
+    finalPrice,
   };
 }
 
