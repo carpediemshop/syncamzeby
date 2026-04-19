@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SyncAmzEby - eBay Publisher Multi-Market</title>
+  <title>SyncAmzEby - eBay Publisher</title>
   <style>
     :root {
       --bg: #eef3fb;
@@ -30,6 +30,7 @@
     }
 
     * { box-sizing: border-box; }
+
     html, body {
       margin: 0;
       padding: 0;
@@ -40,11 +41,11 @@
 
     body {
       min-height: 100vh;
-      padding: 28px;
+      padding: 26px;
     }
 
     .shell {
-      max-width: 1680px;
+      max-width: 1620px;
       margin: 0 auto;
       display: grid;
       gap: 18px;
@@ -80,7 +81,7 @@
 
     .hero p {
       margin: 0;
-      max-width: 1060px;
+      max-width: 920px;
       color: rgba(255,255,255,0.92);
       line-height: 1.55;
       font-size: 1rem;
@@ -130,10 +131,10 @@
 
     .hero-stats {
       display: grid;
-      grid-template-columns: repeat(5, minmax(160px, 1fr));
+      grid-template-columns: repeat(4, minmax(160px, 1fr));
       gap: 12px;
       margin-top: 18px;
-      max-width: 1180px;
+      max-width: 980px;
     }
 
     .hero-card {
@@ -188,11 +189,40 @@
       line-height: 1.55;
     }
 
-    .actions-grid {
+    .grid-2 {
       display: grid;
-      grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
+      grid-template-columns: 1.45fr 1fr;
+      gap: 18px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .grid-5 {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 14px;
-      align-items: end;
+    }
+
+    .subpanel {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 18px;
+    }
+
+    .subpanel h3 {
+      margin: 0 0 6px;
+      font-size: 1.18rem;
+    }
+
+    .subpanel p {
+      margin: 0 0 14px;
+      color: var(--muted);
+      line-height: 1.5;
     }
 
     .field {
@@ -234,6 +264,13 @@
     textarea:focus {
       border-color: var(--primary);
       box-shadow: 0 0 0 4px rgba(47, 103, 232, 0.12);
+    }
+
+    .actions-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 14px;
+      align-items: end;
     }
 
     .toolbar {
@@ -279,8 +316,8 @@
       border: 1px solid var(--line);
     }
 
-    .btn-danger {
-      background: var(--danger);
+    .btn-warning {
+      background: var(--warning);
       color: #fff;
     }
 
@@ -289,78 +326,10 @@
       color: #fff;
     }
 
-    .btn-warning {
-      background: var(--warning);
-      color: #fff;
-    }
-
-    .tabs {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-bottom: 18px;
-    }
-
-    .tab {
-      border: 1px solid var(--line);
-      background: #fff;
-      color: var(--navy);
-      border-radius: 999px;
-      padding: 12px 18px;
-      font-weight: 800;
-      cursor: pointer;
-    }
-
-    .tab.active {
-      background: var(--primary);
-      color: #fff;
-      border-color: var(--primary);
-    }
-
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
-
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1.45fr 1fr;
-      gap: 18px;
-    }
-
-    .grid-3 {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 18px;
-    }
-
-    .grid-4 {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 14px;
-    }
-
-    .subpanel {
-      background: var(--panel-2);
-      border: 1px solid var(--line);
-      border-radius: 22px;
-      padding: 18px;
-    }
-
-    .subpanel h3 {
-      margin: 0 0 6px;
-      font-size: 1.18rem;
-    }
-
-    .subpanel p {
-      margin: 0 0 14px;
-      color: var(--muted);
-      line-height: 1.5;
-    }
-
-    .product-meta {
+    .meta-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 12px;
-      margin-bottom: 14px;
     }
 
     .meta-card {
@@ -424,7 +393,7 @@
       border: 1px solid var(--line);
       border-radius: 18px;
       padding: 14px;
-      min-height: 235px;
+      min-height: 280px;
       display: flex;
       flex-direction: column;
       gap: 10px;
@@ -483,6 +452,27 @@
       font-size: 0.92rem;
     }
 
+    .small-note {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.55;
+    }
+
+    .empty {
+      border: 1px dashed #c9d8ec;
+      border-radius: 18px;
+      padding: 22px;
+      text-align: center;
+      color: var(--muted);
+      background: #fbfdff;
+    }
+
+    .bulk-area {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 16px;
+    }
+
     .table-wrap {
       overflow: auto;
       border: 1px solid var(--line);
@@ -493,7 +483,7 @@
     table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 980px;
+      min-width: 900px;
     }
 
     th, td {
@@ -521,83 +511,6 @@
 
     .mono {
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    }
-
-    .log-box {
-      background: #071733;
-      color: #e4ecff;
-      border-radius: 22px;
-      padding: 18px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      line-height: 1.55;
-      max-height: 360px;
-      overflow: auto;
-      white-space: pre-wrap;
-      word-break: break-word;
-      border: 1px solid rgba(255,255,255,0.06);
-    }
-
-    .empty {
-      border: 1px dashed #c9d8ec;
-      border-radius: 18px;
-      padding: 22px;
-      text-align: center;
-      color: var(--muted);
-      background: #fbfdff;
-    }
-
-    .inline-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .small-btn {
-      border: 1px solid var(--line);
-      background: #fff;
-      color: var(--navy);
-      border-radius: 12px;
-      padding: 9px 11px;
-      font-weight: 800;
-      cursor: pointer;
-      font-size: 0.86rem;
-    }
-
-    .small-btn.primary {
-      background: var(--primary);
-      border-color: var(--primary);
-      color: #fff;
-    }
-
-    .small-btn.danger {
-      background: #fff4f4;
-      color: var(--danger);
-      border-color: #ffd5d5;
-    }
-
-    .small-btn.warning {
-      background: #fff7e6;
-      color: var(--warning);
-      border-color: #ffe2a7;
-    }
-
-    .bulk-area {
-      display: grid;
-      grid-template-columns: 1.35fr 1fr;
-      gap: 16px;
-    }
-
-    .helper {
-      margin-top: 8px;
-      color: var(--muted);
-      font-size: 0.92rem;
-      line-height: 1.5;
-    }
-
-    .footer-note {
-      color: var(--muted);
-      font-size: 0.9rem;
-      line-height: 1.55;
     }
 
     .feedback-row {
@@ -640,6 +553,18 @@
       gap: 8px;
       color: var(--muted);
       font-size: 0.94rem;
+    }
+
+    .monitor-highlight {
+      border: 1px solid #d3def5;
+      background: #f7faff;
+      border-radius: 18px;
+      padding: 16px;
+      min-height: 96px;
+    }
+
+    .monitor-highlight strong {
+      color: var(--navy);
     }
 
     .toast-wrap {
@@ -694,7 +619,7 @@
     }
 
     .overlay-card {
-      width: min(860px, 100%);
+      width: min(760px, 100%);
       background: #fff;
       border-radius: 26px;
       box-shadow: 0 28px 60px rgba(15,23,42,0.25);
@@ -732,6 +657,20 @@
       flex-wrap: wrap;
     }
 
+    .log-box {
+      background: #071733;
+      color: #e4ecff;
+      border-radius: 22px;
+      padding: 18px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      line-height: 1.55;
+      max-height: 260px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
     .spinner {
       width: 18px;
       height: 18px;
@@ -754,146 +693,29 @@
       color: var(--navy);
     }
 
-    .monitor-highlight {
-      border: 1px solid #d3def5;
-      background: #f7faff;
-      border-radius: 18px;
-      padding: 16px;
-    }
-
-    .monitor-highlight strong {
-      color: var(--navy);
-    }
-
-    .market-mini-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 10px;
-    }
-
-    .listing-card-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 16px;
-    }
-
-    .listing-card {
-      background: #fff;
-      border: 1px solid var(--line);
-      border-radius: 22px;
-      padding: 16px;
-      display: grid;
-      grid-template-columns: 108px 1fr;
-      gap: 14px;
-      align-items: start;
-    }
-
-    .listing-thumb {
-      width: 108px;
-      height: 108px;
-      border-radius: 18px;
-      overflow: hidden;
-      background: #fff;
-      border: 1px solid var(--line);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .listing-thumb img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      background: #fff;
-    }
-
-    .listing-body {
-      display: grid;
-      gap: 10px;
-    }
-
-    .listing-title {
-      font-weight: 800;
-      font-size: 1rem;
-      line-height: 1.4;
-      color: var(--navy);
-    }
-
-    .listing-sku {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.9rem;
-      color: var(--muted);
-      font-weight: 700;
-    }
-
-    .market-badges {
+    .inline-actions {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
-    }
-
-    .card-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-top: 4px;
-    }
-
-    .tiny-note {
-      font-size: 0.88rem;
-      color: var(--muted);
-      line-height: 1.4;
-    }
-
-    .price-grid {
-      display: grid;
-      grid-template-columns: repeat(5, minmax(140px, 1fr));
-      gap: 12px;
-    }
-
-    .price-box {
-      background: #fff;
-      border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 14px;
-      display: grid;
-      gap: 8px;
-    }
-
-    .price-box .market {
-      font-weight: 900;
-      color: var(--navy);
-    }
-
-    .price-box .site {
-      color: var(--muted);
-      font-size: 0.85rem;
     }
 
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
 
-    @media (max-width: 1300px) {
-      .actions-grid,
-      .market-grid,
+    @media (max-width: 1320px) {
       .grid-2,
       .grid-3,
-      .grid-4,
+      .grid-5,
+      .market-grid,
+      .feedback-row,
       .bulk-area,
       .hero-stats,
-      .feedback-row,
-      .listing-card-grid,
-      .price-grid {
+      .actions-grid {
         grid-template-columns: 1fr;
       }
 
-      .product-meta {
-        grid-template-columns: 1fr;
-      }
-
-      .listing-card {
+      .meta-grid {
         grid-template-columns: 1fr;
       }
     }
@@ -930,7 +752,7 @@
           </div>
         </div>
 
-        <div class="log-box" id="overlayLog" style="max-height:220px;">Nessun log disponibile.</div>
+        <div class="log-box" id="overlayLog">Nessun log disponibile.</div>
 
         <div class="overlay-actions">
           <button class="btn btn-light" id="overlayCloseBtn">Chiudi</button>
@@ -943,14 +765,14 @@
     <section class="hero">
       <h1>eBay Publisher Multi-Market</h1>
       <p>
-        Controllo visivo Shopify + eBay, caricamento SKU singolo, pubblicazione manuale o bulk,
-        monitor mancanti, monitor errori, repair categoria e gestione maggiorazioni prezzo per mercato.
+        Interfaccia pratica per caricare uno SKU Shopify, vedere lo stato reale sui marketplace eBay,
+        pubblicare uno SKU singolo o in bulk e applicare maggiorazioni prezzo fisse per mercato.
       </p>
 
       <div class="hero-badges">
         <span class="badge">SyncAmzEby</span>
-        <span class="badge">5 mercati: IT / DE / FR / ES / GB</span>
-        <span class="badge">Dashboard operativa</span>
+        <span class="badge">UI semplificata</span>
+        <span class="badge">IT / DE / FR / ES / GB</span>
       </div>
 
       <div class="status-pill">
@@ -964,20 +786,16 @@
           <span class="v" id="statMarkets">5</span>
         </div>
         <div class="hero-card">
-          <span class="k">Errori attivi UI</span>
+          <span class="k">Errori UI</span>
           <span class="v" id="statErrors">0</span>
         </div>
         <div class="hero-card">
-          <span class="k">SKU caricati</span>
+          <span class="k">SKU caricato</span>
           <span class="v" id="statLoadedSku">0</span>
         </div>
         <div class="hero-card">
-          <span class="k">Repair cursor</span>
-          <span class="v" id="statRepairCursor">-</span>
-        </div>
-        <div class="hero-card">
-          <span class="k">Mancanti visibili</span>
-          <span class="v" id="statMissingVisible">0</span>
+          <span class="k">Mercati presenti</span>
+          <span class="v" id="statPresentMarkets">0</span>
         </div>
       </div>
     </section>
@@ -986,19 +804,17 @@
       <div class="panel-header">
         <div>
           <h2>Connessione eBay</h2>
-          <p class="panel-sub">Verifica account, stato endpoint, repair state e mercati attivi.</p>
+          <p class="panel-sub">Solo dati utili: ambiente, modulo e mercati disponibili.</p>
         </div>
-
         <div class="inline-actions">
           <button class="btn btn-primary" id="btnRefreshStatus">Aggiorna stato</button>
-          <button class="btn btn-dark" id="btnOpenRepairState">Apri repair state</button>
         </div>
       </div>
 
       <div class="grid-3">
         <div class="subpanel">
           <h3>Health / account</h3>
-          <div class="product-meta">
+          <div class="meta-grid">
             <div class="meta-card">
               <span class="meta-k">Ambiente</span>
               <span class="meta-v" id="metaEnvironment">-</span>
@@ -1019,36 +835,21 @@
         </div>
 
         <div class="subpanel">
-          <h3>Repair batch state</h3>
-          <div class="product-meta">
-            <div class="meta-card">
-              <span class="meta-k">Last run</span>
-              <span class="meta-v mono" id="repairLastRun">-</span>
-            </div>
-            <div class="meta-card">
-              <span class="meta-k">Cursor</span>
-              <span class="meta-v mono" id="repairCursor">-</span>
-            </div>
-            <div class="meta-card">
-              <span class="meta-k">Ultimo batch</span>
-              <span class="meta-v mono" id="repairLastBatch">-</span>
-            </div>
-            <div class="meta-card">
-              <span class="meta-k">Processed</span>
-              <span class="meta-v mono" id="repairProcessedCount">-</span>
-            </div>
-          </div>
+          <h3>Nota importante</h3>
+          <p class="small-note">
+            Il caricamento SKU adesso usa la route <strong>/ebay/dashboard/sku</strong>,
+            che è molto più leggera della vecchia route di repair.  
+            Quindi il caricamento reale sarà più veloce e lo stato marketplace sarà più affidabile.
+          </p>
         </div>
 
         <div class="subpanel">
           <h3>Comandi rapidi</h3>
           <div class="toolbar">
-            <button class="btn btn-primary" id="btnRepair20">Repair 20</button>
-            <button class="btn btn-dark" id="btnRepair50">Repair 50</button>
-            <button class="btn btn-warning" id="btnRepairReset">Reset state</button>
+            <button class="btn btn-dark" id="btnResetUi">Reset UI</button>
           </div>
-          <div class="helper">
-            Il repair mostra popup, polling sullo state file e log visivo.
+          <div class="small-note">
+            Qui abbiamo tolto tutto il superfluo. Rimane solo ciò che serve davvero.
           </div>
         </div>
       </div>
@@ -1059,8 +860,8 @@
         <div>
           <h2>Maggiorazione prezzi per marketplace</h2>
           <p class="panel-sub">
-            Inserisci una maggiorazione fissa in euro per ciascun mercato. La UI la conserva nel browser
-            e la invia nel payload di pubblicazione.
+            Inserisci una maggiorazione fissa in euro per ciascun mercato.
+            La UI la salva nel browser e la invia al backend durante la pubblicazione.
           </p>
         </div>
         <div class="inline-actions">
@@ -1069,9 +870,37 @@
         </div>
       </div>
 
-      <div class="price-grid" id="priceAdjustmentsGrid"></div>
-      <div class="helper">
-        Esempio: Germania <strong>+7.00</strong>, Regno Unito <strong>+9.00</strong>.
+      <div class="grid-5">
+        <div class="subpanel">
+          <h3>IT</h3>
+          <p>ebay.it</p>
+          <input type="text" id="adj_EBAY_IT" value="0,00" />
+        </div>
+        <div class="subpanel">
+          <h3>DE</h3>
+          <p>ebay.de</p>
+          <input type="text" id="adj_EBAY_DE" value="0,00" />
+        </div>
+        <div class="subpanel">
+          <h3>FR</h3>
+          <p>ebay.fr</p>
+          <input type="text" id="adj_EBAY_FR" value="0,00" />
+        </div>
+        <div class="subpanel">
+          <h3>ES</h3>
+          <p>ebay.es</p>
+          <input type="text" id="adj_EBAY_ES" value="0,00" />
+        </div>
+        <div class="subpanel">
+          <h3>GB</h3>
+          <p>ebay.co.uk</p>
+          <input type="text" id="adj_EBAY_GB" value="0,00" />
+        </div>
+      </div>
+
+      <div class="small-note" style="margin-top: 12px;">
+        Esempio: Germania <strong>+7,00</strong>, Regno Unito <strong>+2,00</strong>.  
+        Il backend deve ricevere il payload `marketplacePriceAdjustments`.
       </div>
     </section>
 
@@ -1079,23 +908,20 @@
       <div class="panel-header">
         <div>
           <h2>Modalità operativa</h2>
-          <p class="panel-sub">Pubblica SKU singolo o bulk, controlla mercati mancanti, fai repair categoria e monitora gli errori.</p>
+          <p class="panel-sub">Solo 2 modalità: SKU singolo e Bulk publish.</p>
         </div>
       </div>
 
-      <div class="tabs">
-        <button class="tab active" data-tab="single">SKU singolo</button>
-        <button class="tab" data-tab="bulk">Bulk publish</button>
-        <button class="tab" data-tab="errors">Errori marketplace</button>
-        <button class="tab" data-tab="missing">Mancanti su eBay</button>
-        <button class="tab" data-tab="sync">Monitor sync</button>
+      <div class="inline-actions" style="margin-bottom: 18px;">
+        <button class="btn btn-primary" id="tabSingleBtn">SKU singolo</button>
+        <button class="btn btn-light" id="tabBulkBtn">Bulk publish</button>
       </div>
 
-      <div class="tab-panel active" id="tab-single">
+      <div id="tabSingle">
         <div class="actions-grid">
           <div class="field">
             <label for="skuInput">SKU Shopify</label>
-            <input type="text" id="skuInput" placeholder="Es. 8J-KK9L-AKE9" />
+            <input type="text" id="skuInput" placeholder="Es. IG-YXIV-7HMB" />
           </div>
 
           <div class="field">
@@ -1110,43 +936,31 @@
           </div>
 
           <div class="field">
-            <label for="searchMarket">Ricerca marketplace</label>
-            <input type="text" id="searchMarket" placeholder="IT, DE, FR, ES, GB..." />
-          </div>
-
-          <div class="field">
-            <label for="marketStatusFilter">Filtro stato marketplace</label>
-            <select id="marketStatusFilter">
-              <option value="all">Tutti</option>
-              <option value="ok">OK</option>
-              <option value="error">Errore</option>
-              <option value="missing">Mancante / non OK</option>
-            </select>
-          </div>
-
-          <div class="field">
             <label for="singleMarketMode">Mercati</label>
             <select id="singleMarketMode">
               <option value="all">Tutti i mercati</option>
               <option value="custom">Selezione manuale</option>
             </select>
           </div>
+
+          <div class="field">
+            <label for="searchMarket">Ricerca marketplace</label>
+            <input type="text" id="searchMarket" placeholder="IT, DE, FR..." />
+          </div>
         </div>
 
-        <div class="toolbar" style="margin-top: 16px;">
+        <div class="toolbar">
           <button class="btn btn-primary" id="btnLoadProduct">Carica prodotto Shopify</button>
           <button class="btn btn-dark" id="btnRepairSingle">Repair categoria SKU</button>
-          <button class="btn btn-dark" id="btnPreviewTranslations">Preview traduzioni</button>
-          <button class="btn btn-primary" id="btnPublishSingle">Pubblica SKU corrente</button>
-          <button class="btn btn-light" id="btnResetUi">Reset stati UI</button>
+          <button class="btn btn-success" id="btnPublishSingle">Pubblica SKU corrente</button>
         </div>
 
         <div class="toolbar" id="marketSelectionRow" style="display:none;">
-          <label class="small-btn"><input type="checkbox" class="market-check" value="EBAY_IT" checked> IT</label>
-          <label class="small-btn"><input type="checkbox" class="market-check" value="EBAY_DE" checked> DE</label>
-          <label class="small-btn"><input type="checkbox" class="market-check" value="EBAY_FR" checked> FR</label>
-          <label class="small-btn"><input type="checkbox" class="market-check" value="EBAY_ES" checked> ES</label>
-          <label class="small-btn"><input type="checkbox" class="market-check" value="EBAY_GB" checked> GB</label>
+          <label><input type="checkbox" class="market-check" value="EBAY_IT" checked> IT</label>
+          <label><input type="checkbox" class="market-check" value="EBAY_DE" checked> DE</label>
+          <label><input type="checkbox" class="market-check" value="EBAY_FR" checked> FR</label>
+          <label><input type="checkbox" class="market-check" value="EBAY_ES" checked> ES</label>
+          <label><input type="checkbox" class="market-check" value="EBAY_GB" checked> GB</label>
         </div>
 
         <div class="feedback-row">
@@ -1156,14 +970,14 @@
               <div class="progress-bar" id="singleProgressBar"></div>
             </div>
             <div class="status-meta" id="singleProgressMeta">
-              <div>Stato: inattivo</div>
+              <div>In attesa di una azione</div>
             </div>
           </div>
 
           <div class="status-box">
             <h4>Ultimo feedback</h4>
             <div class="monitor-highlight" id="lastActionFeedback">
-              Nessuna operazione eseguita.
+              UI pronta.
             </div>
           </div>
         </div>
@@ -1173,7 +987,7 @@
             <h3>Dati prodotto Shopify</h3>
             <p>Dettagli utili prima della pubblicazione su eBay.</p>
 
-            <div class="product-meta">
+            <div class="meta-grid">
               <div class="meta-card">
                 <span class="meta-k">Titolo</span>
                 <div class="meta-v" id="productTitle">-</div>
@@ -1191,16 +1005,24 @@
                 <div class="meta-v" id="productVendor">-</div>
               </div>
               <div class="meta-card">
-                <span class="meta-k">Prezzo</span>
+                <span class="meta-k">Prezzo Shopify</span>
                 <div class="meta-v" id="productPrice">-</div>
               </div>
               <div class="meta-card">
                 <span class="meta-k">Quantità</span>
                 <div class="meta-v" id="productQty">-</div>
               </div>
+              <div class="meta-card">
+                <span class="meta-k">Barcode / EAN</span>
+                <div class="meta-v mono" id="productBarcode">-</div>
+              </div>
+              <div class="meta-card">
+                <span class="meta-k">Store URL</span>
+                <div class="meta-v" id="productUrl">-</div>
+              </div>
               <div class="meta-card" style="grid-column: 1 / -1;">
                 <span class="meta-k">Descrizione</span>
-                <div class="meta-v" id="productDescription" style="max-height: 240px; overflow:auto;">-</div>
+                <div class="meta-v" id="productDescription" style="max-height:240px; overflow:auto;">-</div>
               </div>
             </div>
 
@@ -1208,48 +1030,59 @@
           </div>
 
           <div class="subpanel">
-            <h3>Preview traduzioni</h3>
-            <p>Anteprima front-end del materiale tradotto per i vari marketplace.</p>
-            <div id="translationPreview" class="empty">
-              Nessuna preview disponibile. Clicca “Preview traduzioni”.
+            <h3>Riepilogo pubblicazione</h3>
+            <p>Qui vedi quanti mercati risultano già presenti e quali no.</p>
+
+            <div class="meta-grid">
+              <div class="meta-card">
+                <span class="meta-k">Mercati presenti</span>
+                <div class="meta-v" id="presentMarketsBox">-</div>
+              </div>
+              <div class="meta-card">
+                <span class="meta-k">Mercati mancanti</span>
+                <div class="meta-v" id="missingMarketsBox">-</div>
+              </div>
+              <div class="meta-card">
+                <span class="meta-k">Prezzi con maggiorazione</span>
+                <div class="meta-v" id="pricePreviewBox">-</div>
+              </div>
+              <div class="meta-card">
+                <span class="meta-k">Nota</span>
+                <div class="meta-v" id="noteBox">Carica uno SKU per vedere il quadro reale.</div>
+              </div>
             </div>
           </div>
         </div>
 
         <div class="subpanel" style="margin-top:18px;">
           <h3>Stato marketplace SKU corrente</h3>
-          <p>Qui vedi errori, dati mancanti, repair categoria e pubblicazione uno a uno per ciascun marketplace.</p>
+          <p>Questo blocco usa la route reale dello SKU, non la route di repair. Qui il dato deve riflettere lo stato effettivo.</p>
           <div class="market-grid" id="marketGrid"></div>
         </div>
       </div>
 
-      <div class="tab-panel" id="tab-bulk">
+      <div id="tabBulk" style="display:none;">
         <div class="bulk-area">
           <div class="subpanel">
-            <h3>Bulk publish manuale</h3>
-            <p>Incolla uno SKU per riga. La UI li pubblica uno alla volta usando la route esistente.</p>
+            <h3>Bulk publish</h3>
+            <p>Incolla uno SKU per riga. La UI pubblica gli SKU uno alla volta usando le maggiorazioni salvate.</p>
 
             <div class="field">
               <label for="bulkSkuList">Lista SKU</label>
-              <textarea id="bulkSkuList" placeholder="8J-KK9L-AKE9&#10;IG-YXIV-7HMB&#10;..."></textarea>
+              <textarea id="bulkSkuList" placeholder="IG-YXIV-7HMB&#10;XS-WCNN-F1D1&#10;..."></textarea>
             </div>
 
             <div class="toolbar">
               <button class="btn btn-primary" id="btnBulkPublish">Avvia bulk publish</button>
-              <button class="btn btn-warning" id="btnBulkRepair20">Repair categorie 20</button>
               <button class="btn btn-light" id="btnBulkClear">Pulisci lista</button>
-            </div>
-
-            <div class="helper">
-              Il bulk publish lavora client-side e chiama la route di pubblicazione per ogni SKU.
-              Se uno SKU va in errore, gli altri continuano.
             </div>
           </div>
 
           <div class="subpanel">
             <h3>Monitor coda bulk</h3>
             <p>Stato live della coda.</p>
-            <div class="product-meta">
+
+            <div class="meta-grid">
               <div class="meta-card">
                 <span class="meta-k">Totale</span>
                 <span class="meta-v" id="bulkTotal">0</span>
@@ -1268,7 +1101,7 @@
               </div>
             </div>
 
-            <div class="table-wrap">
+            <div class="table-wrap" style="margin-top: 14px;">
               <table>
                 <thead>
                   <tr>
@@ -1283,136 +1116,6 @@
           </div>
         </div>
       </div>
-
-      <div class="tab-panel" id="tab-errors">
-        <div class="panel-header">
-          <div>
-            <h2 style="margin:0 0 6px; font-size:1.5rem;">Inserzioni in errore</h2>
-            <p class="panel-sub">Monitor visivo dei problemi per mercato. Da qui puoi aprire lo SKU, fare repair e pubblicare.</p>
-          </div>
-          <div class="inline-actions">
-            <button class="btn btn-primary" id="btnRefreshErrorMonitor">Aggiorna monitor errori</button>
-          </div>
-        </div>
-
-        <div id="errorCards" class="listing-card-grid">
-          <div class="empty" style="grid-column:1/-1;">Nessun dato caricato.</div>
-        </div>
-      </div>
-
-      <div class="tab-panel" id="tab-missing">
-        <div class="panel-header">
-          <div>
-            <h2 style="margin:0 0 6px; font-size:1.5rem;">Prodotti mancanti su eBay</h2>
-            <p class="panel-sub">Panoramica visuale degli SKU Shopify ancora da pubblicare o non OK sui marketplace eBay.</p>
-          </div>
-          <div class="inline-actions">
-            <button class="btn btn-primary" id="btnRefreshMissing">Aggiorna mancanti</button>
-            <button class="btn btn-dark" id="btnPublishVisibleMissing">Pubblica tutto il batch visibile</button>
-          </div>
-        </div>
-
-        <div class="actions-grid" style="grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr;">
-          <div class="field">
-            <label for="missingSearch">Ricerca SKU / titolo</label>
-            <input type="text" id="missingSearch" placeholder="Cerca SKU o titolo..." />
-          </div>
-          <div class="field">
-            <label for="missingLimit">Limite</label>
-            <select id="missingLimit">
-              <option value="10">10</option>
-              <option value="20" selected>20</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="missingMarketFilter">Mercato mancante</label>
-            <select id="missingMarketFilter">
-              <option value="all">Tutti</option>
-              <option value="EBAY_IT">IT</option>
-              <option value="EBAY_DE">DE</option>
-              <option value="EBAY_FR">FR</option>
-              <option value="EBAY_ES">ES</option>
-              <option value="EBAY_GB">GB</option>
-            </select>
-          </div>
-          <div class="field">
-            <label for="missingOnlyProblems">Filtro</label>
-            <select id="missingOnlyProblems">
-              <option value="all">Tutti i risultati</option>
-              <option value="missingOnly">Solo con mancanti</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>&nbsp;</label>
-            <button class="btn btn-light" id="btnResetMissingFilters">Reset filtri</button>
-          </div>
-        </div>
-
-        <div class="helper" style="margin-top:14px;">
-          La griglia mostra immagine, SKU, titolo e i mercati dove manca ancora la pubblicazione.
-        </div>
-
-        <div id="missingCards" class="listing-card-grid" style="margin-top:18px;">
-          <div class="empty" style="grid-column:1/-1;">Nessun dato caricato.</div>
-        </div>
-      </div>
-
-      <div class="tab-panel" id="tab-sync">
-        <div class="panel-header">
-          <div>
-            <h2 style="margin:0 0 6px; font-size:1.5rem;">Monitor sincronizzazione Shopify ↔ eBay</h2>
-            <p class="panel-sub">Stato generale endpoint, repair state e log UI.</p>
-          </div>
-          <div class="inline-actions">
-            <button class="btn btn-primary" id="btnRefreshSync">Aggiorna monitor sync</button>
-          </div>
-        </div>
-
-        <div class="grid-3">
-          <div class="subpanel">
-            <h3>Endpoint base</h3>
-            <div class="product-meta">
-              <div class="meta-card">
-                <span class="meta-k">Health</span>
-                <span class="meta-v" id="syncHealth">-</span>
-              </div>
-              <div class="meta-card">
-                <span class="meta-k">Repair state</span>
-                <span class="meta-v" id="syncRepairState">-</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="subpanel">
-            <h3>Ultimo SKU caricato</h3>
-            <div class="product-meta">
-              <div class="meta-card">
-                <span class="meta-k">SKU</span>
-                <span class="meta-v mono" id="syncLastSku">-</span>
-              </div>
-              <div class="meta-card">
-                <span class="meta-k">Esito ultimo publish</span>
-                <span class="meta-v" id="syncLastPublish">-</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="subpanel">
-            <h3>Nota pratica</h3>
-            <p class="footer-note">
-              Se una route backend non risponde, la UI continua a lavorare con quelle disponibili.
-              Ogni pulsante ora mostra feedback operativo immediato.
-            </p>
-          </div>
-        </div>
-
-        <div class="subpanel" style="margin-top:18px;">
-          <h3>Log operativo UI</h3>
-          <div id="logBox" class="log-box">UI pronta.</div>
-        </div>
-      </div>
     </section>
   </div>
 
@@ -1425,115 +1128,48 @@
       { id: "EBAY_GB", label: "GB", locale: "en-GB", site: "ebay.co.uk" }
     ];
 
-    const PRICE_STORAGE_KEY = "syncamzeby_ebay_price_adjustments_v1";
-
     const API = {
       health: "/ebay/health",
-      repairState: "/ebay/repair/state",
-      repairAll: (limit = 20, reset = false, sourceLanguage = "it") =>
-        `/ebay/repair/all?limit=${encodeURIComponent(limit)}&reset=${reset ? "true" : "false"}&sourceLanguage=${encodeURIComponent(sourceLanguage)}`,
-      repairCategory: (sku, sourceLanguage = "it", marketplaces = "") =>
-        `/ebay/repair/category?sku=${encodeURIComponent(sku)}&sourceLanguage=${encodeURIComponent(sourceLanguage)}${marketplaces ? `&marketplaces=${encodeURIComponent(marketplaces)}` : ""}`,
-      publishMulti: "/ebay/publish/multi",
       dashboardSku: (sku, sourceLanguage = "it") =>
         `/ebay/dashboard/sku?sku=${encodeURIComponent(sku)}&sourceLanguage=${encodeURIComponent(sourceLanguage)}`,
-      dashboardMissing: (limit = 20, cursor = "") =>
-        `/ebay/dashboard/missing?limit=${encodeURIComponent(limit)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
-      dashboardErrors: (limit = 20, cursor = "") =>
-        `/ebay/dashboard/errors?limit=${encodeURIComponent(limit)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`
+      repairCategory: (sku, sourceLanguage = "it", marketplaces = "") =>
+        `/ebay/repair/category?sku=${encodeURIComponent(sku)}&sourceLanguage=${encodeURIComponent(sourceLanguage)}${marketplaces ? `&marketplaces=${encodeURIComponent(marketplaces)}` : ""}`,
+      publishMulti: "/ebay/publish/multi"
     };
+
+    const STORAGE_KEY = "syncamzeby_marketplace_price_adjustments_v1";
 
     const state = {
       currentSku: "",
       currentProduct: null,
       currentProductRaw: null,
-      singlePublishResult: null,
-      errorRows: [],
-      missingRows: [],
-      missingCursor: null,
-      missingHasNextPage: false,
-      errorsCursor: null,
-      errorsHasNextPage: false,
-      priceAdjustments: loadPriceAdjustments(),
+      currentMarkets: [],
       bulk: {
         total: 0,
         done: 0,
         ok: 0,
         fail: 0,
         rows: []
+      },
+      priceAdjustments: {
+        EBAY_IT: 0,
+        EBAY_DE: 0,
+        EBAY_FR: 0,
+        EBAY_ES: 0,
+        EBAY_GB: 0
       }
     };
 
-    function loadPriceAdjustments() {
-      try {
-        const raw = localStorage.getItem(PRICE_STORAGE_KEY);
-        if (!raw) {
-          return {
-            EBAY_IT: 0,
-            EBAY_DE: 0,
-            EBAY_FR: 0,
-            EBAY_ES: 0,
-            EBAY_GB: 0
-          };
-        }
-        const parsed = JSON.parse(raw);
-        return {
-          EBAY_IT: Number(parsed.EBAY_IT || 0),
-          EBAY_DE: Number(parsed.EBAY_DE || 0),
-          EBAY_FR: Number(parsed.EBAY_FR || 0),
-          EBAY_ES: Number(parsed.EBAY_ES || 0),
-          EBAY_GB: Number(parsed.EBAY_GB || 0)
-        };
-      } catch {
-        return {
-          EBAY_IT: 0,
-          EBAY_DE: 0,
-          EBAY_FR: 0,
-          EBAY_ES: 0,
-          EBAY_GB: 0
-        };
-      }
+    function safeString(value) {
+      return value === undefined || value === null || value === "" ? "-" : String(value);
     }
 
-    function savePriceAdjustmentsToStorage() {
-      localStorage.setItem(PRICE_STORAGE_KEY, JSON.stringify(state.priceAdjustments));
-    }
-
-    function renderPriceAdjustments() {
-      const wrap = document.getElementById("priceAdjustmentsGrid");
-      wrap.innerHTML = MARKETPLACES.map(m => `
-        <div class="price-box">
-          <div class="market">${m.label}</div>
-          <div class="site">${m.site}</div>
-          <input
-            type="number"
-            step="0.01"
-            data-price-market="${m.id}"
-            value="${Number(state.priceAdjustments[m.id] || 0).toFixed(2)}"
-            placeholder="0.00"
-          />
-        </div>
-      `).join("");
-    }
-
-    function collectPriceAdjustmentsFromUi() {
-      const map = {};
-      document.querySelectorAll("[data-price-market]").forEach(input => {
-        const id = input.getAttribute("data-price-market");
-        map[id] = Number(input.value || 0);
-      });
-      state.priceAdjustments = map;
-      savePriceAdjustmentsToStorage();
-      return map;
-    }
-
-    function log(message, payload) {
-      const el = document.getElementById("logBox");
-      const time = new Date().toLocaleTimeString("it-IT");
-      const line = payload !== undefined
-        ? `[${time}] ${message}\n${formatJson(payload)}\n`
-        : `[${time}] ${message}\n`;
-      el.textContent = `${line}\n${el.textContent}`.trim();
+    function escapeHtml(str) {
+      return String(str || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
     }
 
     function formatJson(value) {
@@ -1553,7 +1189,7 @@
         <div class="toast-text">${escapeHtml(text)}</div>
       `;
       wrap.prepend(el);
-      setTimeout(() => el.remove(), 5000);
+      setTimeout(() => el.remove(), 4800);
     }
 
     function openOverlay(title, text) {
@@ -1629,21 +1265,58 @@
         : "0 0 0 4px rgba(210,26,26,0.2)";
     }
 
-    function safeString(value) {
-      return value === undefined || value === null || value === "" ? "-" : String(value);
+    function parseEuroNumber(value) {
+      if (value === undefined || value === null) return 0;
+      const normalized = String(value).trim().replace(/\./g, "").replace(",", ".");
+      const n = Number(normalized);
+      return Number.isFinite(n) ? Number(n.toFixed(2)) : 0;
     }
 
-    function escapeHtml(str) {
-      return String(str || "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;");
-    }
-
-    function currency(value) {
+    function formatEuroInput(value) {
       const n = Number(value || 0);
-      return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+      return n.toFixed(2).replace(".", ",");
+    }
+
+    function loadAdjustmentsFromStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        MARKETPLACES.forEach(m => {
+          state.priceAdjustments[m.id] = parseEuroNumber(parsed?.[m.id] || 0);
+        });
+      } catch {}
+    }
+
+    function applyAdjustmentsToInputs() {
+      MARKETPLACES.forEach(m => {
+        const input = document.getElementById(`adj_${m.id}`);
+        if (input) input.value = formatEuroInput(state.priceAdjustments[m.id] || 0);
+      });
+    }
+
+    function readAdjustmentsFromInputs() {
+      MARKETPLACES.forEach(m => {
+        const input = document.getElementById(`adj_${m.id}`);
+        state.priceAdjustments[m.id] = parseEuroNumber(input?.value || 0);
+      });
+    }
+
+    function saveAdjustments() {
+      readAdjustmentsFromInputs();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.priceAdjustments));
+      renderPricePreview();
+      showToast("Maggiorazioni salvate", "Le maggiorazioni prezzo sono state salvate nella UI.", "success");
+    }
+
+    function resetAdjustments() {
+      MARKETPLACES.forEach(m => {
+        state.priceAdjustments[m.id] = 0;
+      });
+      applyAdjustmentsToInputs();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.priceAdjustments));
+      renderPricePreview();
+      showToast("Maggiorazioni azzerate", "Tutte le maggiorazioni sono state riportate a 0.", "info");
     }
 
     function getSelectedMarketplaces() {
@@ -1653,36 +1326,71 @@
       return checks.length ? checks : MARKETPLACES.map(m => m.id);
     }
 
-    function normalizeProductPayload(data) {
-      const product = data?.product || data?.shopify || data?.shopifyVariant?.product || null;
-      if (!product) return null;
-
+    function normalizeDashboardProduct(data) {
+      const product = data?.product || {};
       return {
-        sku: data?.sku || product?.sku || state.currentSku || "",
-        title: product.title || "",
-        categoryFullName: product.categoryFullName || product.category || "",
-        productType: product.productType || "",
-        vendor: product.vendor || "",
-        price: product.price ?? data?.price ?? "",
-        inventoryQuantity: product.inventoryQuantity ?? data?.inventoryQuantity ?? "",
-        descriptionText: product.descriptionText || product.description || "",
-        descriptionHtml: product.descriptionHtml || "",
-        barcode: product.barcode || data?.barcode || "",
-        onlineStoreUrl: product.onlineStoreUrl || "",
-        imageUrls: Array.isArray(product.imageUrls) ? product.imageUrls : []
+        sku: data?.sku || product?.sku || "",
+        title: product?.title || "",
+        categoryFullName: product?.categoryFullName || "",
+        productType: product?.productType || "",
+        vendor: product?.vendor || "",
+        price: product?.price ?? "",
+        inventoryQuantity: product?.inventoryQuantity ?? "",
+        barcode: product?.barcode || "",
+        onlineStoreUrl: product?.onlineStoreUrl || "",
+        imageUrls: Array.isArray(product?.imageUrls) ? product.imageUrls : [],
+        descriptionText: product?.descriptionText || ""
       };
+    }
+
+    function normalizeMarketRows(data) {
+      const rows = Array.isArray(data?.markets) ? data.markets : [];
+      return MARKETPLACES.map(m => {
+        const found = rows.find(x => String(x?.marketplaceId || "") === m.id) || {};
+        const present = Boolean(found.present);
+        const missing = Boolean(found.missing);
+        const hasError = Boolean(found.error);
+        let status = "unknown";
+        if (present) status = "present";
+        else if (missing) status = "missing";
+        else if (hasError) status = "error";
+
+        return {
+          marketplaceId: m.id,
+          label: m.label,
+          locale: m.locale,
+          site: m.site,
+          present,
+          missing,
+          ok: Boolean(found.ok),
+          status,
+          error: found.error || null,
+          listingId: found.listingId || null,
+          offerId: found.offerId || null,
+          categoryId: found.categoryId || null,
+          categoryName: found.categoryName || "",
+          raw: found
+        };
+      });
     }
 
     function renderProduct(product) {
       state.currentProduct = product;
-      state.currentSku = product?.sku || state.currentSku || "";
+      state.currentSku = product?.sku || "";
 
       document.getElementById("productTitle").textContent = safeString(product?.title);
       document.getElementById("productCategory").textContent = safeString(product?.categoryFullName);
       document.getElementById("productType").textContent = safeString(product?.productType);
       document.getElementById("productVendor").textContent = safeString(product?.vendor);
-      document.getElementById("productPrice").textContent = product?.price !== "" && product?.price !== "-" ? currency(product?.price) : "-";
+      document.getElementById("productPrice").textContent = safeString(product?.price);
       document.getElementById("productQty").textContent = safeString(product?.inventoryQuantity);
+      document.getElementById("productBarcode").textContent = safeString(product?.barcode);
+
+      const url = product?.onlineStoreUrl || "";
+      document.getElementById("productUrl").innerHTML = url
+        ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`
+        : "-";
+
       document.getElementById("productDescription").textContent = safeString(product?.descriptionText);
 
       const imgWrap = document.getElementById("productImages");
@@ -1699,131 +1407,71 @@
         });
       }
 
-      document.getElementById("statLoadedSku").textContent = state.currentSku ? "1" : "0";
-      document.getElementById("syncLastSku").textContent = state.currentSku || "-";
+      document.getElementById("statLoadedSku").textContent = product?.sku ? "1" : "0";
+      renderPricePreview();
     }
 
-    function buildTranslationPreview(product, markets = []) {
-      if (!product) {
-        document.getElementById("translationPreview").innerHTML =
-          `<div class="empty">Nessun prodotto caricato.</div>`;
-        return;
+    function renderSummaryBoxes() {
+      const present = state.currentMarkets.filter(x => x.present).map(x => x.label);
+      const missing = state.currentMarkets.filter(x => !x.present).map(x => x.label);
+
+      document.getElementById("presentMarketsBox").textContent = present.length ? present.join(", ") : "Nessuno";
+      document.getElementById("missingMarketsBox").textContent = missing.length ? missing.join(", ") : "Nessuno";
+      document.getElementById("statPresentMarkets").textContent = String(present.length);
+
+      if (state.currentProduct) {
+        const base = Number(state.currentProduct.price || 0);
+        const lines = MARKETPLACES.map(m => {
+          const adj = Number(state.priceAdjustments[m.id] || 0);
+          const finalPrice = Number((base + adj).toFixed(2));
+          return `${m.label}: ${finalPrice.toFixed(2)} €`;
+        });
+        document.getElementById("pricePreviewBox").innerHTML = lines.map(x => escapeHtml(x)).join("<br>");
+        document.getElementById("noteBox").textContent =
+          present.length === MARKETPLACES.length
+            ? "SKU presente su tutti i marketplace."
+            : "SKU non ancora completo su tutti i marketplace.";
+      } else {
+        document.getElementById("pricePreviewBox").textContent = "-";
+        document.getElementById("noteBox").textContent = "Carica uno SKU per vedere il quadro reale.";
       }
-
-      const rows = (markets.length ? markets : MARKETPLACES.map(m => ({ marketplaceId: m.id, title: product.title, description: product.descriptionText })))
-        .map(m => {
-          const marketInfo = MARKETPLACES.find(x => x.id === m.marketplaceId) || {};
-          return `
-            <div class="meta-card">
-              <span class="meta-k">${escapeHtml(marketInfo.label || m.marketplaceId || "-")} • ${escapeHtml(marketInfo.locale || "")}</span>
-              <div class="meta-v">
-                <strong>${escapeHtml(safeString(m.title || product.title))}</strong><br>
-                <span style="color:var(--muted);">${escapeHtml(safeString(product.vendor))} • ${escapeHtml(safeString(product.productType))}</span><br><br>
-                <span>${escapeHtml(String(m.description || product.descriptionText || "").slice(0, 240))}${String(m.description || product.descriptionText || "").length > 240 ? "..." : ""}</span>
-              </div>
-            </div>
-          `;
-        }).join("");
-
-      document.getElementById("translationPreview").innerHTML = `<div class="product-meta">${rows}</div>`;
     }
 
-    function normalizeMarketRowsFromSkuResult(result) {
-      const rows = Array.isArray(result?.markets) ? result.markets : [];
-      return MARKETPLACES.map(m => {
-        const found = rows.find(x => x.marketplaceId === m.id) || {};
-        return {
-          marketplaceId: m.id,
-          label: m.label,
-          locale: m.locale,
-          site: m.site,
-          title: found.title || result?.product?.title || "",
-          description: found.description || result?.product?.descriptionText || "",
-          ok: Boolean(found.ok),
-          present: Boolean(found.present),
-          missing: Boolean(found.missing),
-          error: found.error || found.message || "",
-          status: found.status || "",
-          listingId: found.listingId || null,
-          offerId: found.offerId || null,
-          categoryId: found.categoryId || null,
-          categoryName: found.categoryName || "",
-          raw: found
-        };
-      });
+    function renderPricePreview() {
+      renderSummaryBoxes();
     }
 
-    function normalizeMarketRowsFromPublishResult(result) {
-      const marketplaceResults =
-        Array.isArray(result?.marketplaceResults) && result.marketplaceResults.length
-          ? result.marketplaceResults
-          : (Array.isArray(result?.results) ? result.results : []);
-
-      return MARKETPLACES.map(m => {
-        const found = marketplaceResults.find(x => String(x?.marketplaceId || "") === m.id) || {};
-        const errorValue = found?.error || found?.publishError || found?.republishError || null;
-        const isOk = Boolean(found?.ok);
-        const isPresent = isOk || Boolean(found?.listingId || found?.listingIdUsed || found?.offerId) || found?.status === "PUBLISHED";
-
-        return {
-          marketplaceId: m.id,
-          label: m.label,
-          locale: m.locale,
-          site: m.site,
-          title: found.title || state.currentProduct?.title || "",
-          description: found.description || state.currentProduct?.descriptionText || "",
-          ok: isOk,
-          present: isPresent,
-          missing: !isPresent,
-          error: errorValue ? (typeof errorValue === "string" ? errorValue : JSON.stringify(errorValue)) : "",
-          status: found.status || (isPresent ? "PRESENT" : "MISSING"),
-          listingId: found.listingId || found.listingIdUsed || null,
-          offerId: found.offerId || null,
-          categoryId: found.categoryId || found.resolvedCategoryId || null,
-          categoryName: found.categoryName || found.resolvedCategoryName || "",
-          raw: found
-        };
-      });
-    }
-
-    function normalizeMarketRows(result) {
-      if (Array.isArray(result?.markets)) {
-        return normalizeMarketRowsFromSkuResult(result);
-      }
-      return normalizeMarketRowsFromPublishResult(result);
-    }
-
-    function renderMarketGrid(result) {
+    function renderMarketGrid() {
       const wrap = document.getElementById("marketGrid");
       const search = document.getElementById("searchMarket").value.trim().toUpperCase();
-      const filter = document.getElementById("marketStatusFilter").value;
 
-      const normalized = normalizeMarketRows(result);
-
-      const filtered = normalized.filter(item => {
-        const bySearch = !search || item.marketplaceId.includes(search) || item.label.includes(search);
-        if (!bySearch) return false;
-        if (filter === "ok") return item.ok || item.present;
-        if (filter === "error") return !!item.error;
-        if (filter === "missing") return item.missing || (!item.ok && !item.present);
-        return true;
+      const filtered = state.currentMarkets.filter(item => {
+        return !search || item.marketplaceId.includes(search) || item.label.includes(search);
       });
 
       if (!filtered.length) {
-        wrap.innerHTML = `<div class="empty" style="grid-column:1/-1;">Nessun marketplace visibile con i filtri attuali.</div>`;
+        wrap.innerHTML = `<div class="empty" style="grid-column:1/-1;">Nessun marketplace visibile.</div>`;
         return;
       }
 
       wrap.innerHTML = filtered.map(item => {
-        const chipClass = item.present ? "success" : (item.error ? "danger" : "warning");
-        const chipLabel = item.present ? "Presente" : (item.error ? "Errore" : "Mancante");
+        let chipClass = "neutral";
+        let chipLabel = "Da verificare";
 
-        const infoLines = [];
-        if (item.listingId) infoLines.push(`<div><strong>Listing ID:</strong> ${escapeHtml(item.listingId)}</div>`);
-        if (item.offerId) infoLines.push(`<div><strong>Offer ID:</strong> ${escapeHtml(item.offerId)}</div>`);
-        if (item.categoryId) infoLines.push(`<div><strong>Category ID:</strong> ${escapeHtml(item.categoryId)}</div>`);
-        if (item.categoryName) infoLines.push(`<div><strong>Categoria:</strong> ${escapeHtml(item.categoryName)}</div>`);
-        if (item.status) infoLines.push(`<div><strong>Status:</strong> ${escapeHtml(item.status)}</div>`);
+        if (item.present) {
+          chipClass = "success";
+          chipLabel = "Pubblicato";
+        } else if (item.error) {
+          chipClass = "danger";
+          chipLabel = "Errore";
+        } else if (item.missing || !item.present) {
+          chipClass = "warning";
+          chipLabel = "Mancante";
+        }
+
+        const basePrice = Number(state.currentProduct?.price || 0);
+        const adj = Number(state.priceAdjustments[item.marketplaceId] || 0);
+        const finalPrice = Number((basePrice + adj).toFixed(2));
 
         return `
           <div class="market-card">
@@ -1838,19 +1486,20 @@
             </div>
 
             <div class="market-box">
-              ${item.error
-                ? `<div><strong>Errore</strong><br>${escapeHtml(item.error)}</div>`
-                : item.present
-                  ? `<div><strong>Inserzione rilevata</strong><br>Marketplace presente / risposta positiva.</div>`
-                  : `<div><strong>Da pubblicare</strong><br>Il marketplace non risulta ancora coperto.</div>`
-              }
-              ${infoLines.length ? `<div style="margin-top:10px; display:grid; gap:6px;">${infoLines.join("")}</div>` : ""}
+              <div><strong>Stato:</strong> ${escapeHtml(item.status.toUpperCase())}</div>
+              <div><strong>Prezzo Shopify:</strong> ${basePrice ? basePrice.toFixed(2) + " €" : "-"}</div>
+              <div><strong>Maggiorazione:</strong> +${adj.toFixed(2)} €</div>
+              <div><strong>Prezzo finale:</strong> ${finalPrice.toFixed(2)} €</div>
+              <div><strong>Listing ID:</strong> ${escapeHtml(safeString(item.listingId))}</div>
+              <div><strong>Offer ID:</strong> ${escapeHtml(safeString(item.offerId))}</div>
+              ${item.categoryId ? `<div><strong>Category ID:</strong> ${escapeHtml(item.categoryId)}</div>` : ""}
+              ${item.error ? `<div style="margin-top:8px; color: var(--danger);"><strong>Errore:</strong><br>${escapeHtml(typeof item.error === "string" ? item.error : formatJson(item.error))}</div>` : ""}
             </div>
 
             <div class="market-actions">
-              <button class="small-btn primary" onclick="publishSingleMarketplace('${item.marketplaceId}')">Pubblica ${item.label}</button>
-              <button class="small-btn warning" onclick="repairSingleMarketplace('${item.marketplaceId}')">Repair ${item.label}</button>
-              <button class="small-btn" onclick="reloadCurrentSku()">Ricarica SKU</button>
+              <button class="btn btn-success" onclick="publishSingleMarketplace('${item.marketplaceId}')">Pubblica ${item.label}</button>
+              <button class="btn btn-warning" onclick="repairSingleMarketplace('${item.marketplaceId}')">Repair ${item.label}</button>
+              <button class="btn btn-light" onclick="reloadCurrentSku()">Ricarica SKU</button>
             </div>
           </div>
         `;
@@ -1860,8 +1509,6 @@
     async function refreshStatus() {
       try {
         const health = await fetchJson(API.health);
-        log("Health endpoint OK", health);
-
         const env = health.environment || health.ebayEnvironment || health.env || "production";
         const moduleEnabled = health.ebayEnabled ?? health.ebayModuleEnabled ?? health.ok ?? true;
         const tokenConfigured = health.verificationTokenConfigured ?? health.ebayVerificationTokenConfigured ?? true;
@@ -1869,143 +1516,129 @@
         document.getElementById("metaEnvironment").textContent = safeString(env);
         document.getElementById("metaModule").textContent = String(moduleEnabled);
         document.getElementById("metaVerification").textContent = String(tokenConfigured);
+        document.getElementById("metaMarkets").textContent = "IT, DE, FR, ES, GB";
 
         setHeroStatus(Boolean(moduleEnabled), moduleEnabled ? "eBay account collegato / endpoint attivo" : "Modulo eBay non attivo");
-        document.getElementById("syncHealth").textContent = "OK";
       } catch (error) {
-        log("Health endpoint in errore", error.message);
+        document.getElementById("metaEnvironment").textContent = "Errore";
+        document.getElementById("metaModule").textContent = "-";
+        document.getElementById("metaVerification").textContent = "-";
         setHeroStatus(false, `Errore health: ${error.message}`);
-        document.getElementById("syncHealth").textContent = error.message;
-      }
-
-      try {
-        const repair = await fetchJson(API.repairState);
-        log("Repair state OK", repair);
-        const st = repair.state || {};
-        document.getElementById("repairLastRun").textContent = safeString(st.lastRunAt);
-        document.getElementById("repairCursor").textContent = safeString(st.cursor);
-        document.getElementById("repairLastBatch").textContent = Array.isArray(st.lastBatch) ? st.lastBatch.join(", ") : safeString(st.lastBatch);
-        document.getElementById("repairProcessedCount").textContent = safeString(st.processedCount ?? (Array.isArray(st.processedSkus) ? st.processedSkus.length : "-"));
-        document.getElementById("statRepairCursor").textContent = safeString(st.cursor);
-        document.getElementById("syncRepairState").textContent = "OK";
-      } catch (error) {
-        log("Repair state endpoint in errore", error.message);
-        document.getElementById("repairLastRun").textContent = "Errore";
-        document.getElementById("repairCursor").textContent = "-";
-        document.getElementById("repairLastBatch").textContent = "-";
-        document.getElementById("repairProcessedCount").textContent = "-";
-        document.getElementById("syncRepairState").textContent = error.message;
       }
     }
 
     async function loadProductBySku() {
       const sku = document.getElementById("skuInput").value.trim();
+      const sourceLanguage = document.getElementById("sourceLanguage").value || "it";
+
       if (!sku) {
         showToast("SKU mancante", "Inserisci uno SKU Shopify.", "error");
         return;
       }
 
-      state.currentSku = sku;
-      setSingleProgress(`Caricamento SKU ${sku}...`, 18, [
-        `SKU: ${sku}`,
-        "Ricerca dati Shopify in corso"
-      ]);
-
       openOverlay("Caricamento prodotto Shopify", `Sto cercando i dati del prodotto per ${sku}.`);
-      appendOverlayLog(`Avvio caricamento SKU ${sku}`);
+      appendOverlayLog("Avvio caricamento SKU", { sku, sourceLanguage });
 
       try {
-        const data = await fetchJson(API.dashboardSku(sku, document.getElementById("sourceLanguage").value || "it"));
-        appendOverlayLog("Dati ricevuti dalla route dashboard/sku", data);
+        setSingleProgress(`Caricamento dati Shopify in corso`, 15, [
+          `SKU: ${sku}`,
+          "Uso route /ebay/dashboard/sku"
+        ]);
 
-        const product = normalizeProductPayload(data);
-        if (!product) {
-          throw new Error("La route SKU ha risposto ma non ha restituito i dati prodotto.");
+        const data = await fetchJson(API.dashboardSku(sku, sourceLanguage));
+        appendOverlayLog("Risposta dashboard/sku", data);
+
+        if (!data?.ok) {
+          throw new Error(data?.error || "Risposta non valida dal backend");
         }
 
+        const product = normalizeDashboardProduct(data);
         state.currentProductRaw = data;
-        state.singlePublishResult = data;
+        state.currentProduct = product;
+        state.currentSku = sku;
+        state.currentMarkets = normalizeMarketRows(data);
+
         renderProduct(product);
-        renderMarketGrid(data);
-        buildTranslationPreview(product, data.markets || []);
+        renderSummaryBoxes();
+        renderMarketGrid();
 
-        const missingCount = Array.isArray(data.missingMarkets) ? data.missingMarkets.length : 0;
-        const presentCount = Array.isArray(data.presentMarkets) ? data.presentMarkets.length : 0;
+        const presentCount = state.currentMarkets.filter(x => x.present).length;
+        const missingCount = state.currentMarkets.length - presentCount;
 
-        setSingleProgress(`SKU ${sku} caricato correttamente.`, 100, [
-          `SKU: ${sku}`,
-          `Mercati presenti: ${presentCount}`,
-          `Mercati mancanti: ${missingCount}`
+        setSingleProgress(`SKU ${sku} caricato correttamente`, 100, [
+          `Presenti: ${presentCount}`,
+          `Mancanti: ${missingCount}`
         ]);
 
         setOverlayStatus("Caricamento completato", 100, [
-          `SKU caricato: ${sku}`,
+          `SKU: ${sku}`,
           `Presenti: ${presentCount}`,
           `Mancanti: ${missingCount}`
         ]);
 
         showToast("Prodotto caricato", `SKU ${sku} caricato correttamente.`, "success");
-        log(`SKU ${sku} caricato`, data);
       } catch (error) {
+        document.getElementById("statErrors").textContent = String(Number(document.getElementById("statErrors").textContent || 0) + 1);
         setSingleProgress(`Errore caricamento SKU ${sku}`, 100, [
-          `SKU: ${sku}`,
           `Errore: ${error.message}`
         ]);
-        setOverlayStatus("Errore durante il caricamento", 100, [
+        setOverlayStatus("Errore caricamento", 100, [
           `SKU: ${sku}`,
           `Errore: ${error.message}`
         ]);
         appendOverlayLog("Errore caricamento SKU", error.message);
         showToast("Errore caricamento SKU", error.message, "error");
-        log(`Errore caricamento SKU ${sku}`, error.message);
       }
     }
 
-    function getPublishPayload(sku, marketplaces) {
-  return {
-    sku,
-    sourceLanguage: document.getElementById("sourceLanguage").value || "it",
-    marketplaces,
-    marketplacePriceAdjustments: state.priceAdjustments || {}
-  };
-}
-
     async function publishSkuRequest(sku, marketplaces) {
-      const payload = getPublishPayload(sku, marketplaces);
       return fetchJson(API.publishMulti, {
         method: "POST",
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          sku,
+          sourceLanguage: document.getElementById("sourceLanguage").value || "it",
+          marketplaces,
+          marketplacePriceAdjustments: state.priceAdjustments
+        })
       });
     }
 
     async function publishSingleSku() {
       const sku = document.getElementById("skuInput").value.trim();
       if (!sku) {
-        showToast("SKU mancante", "Inserisci uno SKU.", "error");
+        showToast("SKU mancante", "Inserisci prima lo SKU.", "error");
         return;
       }
 
       const marketplaces = getSelectedMarketplaces();
       openOverlay("Pubblicazione SKU", `Sto pubblicando ${sku} sui marketplace selezionati.`);
-      appendOverlayLog("Avvio publish singolo", { sku, marketplaces, priceAdjustments: state.priceAdjustments });
+      appendOverlayLog("Avvio publish singolo", {
+        sku,
+        marketplaces,
+        marketplacePriceAdjustments: state.priceAdjustments
+      });
 
       try {
-        setSingleProgress(`Pubblicazione SKU ${sku} in corso...`, 20, [
+        setSingleProgress(`Pubblicazione in corso`, 22, [
           `SKU: ${sku}`,
           `Mercati: ${marketplaces.join(", ")}`
         ]);
 
         const result = await publishSkuRequest(sku, marketplaces);
-        state.singlePublishResult = result;
-        renderMarketGrid(result);
+        appendOverlayLog("Risultato publish", result);
 
-        const marketRows = normalizeMarketRows(result);
-        const okCount = marketRows.filter(x => x.present || x.ok).length;
-        const failCount = marketRows.filter(x => !x.present && !x.ok).length;
+        const marketplaceResults = Array.isArray(result?.marketplaceResults)
+          ? result.marketplaceResults
+          : Array.isArray(result?.results)
+            ? result.results
+            : [];
 
-        setSingleProgress(`Pubblicazione completata per ${sku}`, 100, [
-          `Mercati OK: ${okCount}`,
-          `Mercati con errore: ${failCount}`
+        const okCount = marketplaceResults.filter(x => x?.ok).length;
+        const failCount = marketplaceResults.length - okCount;
+
+        setSingleProgress(`Pubblicazione completata`, 100, [
+          `OK: ${okCount}`,
+          `Errori: ${failCount}`
         ]);
 
         setOverlayStatus("Pubblicazione completata", 100, [
@@ -2013,19 +1646,17 @@
           `OK: ${okCount}`,
           `Errori: ${failCount}`
         ]);
-        appendOverlayLog("Risultato publish", result);
 
-        document.getElementById("syncLastPublish").textContent = failCount ? "Completato con errori" : "OK";
-        document.getElementById("statErrors").textContent = String(failCount);
-
-        showToast("Pubblicazione completata", `SKU ${sku} elaborato. OK: ${okCount}, errori: ${failCount}.`, failCount ? "info" : "success");
-        log(`Pubblicazione SKU ${sku} completata`, result);
+        showToast(
+          "Pubblicazione completata",
+          `SKU ${sku} elaborato. OK: ${okCount}, errori: ${failCount}.`,
+          failCount ? "info" : "success"
+        );
 
         await loadProductBySku();
-        await loadMissingDashboard(false);
-        await loadErrorMonitor();
       } catch (error) {
-        setSingleProgress(`Errore pubblicazione SKU ${sku}`, 100, [
+        document.getElementById("statErrors").textContent = String(Number(document.getElementById("statErrors").textContent || 0) + 1);
+        setSingleProgress(`Errore pubblicazione`, 100, [
           `SKU: ${sku}`,
           `Errore: ${error.message}`
         ]);
@@ -2034,9 +1665,7 @@
           `Errore: ${error.message}`
         ]);
         appendOverlayLog("Errore publish", error.message);
-        document.getElementById("syncLastPublish").textContent = error.message;
         showToast("Errore publish", error.message, "error");
-        log(`Errore publish ${sku}`, error.message);
       }
     }
 
@@ -2048,31 +1677,23 @@
       }
 
       openOverlay("Pubblicazione marketplace singolo", `Sto pubblicando ${sku} su ${marketplaceId}.`);
-      appendOverlayLog("Avvio publish marketplace", { sku, marketplaceId });
+      appendOverlayLog("Avvio publish marketplace", {
+        sku,
+        marketplaceId,
+        adjustment: state.priceAdjustments[marketplaceId] || 0
+      });
 
       try {
         const result = await publishSkuRequest(sku, [marketplaceId]);
-        state.singlePublishResult = result;
-        renderMarketGrid(result);
-        setSingleProgress(`Pubblicato ${sku} su ${marketplaceId}`, 100, [
-          `SKU: ${sku}`,
-          `Marketplace: ${marketplaceId}`
-        ]);
+        appendOverlayLog("Risultato publish marketplace", result);
         setOverlayStatus("Publish marketplace completato", 100, [
           `SKU: ${sku}`,
           `Marketplace: ${marketplaceId}`
         ]);
-        appendOverlayLog("Risultato publish marketplace", result);
-        showToast("Publish marketplace completato", `${sku} -> ${marketplaceId}`, "success");
-
+        showToast("Publish completato", `${sku} -> ${marketplaceId}`, "success");
         await loadProductBySku();
-        await loadMissingDashboard(false);
-        await loadErrorMonitor();
       } catch (error) {
-        setSingleProgress(`Errore ${marketplaceId}`, 100, [
-          `SKU: ${sku}`,
-          `Errore: ${error.message}`
-        ]);
+        document.getElementById("statErrors").textContent = String(Number(document.getElementById("statErrors").textContent || 0) + 1);
         setOverlayStatus("Errore marketplace", 100, [
           `SKU: ${sku}`,
           `Marketplace: ${marketplaceId}`,
@@ -2094,37 +1715,32 @@
       const marketParam = marketplaceId || getSelectedMarketplaces().join(",");
 
       openOverlay("Repair categoria SKU", `Sto eseguendo il repair categoria per ${sku}.`);
-      appendOverlayLog("Avvio repair SKU", { sku, sourceLanguage, marketParam });
+      appendOverlayLog("Avvio repair SKU", { sku, sourceLanguage, marketplaces: marketParam });
 
       try {
-        setSingleProgress(`Repair categoria in corso per ${sku}...`, 22, [
+        setSingleProgress(`Repair categoria in corso`, 25, [
           `SKU: ${sku}`,
           `Mercati: ${marketParam || "tutti"}`
         ]);
 
         const result = await fetchJson(API.repairCategory(sku, sourceLanguage, marketParam));
-        renderMarketGrid(result);
+        appendOverlayLog("Risultato repair", result);
 
-        const marketRows = normalizeMarketRows(result);
-        const okCount = marketRows.filter(x => x.present || x.ok).length;
-        const failCount = marketRows.filter(x => !x.present && !x.ok).length;
-
-        setSingleProgress(`Repair completato per ${sku}`, 100, [
-          `Mercati OK: ${okCount}`,
-          `Mercati con errore: ${failCount}`
+        setSingleProgress(`Repair completato`, 100, [
+          `SKU: ${sku}`,
+          "Controlla adesso lo stato marketplace"
         ]);
+
         setOverlayStatus("Repair completato", 100, [
           `SKU: ${sku}`,
-          `OK: ${okCount}`,
-          `Errori: ${failCount}`
+          `Mercati: ${marketParam || "tutti"}`
         ]);
-        appendOverlayLog("Risultato repair", result);
-        showToast("Repair categoria completato", `SKU ${sku}. OK: ${okCount}, errori: ${failCount}.`, failCount ? "info" : "success");
-        log(`Repair completato per ${sku}`, result);
 
+        showToast("Repair completato", `Repair categoria eseguito per ${sku}.`, "success");
         await loadProductBySku();
       } catch (error) {
-        setSingleProgress(`Errore repair per ${sku}`, 100, [
+        document.getElementById("statErrors").textContent = String(Number(document.getElementById("statErrors").textContent || 0) + 1);
+        setSingleProgress(`Errore repair`, 100, [
           `SKU: ${sku}`,
           `Errore: ${error.message}`
         ]);
@@ -2134,7 +1750,6 @@
         ]);
         appendOverlayLog("Errore repair", error.message);
         showToast("Errore repair", error.message, "error");
-        log(`Errore repair ${sku}`, error.message);
       }
     }
 
@@ -2147,28 +1762,32 @@
     }
 
     function resetUi() {
-      state.singlePublishResult = null;
+      state.currentSku = "";
+      state.currentProduct = null;
       state.currentProductRaw = null;
-      document.getElementById("translationPreview").innerHTML =
-        `<div class="empty">Nessuna preview disponibile. Clicca “Preview traduzioni”.</div>`;
-      document.getElementById("marketGrid").innerHTML = "";
-      document.getElementById("statErrors").textContent = "0";
+      state.currentMarkets = [];
+
+      document.getElementById("skuInput").value = "";
+      document.getElementById("productTitle").textContent = "-";
+      document.getElementById("productCategory").textContent = "-";
+      document.getElementById("productType").textContent = "-";
+      document.getElementById("productVendor").textContent = "-";
+      document.getElementById("productPrice").textContent = "-";
+      document.getElementById("productQty").textContent = "-";
+      document.getElementById("productBarcode").textContent = "-";
+      document.getElementById("productUrl").textContent = "-";
+      document.getElementById("productDescription").textContent = "-";
+      document.getElementById("productImages").innerHTML = "";
+      document.getElementById("presentMarketsBox").textContent = "-";
+      document.getElementById("missingMarketsBox").textContent = "-";
+      document.getElementById("pricePreviewBox").textContent = "-";
+      document.getElementById("noteBox").textContent = "Carica uno SKU per vedere il quadro reale.";
+      document.getElementById("marketGrid").innerHTML = `<div class="empty" style="grid-column:1/-1;">Nessuno SKU caricato.</div>`;
+      document.getElementById("statLoadedSku").textContent = "0";
+      document.getElementById("statPresentMarkets").textContent = "0";
+
       setSingleProgress("Reset UI completato.", 0, ["Interfaccia ripulita"]);
       showToast("Reset UI", "Stati grafici ripuliti.", "info");
-      log("Reset stati UI eseguito.");
-    }
-
-    function buildTranslationPreviewFromState() {
-      if (!state.currentProduct) {
-        showToast("Nessun prodotto", "Carica prima uno SKU.", "error");
-        return;
-      }
-      buildTranslationPreview(state.currentProduct, state.currentProductRaw?.markets || []);
-      setSingleProgress("Preview traduzioni generata.", 100, [
-        `SKU: ${state.currentSku || "-"}`,
-        "Anteprime disponibili"
-      ]);
-      showToast("Preview disponibile", "Anteprima traduzioni generata.", "success");
     }
 
     function getBulkSkuList() {
@@ -2217,10 +1836,15 @@
       renderBulkRows();
 
       openOverlay("Bulk publish", `Sto pubblicando ${skus.length} SKU.`);
-      appendOverlayLog("Avvio bulk publish", { total: skus.length, marketplaces });
+      appendOverlayLog("Avvio bulk publish", {
+        total: skus.length,
+        marketplaces,
+        marketplacePriceAdjustments: state.priceAdjustments
+      });
 
       for (const [index, sku] of skus.entries()) {
-        const pct = Math.round(((index) / skus.length) * 100);
+        const pct = Math.round((index / skus.length) * 100);
+
         setOverlayStatus(`Elaborazione SKU ${index + 1} di ${skus.length}`, pct, [
           `SKU corrente: ${sku}`,
           `Mercati: ${marketplaces.join(", ")}`
@@ -2228,7 +1852,13 @@
 
         try {
           const result = await publishSkuRequest(sku, marketplaces);
-          const hasErrors = normalizeMarketRows(result).some(x => !x.present && !x.ok);
+          const results = Array.isArray(result?.marketplaceResults)
+            ? result.marketplaceResults
+            : Array.isArray(result?.results)
+              ? result.results
+              : [];
+
+          const hasErrors = results.some(x => !x?.ok);
 
           state.bulk.done += 1;
           if (hasErrors) {
@@ -2257,6 +1887,7 @@
           });
           appendOverlayLog(`Errore ${sku}`, error.message);
         }
+
         renderBulkRows();
       }
 
@@ -2265,469 +1896,72 @@
         `OK: ${state.bulk.ok}`,
         `Errori: ${state.bulk.fail}`
       ]);
-      log("Bulk publish completato", state.bulk);
+
       showToast("Bulk completato", `OK: ${state.bulk.ok}, errori: ${state.bulk.fail}.`, state.bulk.fail ? "info" : "success");
-
-      await loadMissingDashboard(false);
-      await loadErrorMonitor();
-    }
-
-    async function pollRepairState(maxPolls = 20, delayMs = 2000) {
-      let last = null;
-
-      for (let i = 0; i < maxPolls; i++) {
-        try {
-          const data = await fetchJson(API.repairState);
-          last = data;
-          const st = data.state || {};
-          setOverlayStatus(`Polling stato repair (${i + 1}/${maxPolls})`, Math.min(95, 15 + (i + 1) * 4), [
-            `Last run: ${st.lastRunAt || "-"}`,
-            `Cursor: ${st.cursor ?? "-"}`,
-            `Processed: ${st.processedCount ?? (Array.isArray(st.processedSkus) ? st.processedSkus.length : "-")}`,
-            `Last batch: ${Array.isArray(st.lastBatch) ? st.lastBatch.join(", ") : "-"}`
-          ]);
-          appendOverlayLog("Repair state", data);
-        } catch (error) {
-          appendOverlayLog("Errore polling repair state", error.message);
-        }
-
-        await new Promise(r => setTimeout(r, delayMs));
-      }
-
-      return last;
-    }
-
-    async function runRepairBatch(limit, reset = false) {
-      openOverlay(reset ? "Reset repair state + batch" : `Repair batch ${limit}`, "Operazione in corso...");
-      appendOverlayLog("Avvio repair batch", { limit, reset });
-
-      try {
-        setOverlayStatus("Invio richiesta batch...", 12, [
-          `Limit: ${limit}`,
-          `Reset: ${reset ? "true" : "false"}`
-        ]);
-
-        const route = API.repairAll(limit, reset, document.getElementById("sourceLanguage").value || "it");
-        const result = await fetchJson(route);
-        appendOverlayLog("Risposta batch iniziale", result);
-
-        setOverlayStatus("Batch lanciato, controllo avanzamento...", 35, [
-          `ProcessedCount: ${result.processedCount ?? result.processed ?? "-"}`,
-          `Scanned: ${result.scanned ?? "-"}`
-        ]);
-
-        const latest = await pollRepairState(12, 1800);
-        await refreshStatus();
-
-        setOverlayStatus("Repair batch completato", 100, [
-          `ProcessedCount: ${result.processedCount ?? result.processed ?? "-"}`,
-          `Skipped: ${result.skippedAlreadyProcessed ?? "-"}`,
-          `Cursor finale: ${latest?.state?.cursor ?? "-"}`
-        ]);
-
-        showToast("Repair batch completato", `Limit ${limit} eseguito.`, "success");
-        log("Repair batch completato", { start: result, final: latest });
-      } catch (error) {
-        setOverlayStatus("Errore repair batch", 100, [
-          `Errore: ${error.message}`
-        ]);
-        appendOverlayLog("Errore repair batch", error.message);
-        showToast("Errore repair batch", error.message, "error");
-        log("Repair batch errore", error.message);
-      }
-    }
-
-    function normalizeMissingItem(item) {
-      const product = item?.product || {};
-      const missingMarkets = Array.isArray(item?.missingMarkets)
-        ? item.missingMarkets
-        : (Array.isArray(item?.missing)
-          ? item.missing
-          : []);
-
-      const presentMarkets = Array.isArray(item?.presentMarkets)
-        ? item.presentMarkets
-        : [];
-
-      return {
-        sku: item?.sku || product?.sku || "",
-        title: product?.title || item?.title || "",
-        vendor: product?.vendor || item?.vendor || "",
-        productType: product?.productType || item?.productType || "",
-        price: product?.price ?? item?.price ?? "",
-        inventoryQuantity: product?.inventoryQuantity ?? item?.inventoryQuantity ?? "",
-        imageUrls: Array.isArray(product?.imageUrls) ? product.imageUrls : (Array.isArray(item?.imageUrls) ? item.imageUrls : []),
-        missingMarkets,
-        presentMarkets,
-        raw: item
-      };
-    }
-
-    async function loadMissingDashboard(showOverlay = true) {
-      const limit = Number(document.getElementById("missingLimit").value || 20);
-
-      if (showOverlay) {
-        openOverlay("Caricamento prodotti mancanti", `Sto interrogando la dashboard mancanti (limit ${limit}).`);
-        appendOverlayLog("Avvio dashboard missing", { limit });
-      }
-
-      try {
-        const data = await fetchJson(API.dashboardMissing(limit));
-        appendOverlayLog("Risposta dashboard missing", data);
-
-        state.missingRows = Array.isArray(data?.items) ? data.items.map(normalizeMissingItem) : [];
-        state.missingCursor = data?.nextCursor || null;
-        state.missingHasNextPage = Boolean(data?.hasNextPage);
-
-        renderMissingCards();
-        document.getElementById("statMissingVisible").textContent = String(state.missingRows.length);
-
-        if (showOverlay) {
-          setOverlayStatus("Dashboard mancanti caricata", 100, [
-            `Elementi: ${state.missingRows.length}`,
-            `Has next page: ${state.missingHasNextPage ? "true" : "false"}`
-          ]);
-        }
-
-        showToast("Mancanti aggiornati", `${state.missingRows.length} elementi caricati.`, "success");
-        log("Dashboard missing caricata", data);
-      } catch (error) {
-        if (showOverlay) {
-          setOverlayStatus("Errore dashboard missing", 100, [
-            `Errore: ${error.message}`
-          ]);
-          appendOverlayLog("Errore dashboard missing", error.message);
-        }
-        showToast("Errore mancanti", error.message, "error");
-        log("Errore dashboard missing", error.message);
-      }
-    }
-
-    function filteredMissingRows() {
-      const search = document.getElementById("missingSearch").value.trim().toLowerCase();
-      const marketFilter = document.getElementById("missingMarketFilter").value;
-      const onlyProblems = document.getElementById("missingOnlyProblems").value;
-
-      return state.missingRows.filter(row => {
-        const text = `${row.sku} ${row.title} ${row.vendor}`.toLowerCase();
-        if (search && !text.includes(search)) return false;
-        if (marketFilter !== "all" && !row.missingMarkets.includes(marketFilter)) return false;
-        if (onlyProblems === "missingOnly" && !row.missingMarkets.length) return false;
-        return true;
-      });
-    }
-
-    function renderMissingCards() {
-      const wrap = document.getElementById("missingCards");
-      const rows = filteredMissingRows();
-
-      document.getElementById("statMissingVisible").textContent = String(rows.length);
-
-      if (!rows.length) {
-        wrap.innerHTML = `<div class="empty" style="grid-column:1/-1;">Nessun prodotto mancante con i filtri attuali.</div>`;
-        return;
-      }
-
-      wrap.innerHTML = rows.map(row => {
-        const img = Array.isArray(row.imageUrls) && row.imageUrls.length ? row.imageUrls[0] : "";
-        return `
-          <div class="listing-card">
-            <div class="listing-thumb">
-              ${img ? `<img src="${img}" alt="img" loading="lazy">` : `<span class="tiny-note">No image</span>`}
-            </div>
-
-            <div class="listing-body">
-              <div class="listing-sku">${escapeHtml(row.sku || "-")}</div>
-              <div class="listing-title">${escapeHtml(row.title || "-")}</div>
-
-              <div class="tiny-note">
-                ${escapeHtml(row.vendor || "-")} • ${escapeHtml(row.productType || "-")} • ${row.price !== "" ? currency(row.price) : "-"} • Qty ${escapeHtml(row.inventoryQuantity ?? "-")}
-              </div>
-
-              <div class="market-badges">
-                ${row.missingMarkets.length
-                  ? row.missingMarkets.map(m => `<span class="chip danger">${escapeHtml(m)}</span>`).join("")
-                  : `<span class="chip success">Completo</span>`}
-              </div>
-
-              <div class="card-actions">
-                <button class="small-btn primary" onclick="quickLoadSku('${escapeHtml(row.sku || "")}')">Apri SKU</button>
-                <button class="small-btn" onclick="publishMissingSku('${escapeHtml(row.sku || "")}', ${JSON.stringify(row.missingMarkets).replace(/"/g, '&quot;')})">Pubblica mancanti</button>
-                <button class="small-btn warning" onclick="quickRepairSku('${escapeHtml(row.sku || "")}', '')">Repair</button>
-              </div>
-            </div>
-          </div>
-        `;
-      }).join("");
-    }
-
-    async function publishMissingSku(sku, marketplaces) {
-      const targetMarkets = Array.isArray(marketplaces) && marketplaces.length ? marketplaces : MARKETPLACES.map(m => m.id);
-      openOverlay("Pubblicazione mercati mancanti", `Sto pubblicando ${sku} sui mercati mancanti.`);
-      appendOverlayLog("Avvio publish mancanti", { sku, marketplaces: targetMarkets });
-
-      try {
-        const result = await publishSkuRequest(sku, targetMarkets);
-        appendOverlayLog("Risultato publish mancanti", result);
-        setOverlayStatus("Pubblicazione mancanti completata", 100, [
-          `SKU: ${sku}`,
-          `Mercati: ${targetMarkets.join(", ")}`
-        ]);
-        showToast("Mancanti pubblicati", `${sku} elaborato.`, "success");
-        log("Publish mancanti completato", result);
-
-        await loadMissingDashboard(false);
-        await loadErrorMonitor();
-      } catch (error) {
-        appendOverlayLog("Errore publish mancanti", error.message);
-        setOverlayStatus("Errore publish mancanti", 100, [
-          `SKU: ${sku}`,
-          `Errore: ${error.message}`
-        ]);
-        showToast("Errore publish mancanti", error.message, "error");
-      }
-    }
-
-    async function publishVisibleMissingBatch() {
-      const rows = filteredMissingRows().filter(row => row.missingMarkets.length);
-      if (!rows.length) {
-        showToast("Nessun elemento", "Non ci sono SKU mancanti visibili da pubblicare.", "info");
-        return;
-      }
-
-      openOverlay("Pubblicazione batch mancanti", `Sto pubblicando ${rows.length} SKU con mercati mancanti.`);
-      appendOverlayLog("Avvio batch mancanti", { total: rows.length });
-
-      let ok = 0;
-      let fail = 0;
-
-      for (const [index, row] of rows.entries()) {
-        setOverlayStatus(`Batch mancanti ${index + 1} / ${rows.length}`, Math.round((index / rows.length) * 100), [
-          `SKU: ${row.sku}`,
-          `Mercati: ${row.missingMarkets.join(", ")}`
-        ]);
-
-        try {
-          const result = await publishSkuRequest(row.sku, row.missingMarkets);
-          ok += 1;
-          appendOverlayLog(`OK ${row.sku}`, result);
-        } catch (error) {
-          fail += 1;
-          appendOverlayLog(`Errore ${row.sku}`, error.message);
-        }
-      }
-
-      setOverlayStatus("Batch mancanti completato", 100, [
-        `Totale: ${rows.length}`,
-        `OK: ${ok}`,
-        `Errori: ${fail}`
-      ]);
-      showToast("Batch mancanti completato", `OK: ${ok}, errori: ${fail}`, fail ? "info" : "success");
-
-      await loadMissingDashboard(false);
-      await loadErrorMonitor();
-    }
-
-    function normalizeErrorItem(item) {
-      const product = item?.product || {};
-      const markets = Array.isArray(item?.markets) ? item.markets : [];
-      const problemMarkets = markets.filter(m => !m.ok || m.error);
-
-      return {
-        sku: item?.sku || product?.sku || "",
-        title: product?.title || item?.title || "",
-        vendor: product?.vendor || "",
-        imageUrls: Array.isArray(product?.imageUrls) ? product.imageUrls : [],
-        problemMarkets,
-        raw: item
-      };
-    }
-
-    async function loadErrorMonitor() {
-      try {
-        const data = await fetchJson(API.dashboardErrors(20));
-        state.errorRows = Array.isArray(data?.items) ? data.items.map(normalizeErrorItem) : [];
-        state.errorsCursor = data?.nextCursor || null;
-        state.errorsHasNextPage = Boolean(data?.hasNextPage);
-        renderErrorCards();
-        log("Dashboard errors caricata", data);
-      } catch (error) {
-        log("Errore dashboard errors", error.message);
-        renderErrorCards();
-      }
-    }
-
-    function renderErrorCards() {
-      const wrap = document.getElementById("errorCards");
-
-      if (!state.errorRows.length) {
-        wrap.innerHTML = `<div class="empty" style="grid-column:1/-1;">Nessun errore visibile al momento.</div>`;
-        return;
-      }
-
-      wrap.innerHTML = state.errorRows.map(row => {
-        const img = Array.isArray(row.imageUrls) && row.imageUrls.length ? row.imageUrls[0] : "";
-        const problemBadges = row.problemMarkets.length
-          ? row.problemMarkets.map(m => `<span class="chip danger">${escapeHtml(m.marketplaceId || "-")}</span>`).join("")
-          : `<span class="chip success">Nessun errore</span>`;
-
-        const firstError = row.problemMarkets.find(x => x.error)?.error || "Problema marketplace";
-        return `
-          <div class="listing-card">
-            <div class="listing-thumb">
-              ${img ? `<img src="${img}" alt="img" loading="lazy">` : `<span class="tiny-note">No image</span>`}
-            </div>
-
-            <div class="listing-body">
-              <div class="listing-sku">${escapeHtml(row.sku || "-")}</div>
-              <div class="listing-title">${escapeHtml(row.title || "-")}</div>
-              <div class="market-badges">${problemBadges}</div>
-              <div class="tiny-note">${escapeHtml(firstError)}</div>
-
-              <div class="card-actions">
-                <button class="small-btn primary" onclick="quickLoadSku('${escapeHtml(row.sku || "")}')">Apri SKU</button>
-                <button class="small-btn warning" onclick="quickRepairSku('${escapeHtml(row.sku || "")}', '')">Repair</button>
-                <button class="small-btn" onclick="quickPublishSku('${escapeHtml(row.sku || "")}', '')">Ripubblica</button>
-              </div>
-            </div>
-          </div>
-        `;
-      }).join("");
-    }
-
-    async function loadSyncMonitor() {
-      await refreshStatus();
-      await loadErrorMonitor();
-      await loadMissingDashboard(false);
-      showToast("Monitor aggiornato", "Stato sincronizzazione aggiornato.", "info");
     }
 
     function bindTabs() {
-      document.querySelectorAll(".tab").forEach(btn => {
-        btn.addEventListener("click", () => {
-          document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
-          document.querySelectorAll(".tab-panel").forEach(x => x.classList.remove("active"));
-          btn.classList.add("active");
-          document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
-        });
+      const singleBtn = document.getElementById("tabSingleBtn");
+      const bulkBtn = document.getElementById("tabBulkBtn");
+      const singleTab = document.getElementById("tabSingle");
+      const bulkTab = document.getElementById("tabBulk");
+
+      singleBtn.addEventListener("click", () => {
+        singleBtn.className = "btn btn-primary";
+        bulkBtn.className = "btn btn-light";
+        singleTab.style.display = "";
+        bulkTab.style.display = "none";
       });
-    }
 
-    async function quickLoadSku(sku) {
-      document.getElementById("skuInput").value = sku;
-      document.querySelector('[data-tab="single"]').click();
-      await loadProductBySku();
-    }
-
-    async function quickRepairSku(sku, marketplaceId) {
-      document.getElementById("skuInput").value = sku;
-      document.querySelector('[data-tab="single"]').click();
-      await repairCurrentSku(marketplaceId);
-    }
-
-    async function quickPublishSku(sku, marketplaceId) {
-      document.getElementById("skuInput").value = sku;
-      document.querySelector('[data-tab="single"]').click();
-      if (marketplaceId) {
-        await publishSingleMarketplace(marketplaceId);
-      } else {
-        await publishSingleSku();
-      }
+      bulkBtn.addEventListener("click", () => {
+        bulkBtn.className = "btn btn-primary";
+        singleBtn.className = "btn btn-light";
+        bulkTab.style.display = "";
+        singleTab.style.display = "none";
+      });
     }
 
     function bindEvents() {
       bindTabs();
 
       document.getElementById("overlayCloseBtn").addEventListener("click", closeOverlay);
+      document.getElementById("btnRefreshStatus").addEventListener("click", refreshStatus);
+      document.getElementById("btnResetUi").addEventListener("click", resetUi);
+
+      document.getElementById("btnSaveAdjustments").addEventListener("click", saveAdjustments);
+      document.getElementById("btnResetAdjustments").addEventListener("click", resetAdjustments);
 
       document.getElementById("singleMarketMode").addEventListener("change", (e) => {
         document.getElementById("marketSelectionRow").style.display =
           e.target.value === "custom" ? "flex" : "none";
       });
 
-      document.getElementById("btnRefreshStatus").addEventListener("click", refreshStatus);
-      document.getElementById("btnOpenRepairState").addEventListener("click", () => {
-        window.open(API.repairState, "_blank");
-      });
-
-      document.getElementById("btnSaveAdjustments").addEventListener("click", () => {
-        collectPriceAdjustmentsFromUi();
-        showToast("Maggiorazioni salvate", "Le maggiorazioni per mercato sono state salvate.", "success");
-        log("Maggiorazioni salvate", state.priceAdjustments);
-      });
-
-      document.getElementById("btnResetAdjustments").addEventListener("click", () => {
-        state.priceAdjustments = {
-          EBAY_IT: 0,
-          EBAY_DE: 0,
-          EBAY_FR: 0,
-          EBAY_ES: 0,
-          EBAY_GB: 0
-        };
-        savePriceAdjustmentsToStorage();
-        renderPriceAdjustments();
-        showToast("Maggiorazioni azzerate", "Tutti i valori sono stati rimessi a 0.", "info");
-      });
-
       document.getElementById("btnLoadProduct").addEventListener("click", loadProductBySku);
       document.getElementById("btnRepairSingle").addEventListener("click", () => repairCurrentSku());
-      document.getElementById("btnPreviewTranslations").addEventListener("click", buildTranslationPreviewFromState);
       document.getElementById("btnPublishSingle").addEventListener("click", publishSingleSku);
-      document.getElementById("btnResetUi").addEventListener("click", resetUi);
-
       document.getElementById("btnBulkPublish").addEventListener("click", bulkPublish);
-      document.getElementById("btnBulkRepair20").addEventListener("click", () => runRepairBatch(20, false));
+
       document.getElementById("btnBulkClear").addEventListener("click", () => {
         document.getElementById("bulkSkuList").value = "";
         showToast("Lista pulita", "La lista bulk è stata svuotata.", "info");
       });
 
-      document.getElementById("btnRefreshErrorMonitor").addEventListener("click", loadErrorMonitor);
-
-      document.getElementById("btnRefreshMissing").addEventListener("click", () => loadMissingDashboard(true));
-      document.getElementById("btnPublishVisibleMissing").addEventListener("click", publishVisibleMissingBatch);
-      document.getElementById("missingSearch").addEventListener("input", renderMissingCards);
-      document.getElementById("missingLimit").addEventListener("change", () => loadMissingDashboard(true));
-      document.getElementById("missingMarketFilter").addEventListener("change", renderMissingCards);
-      document.getElementById("missingOnlyProblems").addEventListener("change", renderMissingCards);
-      document.getElementById("btnResetMissingFilters").addEventListener("click", () => {
-        document.getElementById("missingSearch").value = "";
-        document.getElementById("missingLimit").value = "20";
-        document.getElementById("missingMarketFilter").value = "all";
-        document.getElementById("missingOnlyProblems").value = "all";
-        renderMissingCards();
-      });
-
-      document.getElementById("btnRefreshSync").addEventListener("click", loadSyncMonitor);
-
-      document.getElementById("btnRepair20").addEventListener("click", () => runRepairBatch(20, false));
-      document.getElementById("btnRepair50").addEventListener("click", () => runRepairBatch(50, false));
-      document.getElementById("btnRepairReset").addEventListener("click", () => runRepairBatch(20, true));
-
-      document.getElementById("searchMarket").addEventListener("input", () => renderMarketGrid(state.singlePublishResult || state.currentProductRaw || { markets: [] }));
-      document.getElementById("marketStatusFilter").addEventListener("change", () => renderMarketGrid(state.singlePublishResult || state.currentProductRaw || { markets: [] }));
+      document.getElementById("searchMarket").addEventListener("input", renderMarketGrid);
     }
 
     async function bootstrap() {
+      loadAdjustmentsFromStorage();
+      applyAdjustmentsToInputs();
       bindEvents();
-      renderPriceAdjustments();
       renderBulkRows();
-      renderMarketGrid({ markets: [] });
-      renderMissingCards();
-      renderErrorCards();
+      document.getElementById("marketGrid").innerHTML = `<div class="empty" style="grid-column:1/-1;">Nessuno SKU caricato.</div>`;
       setSingleProgress("UI pronta.", 0, ["In attesa di una azione"]);
       await refreshStatus();
-      await loadMissingDashboard(false);
-      await loadErrorMonitor();
     }
 
     window.publishSingleMarketplace = publishSingleMarketplace;
     window.repairSingleMarketplace = repairSingleMarketplace;
     window.reloadCurrentSku = reloadCurrentSku;
-    window.quickLoadSku = quickLoadSku;
-    window.quickRepairSku = quickRepairSku;
-    window.quickPublishSku = quickPublishSku;
-    window.publishMissingSku = publishMissingSku;
 
     bootstrap();
   </script>
