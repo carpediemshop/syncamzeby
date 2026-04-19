@@ -3132,6 +3132,14 @@ async function publishOrUpdateSkuOnMarketplace({
 const basePrice = Number(shopifyVariant?.price || 0);
 const marketplacePriceAdjustmentValue = Number(marketplacePriceAdjustment || 0);
 const finalPrice = Number((basePrice + marketplacePriceAdjustmentValue).toFixed(2));
+
+console.log("MARKETPLACE PRICE DEBUG", {
+  sku,
+  marketplaceId,
+  basePrice,
+  marketplacePriceAdjustmentValue,
+  finalPrice,
+});
   
   const upsert = await upsertOfferForMarketplace({
     sku,
@@ -3141,6 +3149,13 @@ const finalPrice = Number((basePrice + marketplacePriceAdjustmentValue).toFixed(
     categoryId: finalCategoryId,
     translatedDescription: marketplaceDescriptionHtml,
   });
+
+  console.log("UPSERT OFFER PRICE SENT", {
+  sku,
+  marketplaceId,
+  sentPrice: finalPrice,
+  offerId: upsert?.offerId || null,
+});
 
   const publishResult = await publishOffer({ offerId: upsert.offerId });
 
@@ -3201,7 +3216,7 @@ async function publishSkuToMultipleEbayMarkets({
   marketplaceId,
   sourceLanguage,
   categoryId: String(categoryMap?.[marketplaceId] || "").trim(),
-  marketplacePriceAdjustment: Number(marketplacePriceAdjustments?.[marketplaceId] || 0),
+  marketplacePriceAdjustments: Number(marketplacePriceAdjustments?.[marketplaceId] || 0),
 });
 
       marketsResult.push(result);
@@ -5500,6 +5515,13 @@ app.post("/ebay/publish/multi", async (req, res) => {
     const marketplacePriceAdjustments = normalizeMarketplacePriceAdjustments(
       req.body?.marketplacePriceAdjustments || req.body?.priceAdjustments || {}
     );
+
+    console.log("PUBLISH MULTI REQUEST", {
+  sku,
+  sourceLanguage,
+  marketplaces,
+  marketplacePriceAdjustments,
+});
 
     if (!sku) {
       return res.status(400).json({
