@@ -1962,15 +1962,13 @@
     }
 
     function getPublishPayload(sku, marketplaces) {
-      const adjustments = collectPriceAdjustmentsFromUi();
-      return {
-        sku,
-        sourceLanguage: document.getElementById("sourceLanguage").value || "it",
-        marketplaces,
-        priceAdjustments: adjustments,
-        marketplacePriceAdjustments: adjustments
-      };
-    }
+  return {
+    sku,
+    sourceLanguage: document.getElementById("sourceLanguage").value || "it",
+    marketplaces,
+    marketplacePriceAdjustments: state.priceAdjustments || {}
+  };
+}
 
     async function publishSkuRequest(sku, marketplaces) {
       const payload = getPublishPayload(sku, marketplaces);
