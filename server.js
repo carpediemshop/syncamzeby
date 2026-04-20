@@ -2414,15 +2414,29 @@ function setAspectIfValue(aspects, keys, value) {
 
 function buildDefaultAspects(shopifyVariant) {
   const aspects = {};
+  const product = shopifyVariant?.product || {};
 
-  const brandValue = buildBrandValue(shopifyVariant);
+  const brandValue = String(
+    buildBrandValue(shopifyVariant) ||
+    product.vendor ||
+    shopifyVariant?.vendor ||
+    product.brand ||
+    product.manufacturer ||
+    ""
+  ).trim();
+
   const productValue = buildProductValue(shopifyVariant);
   const modelValue = buildModelValue(shopifyVariant);
   const colorValue = buildColorValue(shopifyVariant);
-  const compatibleBrandValue = buildCompatibleBrandValue(shopifyVariant);
+  const compatibleBrandValue =
+    buildCompatibleBrandValue(shopifyVariant) || brandValue;
   const typeValue = buildTypeValue(shopifyVariant);
 
-  setAspectIfValue(aspects, ["Brand", "Marca", "Marke", "Marque"], brandValue);
+  setAspectIfValue(
+    aspects,
+    ["Brand", "Marca", "Marke", "Marque"],
+    brandValue
+  );
 
   setAspectIfValue(
     aspects,
@@ -2438,7 +2452,13 @@ function buildDefaultAspects(shopifyVariant) {
 
   setAspectIfValue(
     aspects,
-    ["Compatible Brand", "Marca compatibile", "Compatible Brand/Model", "Markenkompatibilität", "Marque compatible"],
+    [
+      "Compatible Brand",
+      "Marca compatibile",
+      "Compatible Brand/Model",
+      "Markenkompatibilität",
+      "Marque compatible"
+    ],
     compatibleBrandValue
   );
 
