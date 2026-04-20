@@ -1456,18 +1456,28 @@
 
       wrap.innerHTML = filtered.map(item => {
         let chipClass = "neutral";
-        let chipLabel = "Da verificare";
+let chipLabel = "Da verificare";
 
-        if (item.present) {
-          chipClass = "success";
-          chipLabel = "Pubblicato";
-        } else if (item.error) {
-          chipClass = "danger";
-          chipLabel = "Errore";
-        } else if (item.missing || !item.present) {
-          chipClass = "warning";
-          chipLabel = "Mancante";
-        }
+const rawStatus = String(item.raw?.status || "").toUpperCase();
+const hasMarketplaceError =
+  Boolean(item.error) ||
+  rawStatus === "UNPUBLISHED" ||
+  rawStatus === "FAILED" ||
+  item.raw?.republishOk === false ||
+  item.raw?.publishOk === false ||
+  Boolean(item.raw?.republishError) ||
+  Boolean(item.raw?.publishError);
+
+if (item.present && !hasMarketplaceError) {
+  chipClass = "success";
+  chipLabel = "Pubblicato";
+} else if (hasMarketplaceError) {
+  chipClass = "danger";
+  chipLabel = "Errore";
+} else if (item.missing || !item.present) {
+  chipClass = "warning";
+  chipLabel = "Mancante";
+}
 
         const basePrice = Number(state.currentProduct?.price || 0);
         const adj = Number(state.priceAdjustments[item.marketplaceId] || 0);
@@ -1493,7 +1503,18 @@
               <div><strong>Listing ID:</strong> ${escapeHtml(safeString(item.listingId))}</div>
               <div><strong>Offer ID:</strong> ${escapeHtml(safeString(item.offerId))}</div>
               ${item.categoryId ? `<div><strong>Category ID:</strong> ${escapeHtml(item.categoryId)}</div>` : ""}
-              ${item.error ? `<div style="margin-top:8px; color: var(--danger);"><strong>Errore:</strong><br>${escapeHtml(typeof item.error === "string" ? item.error : formatJson(item.error))}</div>` : ""}
+              ${
+  item.error || item.raw?.republishError || item.raw?.publishError
+    ? `<div style="margin-top:8px; color: var(--danger);">
+        <strong>Errore:</strong><br>
+        ${escapeHtml(
+          typeof (item.error || item.raw?.republishError || item.raw?.publishError) === "string"
+            ? (item.error || item.raw?.republishError || item.raw?.publishError)
+            : formatJson(item.error || item.raw?.republishError || item.raw?.publishError)
+        )}
+      </div>`
+    : ""
+}
             </div>
 
             <div class="market-actions">
@@ -1636,6 +1657,40 @@
         const okCount = marketplaceResults.filter(x => x?.ok).length;
         const failCount = marketplaceResults.length - okCount;
 
+        for (const row of marketplaceResults) {
+  const idx = state.currentMarkets.findIndex(
+    (x) => x.marketplaceId === row.marketplaceId
+  );
+
+  if (idx >= 0) {
+    state.currentMarkets[idx] = {
+      ...state.currentMarkets[idx],
+      present: Boolean(row.ok),
+      missing: !Boolean(row.ok),
+      ok: Boolean(row.ok),
+      status: row.ok ? "present" : "error",
+      error:
+        row.error ||
+        row.publishError ||
+        row.republishError ||
+        null,
+      listingId:
+        row.listingId ||
+        row.listingIdUsed ||
+        row.existingListingId ||
+        null,
+      offerId:
+        row.offerId ||
+        row.offer?.offerId ||
+        null,
+      raw: row
+    };
+  }
+}
+
+renderSummaryBoxes();
+renderMarketGrid();
+
         setSingleProgress(`Pubblicazione completata`, 100, [
           `OK: ${okCount}`,
           `Errori: ${failCount}`
@@ -1685,13 +1740,60 @@
 
       try {
         const result = await publishSkuRequest(sku, [marketplaceId]);
-        appendOverlayLog("Risultato publish marketplace", result);
-        setOverlayStatus("Publish marketplace completato", 100, [
-          `SKU: ${sku}`,
-          `Marketplace: ${marketplaceId}`
-        ]);
-        showToast("Publish completato", `${sku} -> ${marketplaceId}`, "success");
-        await loadProductBySku();
+appendOverlayLog("Risultato publish marketplace", result);
+
+const resultRows = Array.isArray(result?.marketplaceResults)
+  ? result.marketplaceResults
+  : Array.isArray(result?.results)
+    ? result.results
+    : [];
+
+for (const row of resultRows) {
+  const idx = state.currentMarkets.findIndex(
+    (x) => x.marketplaceId === row.marketplaceId
+  );
+
+  if (idx >= 0) {
+    state.currentMarkets[idx] = {
+      ...state.currentMarkets[idx],
+      present: Boolean(row.ok),
+      missing: !Boolean(row.ok),
+      ok: Boolean(row.ok),
+      status: row.ok ? "present" : "error",
+      error:
+        row.error ||
+        row.publishError ||
+        row.republishError ||
+        null,
+      listingId:
+        row.listingId ||
+        row.listingIdUsed ||
+        row.existingListingId ||
+        null,
+      offerId:
+        row.offerId ||
+        row.offer?.offerId ||
+        null,
+      raw: row
+    };
+  }
+}
+
+renderSummaryBoxes();
+renderMarketGrid();
+
+setOverlayStatus("Publish marketplace completato", 100, [
+  `SKU: ${sku}`,
+  `Marketplace: ${marketplaceId}`
+]);
+
+showToast(
+  "Publish completato",
+  `${sku} -> ${marketplaceId}`,
+  resultRows.some(r => !r.ok) ? "info" : "success"
+);
+
+await loadProductBySku();
       } catch (error) {
         document.getElementById("statErrors").textContent = String(Number(document.getElementById("statErrors").textContent || 0) + 1);
         setOverlayStatus("Errore marketplace", 100, [
