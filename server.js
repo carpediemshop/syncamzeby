@@ -2665,10 +2665,21 @@ async function updateOffer({
 async function publishOffer({ offerId }) {
   const accessToken = await ensureValidEbayAccessToken();
 
-  return ebayPostNoBody(
+  console.log("[EBAY PRICE][PUBLISH OFFER][START]", {
+    offerId,
+  });
+
+  const result = await ebayPostNoBody(
     `/sell/inventory/v1/offer/${encodeURIComponent(offerId)}/publish`,
     accessToken
   );
+
+  console.log("[EBAY PRICE][PUBLISH OFFER][RESULT]", {
+    offerId,
+    result,
+  });
+
+  return result;
 }
 
 async function bulkMigrateListings({ requests }) {
@@ -2905,11 +2916,32 @@ console.log("[EBAY PRICE][UPSERT PAYLOAD]", {
   const existing =
     existingOffers.find((offer) => offer.marketplaceId === marketplaceId) || null;
 
-  if (existing?.offerId) {
+  console.log("[EBAY PRICE][EXISTING OFFER FOUND]", {
+    sku,
+    marketplaceId,
+    existingOfferId: existing?.offerId || null,
+    existingStatus: existing?.status || null,
+  });
+  
+    if (existing?.offerId) {
+    console.log("[EBAY PRICE][BEFORE UPDATE OFFER]", {
+      sku,
+      marketplaceId,
+      offerId: existing.offerId,
+      priceToSend: payload?.pricingSummary?.price || null,
+    });
+
     const updateResult = await updateOffer({
       offerId: existing.offerId,
       payload,
       contentLanguage,
+    });
+
+    console.log("[EBAY PRICE][AFTER UPDATE OFFER]", {
+      sku,
+      marketplaceId,
+      offerId: existing.offerId,
+      updateResult,
     });
 
     return {
@@ -3207,7 +3239,54 @@ console.log("MARKETPLACE PRICE DEBUG", {
   offerId: upsert?.offerId || null,
 });
 
-  const publishResult = await publishOffer({ offerId: upsert.offerId });
+  let publishResult = null;
+let priceQuantityUpdateResult = null;
+
+if (upsert.mode === "created") {
+  console.log("[EBAY PRICE][FLOW] CREATED -> PUBLISH", {
+    sku,
+    marketplaceId,
+    offerId: upsert.offerId,
+    finalPrice,
+  });
+
+  publishResult = await publishOffer({ offerId: upsert.offerId });
+} else {
+  console.log("[EBAY PRICE][FLOW] UPDATED -> BULK UPDATE", {
+    sku,
+    marketplaceId,
+    offerId: upsert.offerId,
+    finalPrice,
+  });
+
+  priceQuantityUpdateResult = await bulkUpdatePriceQuantity({
+    requests: [
+      {
+        sku,
+        offers: [
+          {
+            offerId: upsert.offerId,
+            price: {
+              value: String(normalizeMoney(finalPrice)),
+              currency: meta.currency || "EUR",
+            },
+            availableQuantity: Math.max(
+              0,
+              Number(shopifyVariant.inventoryQuantity || 0)
+            ),
+          },
+        ],
+      },
+    ],
+  });
+
+  console.log("[EBAY PRICE][FLOW] BULK RESULT", {
+    sku,
+    marketplaceId,
+    offerId: upsert.offerId,
+    result: priceQuantityUpdateResult,
+  });
+}
 
   return {
     ok: true,
@@ -3227,6 +3306,7 @@ console.log("MARKETPLACE PRICE DEBUG", {
     offerMode: upsert.mode,
     offerId: upsert.offerId,
     publishResult,
+    priceQuantityUpdateResult,
     basePrice,
     marketplacePriceAdjustment: marketplacePriceAdjustmentValue,
     finalPrice,
