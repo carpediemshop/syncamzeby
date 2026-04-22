@@ -3301,6 +3301,8 @@ if (bulkErrors.length) {
   console.log("[EBAY PRICE][FLOW] BULK ERRORS", JSON.stringify(bulkErrors, null, 2));
 }
 
+}
+
   return {
     ok: true,
     sku,
@@ -3359,7 +3361,7 @@ async function publishSkuToMultipleEbayMarkets({
   marketplaceId,
   sourceLanguage,
   categoryId: String(categoryMap?.[marketplaceId] || "").trim(),
-  marketplacePriceAdjustments: Number(marketplacePriceAdjustments?.[marketplaceId] || 0),
+  marketplacePriceAdjustment: Number(marketplacePriceAdjustments?.[marketplaceId] || 0),
 });
 
       marketsResult.push(result);
