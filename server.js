@@ -2849,6 +2849,23 @@ async function upsertOfferForMarketplace({
   const policies = await getAllEbayPolicies(marketplaceId);
   const policyIds = pickDefaultPolicyIds(policies);
 
+console.log("[EBAY PRICE][UPSERT INPUT]", {
+  sku,
+  marketplaceId,
+  price,
+  quantity,
+  categoryId,
+});
+
+  console.log("[EBAY PRICE][UPSERT INPUT]", {
+    sku,
+    marketplaceId,
+    price,
+    quantity,
+    categoryId,
+    currency: meta.currency,
+  });
+  
   const payload = buildOfferPayload({
     sku,
     price,
@@ -2860,6 +2877,19 @@ async function upsertOfferForMarketplace({
     currency: meta.currency,
   });
 
+console.log("[EBAY PRICE][UPSERT PAYLOAD]", {
+  sku,
+  marketplaceId,
+  payload,
+});
+
+  console.log("[EBAY PRICE][UPSERT PAYLOAD PRICE]", {
+    sku,
+    marketplaceId,
+    inputPrice: price,
+    payloadPrice: payload?.pricingSummary?.price || null,
+  });
+  
   let existingOffers = [];
 
   try {
