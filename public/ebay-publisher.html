@@ -1613,16 +1613,24 @@ if (item.present && !hasMarketplaceError) {
     }
 
     async function publishSkuRequest(sku, marketplaces) {
-      return fetchJson(API.publishMulti, {
-        method: "POST",
-        body: JSON.stringify({
-          sku,
-          sourceLanguage: document.getElementById("sourceLanguage").value || "it",
-          marketplaces,
-          marketplacePriceAdjustments: state.priceAdjustments
-        })
-      });
-    }
+  readAdjustmentsFromInputs();
+
+  console.log("[UI PRICE][PUBLISH REQUEST]", {
+    sku,
+    marketplaces,
+    priceAdjustments: state.priceAdjustments,
+  });
+
+  return fetchJson(API.publishMulti, {
+    method: "POST",
+    body: JSON.stringify({
+      sku,
+      sourceLanguage: document.getElementById("sourceLanguage").value || "it",
+      marketplaces,
+      marketplacePriceAdjustments: state.priceAdjustments
+    })
+  });
+}
 
     async function publishSingleSku() {
       const sku = document.getElementById("skuInput").value.trim();
