@@ -1939,6 +1939,97 @@ function isBlockedEbayCategoryName(categoryName) {
   return blockedWords.some((word) => text.includes(word));
 }
 
+function isBlockedEbayCategoryName(categoryName) {
+  const text = String(categoryName || "")
+    .toLowerCase()
+    .trim();
+
+  if (!text) return false;
+
+  const blockedWords = [
+    "book",
+    "books",
+    "libri",
+    "magazine",
+    "magazines",
+    "riviste",
+    "music",
+    "musica",
+    "cd",
+    "dvd",
+    "blu-ray",
+    "bluray",
+    "vinyl",
+    "record",
+    "records",
+    "cassette",
+    "film",
+    "movies",
+    "movie",
+    "video",
+    "author",
+    "autore",
+    "isbn",
+    "comic",
+    "comics",
+    "fumetti",
+    "newspaper",
+    "newspapers",
+    "giornali",
+    "sheet music",
+    "spartiti"
+  ];
+
+  return blockedWords.some((word) => text.includes(word));
+}
+
+function getFallbackCategoryIdForMarketplace({
+  marketplaceId,
+  shopifyVariant,
+}) {
+  const text = [
+    shopifyVariant?.product?.title,
+    shopifyVariant?.product?.productType,
+    shopifyVariant?.product?.categoryFullName,
+    shopifyVariant?.product?.vendor,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const marketplaceFallbacks = {
+    EBAY_IT: {
+      generic: "11700",
+    },
+    EBAY_DE: {
+      generic: "11700",
+    },
+    EBAY_FR: {
+      generic: "11700",
+    },
+    EBAY_ES: {
+      generic: "11700",
+    },
+    EBAY_GB: {
+      generic: "11700",
+    },
+  };
+
+  const selected = marketplaceFallbacks[marketplaceId]?.generic || "11700";
+
+  console.log("[EBAY CATEGORY][FALLBACK USED]", {
+    marketplaceId,
+    sku: shopifyVariant?.sku || null,
+    productTitle: shopifyVariant?.product?.title || null,
+    productType: shopifyVariant?.product?.productType || null,
+    categoryFullName: shopifyVariant?.product?.categoryFullName || null,
+    chosenFallbackCategoryId: selected,
+    text,
+  });
+
+  return selected;
+}
+
 async function suggestEbayCategoryEnhanced({
   marketplaceId,
   shopifyVariant,
@@ -2032,6 +2123,12 @@ async function resolveCategoryIdForMarketplace({
   );
 
   if (configured) {
+    console.log("[EBAY CATEGORY][CONFIGURED CATEGORY USED]", {
+      sku,
+      marketplaceId,
+      categoryId: configured,
+    });
+
     return configured;
   }
 
@@ -2040,15 +2137,39 @@ async function resolveCategoryIdForMarketplace({
     shopifyVariant,
   });
 
-  const categoryId = String(suggestion?.best?.categoryId || "").trim();
+  const suggestedCategoryId = String(suggestion?.best?.categoryId || "").trim();
 
-  if (!categoryId) {
+  if (suggestedCategoryId) {
+    console.log("[EBAY CATEGORY][SUGGESTED CATEGORY USED]", {
+      sku,
+      marketplaceId,
+      categoryId: suggestedCategoryId,
+      categoryName: suggestion?.best?.categoryName || null,
+    });
+
+    return suggestedCategoryId;
+  }
+
+  const fallbackCategoryId = String(
+    getFallbackCategoryIdForMarketplace({
+      marketplaceId,
+      shopifyVariant,
+    }) || ""
+  ).trim();
+
+  if (!fallbackCategoryId) {
     throw new Error(
-      `No category found for ${marketplaceId} and SKU ${sku || ""}`
+      `No valid category found for ${marketplaceId} and SKU ${sku || ""}`
     );
   }
 
-  return categoryId;
+  console.log("[EBAY CATEGORY][FINAL FALLBACK CATEGORY USED]", {
+    sku,
+    marketplaceId,
+    categoryId: fallbackCategoryId,
+  });
+
+  return fallbackCategoryId;
 }
 
 // =========================
