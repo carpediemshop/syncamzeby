@@ -3280,14 +3280,21 @@ if (upsert.mode === "created") {
     ],
   });
 
-  console.log("[EBAY PRICE][FLOW] BULK RESULT", JSON.stringify({
-  sku,
-  marketplaceId,
-  offerId: upsert.offerId,
-  result: priceQuantityUpdateResult,
-}, null, 2));
+  console.log(
+  "[EBAY PRICE][FLOW] BULK RESULT",
+  JSON.stringify(
+    {
+      sku,
+      marketplaceId,
+      offerId: upsert.offerId,
+      result: priceQuantityUpdateResult,
+    },
+    null,
+    2
+  )
+);
 
-  const bulkResponses = Array.isArray(priceQuantityUpdateResult?.responses)
+const bulkResponses = Array.isArray(priceQuantityUpdateResult?.responses)
   ? priceQuantityUpdateResult.responses
   : [];
 
@@ -3295,10 +3302,16 @@ const bulkErrors = bulkResponses.filter(
   (r) => String(r?.statusCode || r?.status || "") !== "200"
 );
 
-console.log("[EBAY PRICE][FLOW] BULK RESPONSES ONLY", JSON.stringify(bulkResponses, null, 2));
+console.log(
+  "[EBAY PRICE][FLOW] BULK RESPONSES ONLY",
+  JSON.stringify(bulkResponses, null, 2)
+);
 
 if (bulkErrors.length) {
-  console.log("[EBAY PRICE][FLOW] BULK ERRORS", JSON.stringify(bulkErrors, null, 2));
+  console.log(
+    "[EBAY PRICE][FLOW] BULK ERRORS",
+    JSON.stringify(bulkErrors, null, 2)
+  );
 }
 
   return {
