@@ -1939,50 +1939,6 @@ function isBlockedEbayCategoryName(categoryName) {
   return blockedWords.some((word) => text.includes(word));
 }
 
-function isBlockedEbayCategoryName(categoryName) {
-  const text = String(categoryName || "")
-    .toLowerCase()
-    .trim();
-
-  if (!text) return false;
-
-  const blockedWords = [
-    "book",
-    "books",
-    "libri",
-    "magazine",
-    "magazines",
-    "riviste",
-    "music",
-    "musica",
-    "cd",
-    "dvd",
-    "blu-ray",
-    "bluray",
-    "vinyl",
-    "record",
-    "records",
-    "cassette",
-    "film",
-    "movies",
-    "movie",
-    "video",
-    "author",
-    "autore",
-    "isbn",
-    "comic",
-    "comics",
-    "fumetti",
-    "newspaper",
-    "newspapers",
-    "giornali",
-    "sheet music",
-    "spartiti"
-  ];
-
-  return blockedWords.some((word) => text.includes(word));
-}
-
 function getFallbackCategoryIdForMarketplace({
   marketplaceId,
   shopifyVariant,
