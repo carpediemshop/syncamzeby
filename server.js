@@ -1895,97 +1895,6 @@ function buildCategorySearchQueries(shopifyVariant) {
   return deduped.slice(0, 6);
 }
 
-function isBlockedEbayCategoryName(categoryName) {
-  const text = String(categoryName || "")
-    .toLowerCase()
-    .trim();
-
-  if (!text) return false;
-
-  const blockedWords = [
-    "book",
-    "books",
-    "libri",
-    "magazine",
-    "magazines",
-    "riviste",
-    "music",
-    "musica",
-    "cd",
-    "dvd",
-    "blu-ray",
-    "bluray",
-    "vinyl",
-    "record",
-    "records",
-    "cassette",
-    "film",
-    "movies",
-    "movie",
-    "video",
-    "author",
-    "autore",
-    "isbn",
-    "comic",
-    "comics",
-    "fumetti",
-    "newspaper",
-    "newspapers",
-    "giornali",
-    "sheet music",
-    "spartiti"
-  ];
-
-  return blockedWords.some((word) => text.includes(word));
-}
-
-function getFallbackCategoryIdForMarketplace({
-  marketplaceId,
-  shopifyVariant,
-}) {
-  const text = [
-    shopifyVariant?.product?.title,
-    shopifyVariant?.product?.productType,
-    shopifyVariant?.product?.categoryFullName,
-    shopifyVariant?.product?.vendor,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
-  const marketplaceFallbacks = {
-    EBAY_IT: {
-      generic: "11700",
-    },
-    EBAY_DE: {
-      generic: "11700",
-    },
-    EBAY_FR: {
-      generic: "11700",
-    },
-    EBAY_ES: {
-      generic: "11700",
-    },
-    EBAY_GB: {
-      generic: "11700",
-    },
-  };
-
-  const selected = marketplaceFallbacks[marketplaceId]?.generic || "11700";
-
-  console.log("[EBAY CATEGORY][FALLBACK USED]", {
-    marketplaceId,
-    sku: shopifyVariant?.sku || null,
-    productTitle: shopifyVariant?.product?.title || null,
-    productType: shopifyVariant?.product?.productType || null,
-    categoryFullName: shopifyVariant?.product?.categoryFullName || null,
-    chosenFallbackCategoryId: selected,
-    text,
-  });
-
-  return selected;
-}
-
 async function suggestEbayCategoryEnhanced({
   marketplaceId,
   shopifyVariant,
@@ -2024,46 +1933,11 @@ async function suggestEbayCategoryEnhanced({
     }
   }
 
-  const allowedSuggestions = deduped.filter(
-    (row) => !isBlockedEbayCategoryName(row.categoryName)
-  );
-
-  const blockedSuggestions = deduped.filter((row) =>
-    isBlockedEbayCategoryName(row.categoryName)
-  );
-
-  if (blockedSuggestions.length) {
-    console.log("[EBAY CATEGORY][BLOCKED SUGGESTIONS]", {
-      marketplaceId,
-      sku: shopifyVariant?.sku || null,
-      productTitle: shopifyVariant?.product?.title || null,
-      blocked: blockedSuggestions.map((row) => ({
-        query: row.query,
-        categoryId: row.categoryId,
-        categoryName: row.categoryName,
-      })),
-    });
-  }
-
-  console.log("[EBAY CATEGORY][SUGGESTIONS]", {
-    marketplaceId,
-    sku: shopifyVariant?.sku || null,
-    productTitle: shopifyVariant?.product?.title || null,
-    queries,
-    totalSuggestions: deduped.length,
-    allowedSuggestions: allowedSuggestions.map((row) => ({
-      query: row.query,
-      categoryId: row.categoryId,
-      categoryName: row.categoryName,
-    })),
-  });
-
   return {
     categoryTreeId,
     queries,
-    suggestions: allowedSuggestions,
-    blockedSuggestions,
-    best: allowedSuggestions[0] || null,
+    suggestions: deduped,
+    best: deduped[0] || null,
   };
 }
 
@@ -2079,12 +1953,6 @@ async function resolveCategoryIdForMarketplace({
   );
 
   if (configured) {
-    console.log("[EBAY CATEGORY][CONFIGURED CATEGORY USED]", {
-      sku,
-      marketplaceId,
-      categoryId: configured,
-    });
-
     return configured;
   }
 
@@ -2093,39 +1961,15 @@ async function resolveCategoryIdForMarketplace({
     shopifyVariant,
   });
 
-  const suggestedCategoryId = String(suggestion?.best?.categoryId || "").trim();
+  const categoryId = String(suggestion?.best?.categoryId || "").trim();
 
-  if (suggestedCategoryId) {
-    console.log("[EBAY CATEGORY][SUGGESTED CATEGORY USED]", {
-      sku,
-      marketplaceId,
-      categoryId: suggestedCategoryId,
-      categoryName: suggestion?.best?.categoryName || null,
-    });
-
-    return suggestedCategoryId;
-  }
-
-  const fallbackCategoryId = String(
-    getFallbackCategoryIdForMarketplace({
-      marketplaceId,
-      shopifyVariant,
-    }) || ""
-  ).trim();
-
-  if (!fallbackCategoryId) {
+  if (!categoryId) {
     throw new Error(
-      `No valid category found for ${marketplaceId} and SKU ${sku || ""}`
+      `No category found for ${marketplaceId} and SKU ${sku || ""}`
     );
   }
 
-  console.log("[EBAY CATEGORY][FINAL FALLBACK CATEGORY USED]", {
-    sku,
-    marketplaceId,
-    categoryId: fallbackCategoryId,
-  });
-
-  return fallbackCategoryId;
+  return categoryId;
 }
 
 // =========================
@@ -2570,29 +2414,15 @@ function setAspectIfValue(aspects, keys, value) {
 
 function buildDefaultAspects(shopifyVariant) {
   const aspects = {};
-  const product = shopifyVariant?.product || {};
 
-  const brandValue = String(
-    buildBrandValue(shopifyVariant) ||
-    product.vendor ||
-    shopifyVariant?.vendor ||
-    product.brand ||
-    product.manufacturer ||
-    ""
-  ).trim();
-
+  const brandValue = buildBrandValue(shopifyVariant);
   const productValue = buildProductValue(shopifyVariant);
   const modelValue = buildModelValue(shopifyVariant);
   const colorValue = buildColorValue(shopifyVariant);
-  const compatibleBrandValue =
-    buildCompatibleBrandValue(shopifyVariant) || brandValue;
+  const compatibleBrandValue = buildCompatibleBrandValue(shopifyVariant);
   const typeValue = buildTypeValue(shopifyVariant);
 
-  setAspectIfValue(
-    aspects,
-    ["Brand", "Marca", "Marke", "Marque"],
-    brandValue
-  );
+  setAspectIfValue(aspects, ["Brand", "Marca", "Marke", "Marque"], brandValue);
 
   setAspectIfValue(
     aspects,
@@ -2608,13 +2438,7 @@ function buildDefaultAspects(shopifyVariant) {
 
   setAspectIfValue(
     aspects,
-    [
-      "Compatible Brand",
-      "Marca compatibile",
-      "Compatible Brand/Model",
-      "Markenkompatibilität",
-      "Marque compatible"
-    ],
+    ["Compatible Brand", "Marca compatibile", "Compatible Brand/Model", "Markenkompatibilität", "Marque compatible"],
     compatibleBrandValue
   );
 
@@ -2821,21 +2645,10 @@ async function updateOffer({
 async function publishOffer({ offerId }) {
   const accessToken = await ensureValidEbayAccessToken();
 
-  console.log("[EBAY PRICE][PUBLISH OFFER][START]", {
-    offerId,
-  });
-
-  const result = await ebayPostNoBody(
+  return ebayPostNoBody(
     `/sell/inventory/v1/offer/${encodeURIComponent(offerId)}/publish`,
     accessToken
   );
-
-  console.log("[EBAY PRICE][PUBLISH OFFER][RESULT]", {
-    offerId,
-    result,
-  });
-
-  return result;
 }
 
 async function bulkMigrateListings({ requests }) {
@@ -3016,23 +2829,6 @@ async function upsertOfferForMarketplace({
   const policies = await getAllEbayPolicies(marketplaceId);
   const policyIds = pickDefaultPolicyIds(policies);
 
-console.log("[EBAY PRICE][UPSERT INPUT]", {
-  sku,
-  marketplaceId,
-  price,
-  quantity,
-  categoryId,
-});
-
-  console.log("[EBAY PRICE][UPSERT INPUT]", {
-    sku,
-    marketplaceId,
-    price,
-    quantity,
-    categoryId,
-    currency: meta.currency,
-  });
-  
   const payload = buildOfferPayload({
     sku,
     price,
@@ -3044,19 +2840,6 @@ console.log("[EBAY PRICE][UPSERT INPUT]", {
     currency: meta.currency,
   });
 
-console.log("[EBAY PRICE][UPSERT PAYLOAD]", {
-  sku,
-  marketplaceId,
-  payload,
-});
-
-  console.log("[EBAY PRICE][UPSERT PAYLOAD PRICE]", {
-    sku,
-    marketplaceId,
-    inputPrice: price,
-    payloadPrice: payload?.pricingSummary?.price || null,
-  });
-  
   let existingOffers = [];
 
   try {
@@ -3072,32 +2855,11 @@ console.log("[EBAY PRICE][UPSERT PAYLOAD]", {
   const existing =
     existingOffers.find((offer) => offer.marketplaceId === marketplaceId) || null;
 
-  console.log("[EBAY PRICE][EXISTING OFFER FOUND]", {
-    sku,
-    marketplaceId,
-    existingOfferId: existing?.offerId || null,
-    existingStatus: existing?.status || null,
-  });
-  
-    if (existing?.offerId) {
-    console.log("[EBAY PRICE][BEFORE UPDATE OFFER]", {
-      sku,
-      marketplaceId,
-      offerId: existing.offerId,
-      priceToSend: payload?.pricingSummary?.price || null,
-    });
-
+  if (existing?.offerId) {
     const updateResult = await updateOffer({
       offerId: existing.offerId,
       payload,
       contentLanguage,
-    });
-
-    console.log("[EBAY PRICE][AFTER UPDATE OFFER]", {
-      sku,
-      marketplaceId,
-      offerId: existing.offerId,
-      updateResult,
     });
 
     return {
@@ -3395,69 +3157,7 @@ console.log("MARKETPLACE PRICE DEBUG", {
   offerId: upsert?.offerId || null,
 });
 
-  let publishResult = null;
-let priceQuantityUpdateResult = null;
-
-if (upsert.mode === "created") {
-  console.log("[EBAY PRICE][FLOW] CREATED -> PUBLISH", {
-    sku,
-    marketplaceId,
-    offerId: upsert.offerId,
-    finalPrice,
-  });
-
-  publishResult = await publishOffer({ offerId: upsert.offerId });
-} else {
-  console.log("[EBAY PRICE][FLOW] UPDATED -> BULK UPDATE", {
-    sku,
-    marketplaceId,
-    offerId: upsert.offerId,
-    finalPrice,
-  });
-
-  priceQuantityUpdateResult = await bulkUpdatePriceQuantity({
-    requests: [
-      {
-        sku,
-        offers: [
-          {
-            offerId: upsert.offerId,
-            price: {
-              value: String(normalizeMoney(finalPrice)),
-              currency: meta.currency || "EUR",
-            },
-            availableQuantity: Math.max(
-              0,
-              Number(shopifyVariant.inventoryQuantity || 0)
-            ),
-          },
-        ],
-      },
-    ],
-  });
-
-  console.log("[EBAY PRICE][FLOW] BULK RESULT", JSON.stringify({
-  sku,
-  marketplaceId,
-  offerId: upsert.offerId,
-  result: priceQuantityUpdateResult,
-}, null, 2));
-
-const bulkResponses = Array.isArray(priceQuantityUpdateResult?.responses)
-  ? priceQuantityUpdateResult.responses
-  : [];
-
-const bulkErrors = bulkResponses.filter(
-  (r) => String(r?.statusCode || r?.status || "") !== "200"
-);
-
-console.log("[EBAY PRICE][FLOW] BULK RESPONSES ONLY", JSON.stringify(bulkResponses, null, 2));
-
-if (bulkErrors.length) {
-  console.log("[EBAY PRICE][FLOW] BULK ERRORS", JSON.stringify(bulkErrors, null, 2));
-}
-
-}
+  const publishResult = await publishOffer({ offerId: upsert.offerId });
 
   return {
     ok: true,
@@ -3477,7 +3177,6 @@ if (bulkErrors.length) {
     offerMode: upsert.mode,
     offerId: upsert.offerId,
     publishResult,
-    priceQuantityUpdateResult,
     basePrice,
     marketplacePriceAdjustment: marketplacePriceAdjustmentValue,
     finalPrice,
@@ -3517,7 +3216,7 @@ async function publishSkuToMultipleEbayMarkets({
   marketplaceId,
   sourceLanguage,
   categoryId: String(categoryMap?.[marketplaceId] || "").trim(),
-  marketplacePriceAdjustment: Number(marketplacePriceAdjustments?.[marketplaceId] || 0),
+  marketplacePriceAdjustments: Number(marketplacePriceAdjustments?.[marketplaceId] || 0),
 });
 
       marketsResult.push(result);
