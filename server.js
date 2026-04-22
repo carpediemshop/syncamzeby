@@ -1895,6 +1895,50 @@ function buildCategorySearchQueries(shopifyVariant) {
   return deduped.slice(0, 6);
 }
 
+function isBlockedEbayCategoryName(categoryName) {
+  const text = String(categoryName || "")
+    .toLowerCase()
+    .trim();
+
+  if (!text) return false;
+
+  const blockedWords = [
+    "book",
+    "books",
+    "libri",
+    "magazine",
+    "magazines",
+    "riviste",
+    "music",
+    "musica",
+    "cd",
+    "dvd",
+    "blu-ray",
+    "bluray",
+    "vinyl",
+    "record",
+    "records",
+    "cassette",
+    "film",
+    "movies",
+    "movie",
+    "video",
+    "author",
+    "autore",
+    "isbn",
+    "comic",
+    "comics",
+    "fumetti",
+    "newspaper",
+    "newspapers",
+    "giornali",
+    "sheet music",
+    "spartiti"
+  ];
+
+  return blockedWords.some((word) => text.includes(word));
+}
+
 async function suggestEbayCategoryEnhanced({
   marketplaceId,
   shopifyVariant,
@@ -1933,11 +1977,46 @@ async function suggestEbayCategoryEnhanced({
     }
   }
 
+  const allowedSuggestions = deduped.filter(
+    (row) => !isBlockedEbayCategoryName(row.categoryName)
+  );
+
+  const blockedSuggestions = deduped.filter((row) =>
+    isBlockedEbayCategoryName(row.categoryName)
+  );
+
+  if (blockedSuggestions.length) {
+    console.log("[EBAY CATEGORY][BLOCKED SUGGESTIONS]", {
+      marketplaceId,
+      sku: shopifyVariant?.sku || null,
+      productTitle: shopifyVariant?.product?.title || null,
+      blocked: blockedSuggestions.map((row) => ({
+        query: row.query,
+        categoryId: row.categoryId,
+        categoryName: row.categoryName,
+      })),
+    });
+  }
+
+  console.log("[EBAY CATEGORY][SUGGESTIONS]", {
+    marketplaceId,
+    sku: shopifyVariant?.sku || null,
+    productTitle: shopifyVariant?.product?.title || null,
+    queries,
+    totalSuggestions: deduped.length,
+    allowedSuggestions: allowedSuggestions.map((row) => ({
+      query: row.query,
+      categoryId: row.categoryId,
+      categoryName: row.categoryName,
+    })),
+  });
+
   return {
     categoryTreeId,
     queries,
-    suggestions: deduped,
-    best: deduped[0] || null,
+    suggestions: allowedSuggestions,
+    blockedSuggestions,
+    best: allowedSuggestions[0] || null,
   };
 }
 
