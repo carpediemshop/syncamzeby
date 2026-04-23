@@ -2471,6 +2471,29 @@ function buildDefaultAspects(shopifyVariant) {
     }
   }
 
+  if (skuValue) {
+    const mpnKeys = [
+      "MPN",
+      "Manufacturer Part Number",
+      "Numero di parte fabbricante",
+      "Numéro de pièce fabricant",
+      "Herstellernummer",
+      "Número de pieza del fabricante"
+    ];
+
+    for (const key of mpnKeys) {
+      const current = aspects[key];
+
+      if (
+        !Array.isArray(current) ||
+        !current.length ||
+        !String(current[0] || "").trim()
+      ) {
+        aspects[key] = [skuValue];
+      }
+    }
+  }
+  
   return aspects;
 }
 
