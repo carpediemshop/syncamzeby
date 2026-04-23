@@ -2466,9 +2466,17 @@ function buildDefaultAspects(shopifyVariant) {
     compatibleBrandValue
   );
 
-  setAspectIfValue(
+    setAspectIfValue(
     aspects,
-    ["Type", "Tipo", "Tipo de producto", "Typ"],
+    [
+      "Type",
+      "Tipo",
+      "Tipo di prodotto",
+      "Tipo de producto",
+      "Typ",
+      "Produktart",
+      "Type de produit"
+    ],
     typeValue
   );
 
@@ -2495,7 +2503,7 @@ function buildDefaultAspects(shopifyVariant) {
     }
   }
 
-      const mpnFallback = sanitizeAspectToken(
+        const mpnFallback = sanitizeAspectToken(
     shopifyVariant?.barcode ||
     shopifyVariant?.sku ||
     ""
