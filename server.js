@@ -2495,7 +2495,13 @@ function buildDefaultAspects(shopifyVariant) {
     }
   }
 
-    if (shopifyVariant?.sku) {
+      const mpnFallback = sanitizeAspectToken(
+    shopifyVariant?.barcode ||
+    shopifyVariant?.sku ||
+    ""
+  );
+
+  if (mpnFallback) {
     const mpnKeys = [
       "MPN",
       "Manufacturer Part Number",
@@ -2505,19 +2511,15 @@ function buildDefaultAspects(shopifyVariant) {
       "Número de pieza del fabricante"
     ];
 
-    const safeSku = sanitizeAspectToken(shopifyVariant.sku);
+    for (const key of mpnKeys) {
+      const current = aspects[key];
 
-    if (safeSku) {
-      for (const key of mpnKeys) {
-        const current = aspects[key];
-
-        if (
-          !Array.isArray(current) ||
-          !current.length ||
-          !String(current[0] || "").trim()
-        ) {
-          aspects[key] = [safeSku];
-        }
+      if (
+        !Array.isArray(current) ||
+        !current.length ||
+        !String(current[0] || "").trim()
+      ) {
+        aspects[key] = [mpnFallback];
       }
     }
   }
