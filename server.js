@@ -3670,6 +3670,28 @@ async function syncShopifySkuToEbay({
     }
   }
 
+    const failedRepublishMarketplaceIds = republishResults
+    .filter((r) => r.ok === false && r.marketplaceId)
+    .map((r) => String(r.marketplaceId).trim())
+    .filter(Boolean);
+
+  let autoRepairResult = null;
+
+  if (failedRepublishMarketplaceIds.length) {
+    try {
+      autoRepairResult = await repairCategoryForPublishedOffersBySku({
+        sku: safeSku,
+        sourceLanguage,
+        marketplaces: [...new Set(failedRepublishMarketplaceIds)],
+      });
+    } catch (error) {
+      autoRepairResult = {
+        ok: false,
+        error: errorToSerializable(error),
+      };
+    }
+  }
+  
   const offerResults = offers.map((offer) => {
     const responseRow =
       responses.find((r) => String(r?.offerId || "") === String(offer?.offerId || "")) ||
@@ -3730,6 +3752,8 @@ async function syncShopifySkuToEbay({
     bulkUpdateResult,
     unpublishedOffersFound: unpublishedOffers.length,
     republishResults,
+    failedRepublishMarketplaceIds,
+    autoRepairResult,
     offerResults,
   };
 }
