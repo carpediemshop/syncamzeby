@@ -2391,14 +2391,38 @@ function buildCompatibleBrandValue(shopifyVariant) {
 }
 
 function buildTypeValue(shopifyVariant) {
-  return sanitizeAspectToken(
-    firstNonEmpty(
-      shopifyVariant?.product?.productType,
-      shopifyVariant?.product?.categoryFullName,
-      shopifyVariant?.product?.title,
-      ""
-    )
+  const productType = sanitizeAspectToken(
+    shopifyVariant?.product?.productType || ""
   );
+  if (productType) {
+    return productType;
+  }
+
+  const categoryFullName = String(
+    shopifyVariant?.product?.categoryFullName || ""
+  ).trim();
+
+  if (categoryFullName) {
+    const lastPart = categoryFullName
+      .split(">")
+      .map((part) => String(part || "").trim())
+      .filter(Boolean)
+      .pop();
+
+    const safeLastPart = sanitizeAspectToken(lastPart || "");
+    if (safeLastPart) {
+      return safeLastPart;
+    }
+  }
+
+  const title = sanitizeAspectToken(
+    shopifyVariant?.product?.title || ""
+  );
+  if (title) {
+    return title;
+  }
+
+  return "";
 }
 
 function setAspectIfValue(aspects, keys, value) {
