@@ -2503,6 +2503,31 @@ function buildDefaultAspects(shopifyVariant) {
     }
   }
 
+  const isbnFallback = sanitizeAspectToken(
+    shopifyVariant?.barcode ||
+    shopifyVariant?.sku ||
+    ""
+  );
+
+  if (isbnFallback) {
+    const isbnKeys = [
+      "ISBN",
+      "Isbn"
+    ];
+
+    for (const key of isbnKeys) {
+      const current = aspects[key];
+
+      if (
+        !Array.isArray(current) ||
+        !current.length ||
+        !String(current[0] || "").trim()
+      ) {
+        aspects[key] = [isbnFallback];
+      }
+    }
+  }
+  
         const mpnFallback = sanitizeAspectToken(
     shopifyVariant?.barcode ||
     shopifyVariant?.sku ||
