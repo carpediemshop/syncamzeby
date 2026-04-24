@@ -1869,11 +1869,69 @@ function buildCategorySearchQueries(shopifyVariant) {
   const ctx = getShopifyCategoryContext(shopifyVariant);
   const detectedRule = detectCategoryRule(shopifyVariant);
 
+  const haystack = [
+    ctx.vendor,
+    ctx.title,
+    ctx.productType,
+    ctx.categoryFullName,
+    shopifyVariant?.product?.vendor,
+    shopifyVariant?.product?.title,
+    shopifyVariant?.product?.productType,
+    shopifyVariant?.product?.categoryFullName,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const smartRules = [
+    { keys: ["illy"], queries: ["caffè capsule espresso", "capsule caffè", "espresso coffee capsules"] },
+    { keys: ["bialetti"], queries: ["caffettiere moka caffè", "ricambi moka", "moka pot coffee maker"] },
+    { keys: ["marcato"], queries: ["macchina pasta", "pasta machine", "pasta maker"] },
+    { keys: ["lagostina"], queries: ["pentole cookware", "pentolame", "cookware pots pans"] },
+    { keys: ["chicco"], queries: ["prodotti infanzia", "baby products", "allattamento alimentazione bambini"] },
+    { keys: ["ryobi"], queries: ["utensili elettroutensili fai da te", "power tools", "DIY tools"] },
+    { keys: ["fiocchi di riso"], queries: ["igiene della persona", "personal care", "prodotti igiene bambino"] },
+    { keys: ["milwaukee"], queries: ["utensili elettroutensili fai da te", "power tools", "workshop tools"] },
+    { keys: ["hozelock"], queries: ["giardino piscina irrigazione", "garden watering", "pool garden"] },
+    { keys: ["gf garden", "gf"], queries: ["giardino piscina irrigazione", "garden watering", "pool garden"] },
+    { keys: ["metrica"], queries: ["strumenti di misurazione", "measuring tools", "measurement instruments"] },
+    { keys: ["gierre"], queries: ["scale sgabelli", "ladders stools", "step ladder"] },
+    { keys: ["stella"], queries: ["elettrodomestici", "home appliances", "small appliances"] },
+    { keys: ["ariete"], queries: ["elettrodomestici", "small appliances", "home appliances"] },
+    { keys: ["black+decker", "black decker", "black & decker"], queries: ["elettrodomestici", "small appliances", "home appliances"] },
+    { keys: ["sanelli ambrogio", "sanelli"], queries: ["posate hotellerie", "utensili cucina professionali", "kitchen utensils"] },
+    { keys: ["fackelmann"], queries: ["hotellerie utensili cucina", "kitchen utensils", "kitchen tools"] },
+    { keys: ["calder"], queries: ["utensili cucina hotellerie", "kitchen utensils", "kitchen tools"] },
+    { keys: ["aeternum"], queries: ["moka pentolame cookware", "caffettiera moka", "cookware pots pans"] },
+    { keys: ["rosi"], queries: ["materiale elettrico", "electrical supplies", "electrical sockets"] },
+    { keys: ["beta"], queries: ["arredo officina utensili abbigliamento lavoro", "workshop tools", "workwear"] },
+    { keys: ["ghidini"], queries: ["hotellerie utensili cucina", "kitchen utensils", "kitchen tools"] },
+    { keys: ["carpe diem shop"], queries: ["eventi personalizzazioni", "decorazioni eventi", "personalized gifts"] },
+    { keys: ["carpe diem art"], queries: ["eventi personalizzazioni", "decorazioni eventi", "personalized gifts"] },
+    { keys: ["calze epifania"], queries: ["addobbi natalizi", "christmas decorations", "calze befana"] },
+    { keys: ["locknlock", "lock lock", "lock & lock"], queries: ["contenitori alimenti utensili cucina", "food storage containers", "kitchen containers"] },
+    { keys: ["divina home"], queries: ["arredo interni", "home decor", "interior furniture"] },
+    { keys: ["divina fire"], queries: ["camini elettrici", "electric fireplaces", "electric fire"] },
+    { keys: ["divina garden"], queries: ["giardino", "garden", "outdoor garden"] },
+    { keys: ["pezzetti"], queries: ["caffettiere moka", "moka pot", "coffee maker"] },
+    { keys: ["lancalor"], queries: ["coperte elettriche", "electric blankets", "heated blanket"] },
+    { keys: ["boppy"], queries: ["allattamento", "breastfeeding pillow", "baby feeding"] },
+    { keys: ["bm goup", "bm group"], queries: ["nastri adesivi isolanti", "insulating tape", "electrical tape"] },
+  ];
+
   const queries = [];
 
+  for (const rule of smartRules) {
+    if (rule.keys.some((key) => haystack.includes(key))) {
+      queries.push(...rule.queries);
+      if (ctx.productType) queries.push(`${ctx.productType} ${rule.queries[0]}`.trim());
+      break;
+    }
+  }
+
   if (detectedRule?.searchQuery) {
-    queries.push(`${ctx.vendor} ${detectedRule.searchQuery}`.trim());
-    queries.push(`${ctx.productType} ${detectedRule.searchQuery}`.trim());
+    queries.push(`${ctx.vendor || ""} ${detectedRule.searchQuery}`.trim());
+    queries.push(`${ctx.productType || ""} ${detectedRule.searchQuery}`.trim());
   }
 
   if (ctx.categoryFullName) queries.push(ctx.categoryFullName);
@@ -1892,9 +1950,8 @@ function buildCategorySearchQueries(shopifyVariant) {
     }
   }
 
-  return deduped.slice(0, 6);
+  return deduped.slice(0, 8);
 }
-
 async function suggestEbayCategoryEnhanced({
   marketplaceId,
   shopifyVariant,
@@ -2484,6 +2541,18 @@ function buildDefaultAspects(shopifyVariant) {
     aspects,
     ["Color", "Colour", "Colore", "Farbe", "Couleur"],
     colorValue
+  );
+
+    setAspectIfValue(
+    aspects,
+    [
+      "Language",
+      "Lingua",
+      "Sprache",
+      "Langue",
+      "Idioma"
+    ],
+    "Multilingua"
   );
 
   for (const option of safeArray(shopifyVariant?.selectedOptions)) {
