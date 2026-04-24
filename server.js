@@ -1538,14 +1538,26 @@ async function getEbayInventoryLocation(merchantLocationKey) {
   );
 }
 
+const ebayCategoryTreeCache = new Map();
+
 async function getDefaultCategoryTreeId(marketplaceId) {
+  const safeMarketplaceId = String(marketplaceId || "").trim();
+
+  if (ebayCategoryTreeCache.has(safeMarketplaceId)) {
+    return ebayCategoryTreeCache.get(safeMarketplaceId);
+  }
+
   const appAccessToken = await getEbayApplicationAccessToken();
 
-  return ebayGet(
+  const result = await ebayGet(
     "/commerce/taxonomy/v1/get_default_category_tree_id",
     appAccessToken,
-    { marketplace_id: marketplaceId }
+    { marketplace_id: safeMarketplaceId }
   );
+
+  ebayCategoryTreeCache.set(safeMarketplaceId, result);
+
+  return result;
 }
 
 async function getCategorySuggestions({ categoryTreeId, q }) {
