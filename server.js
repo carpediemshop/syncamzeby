@@ -3046,6 +3046,9 @@ async function repairCategoryForPublishedOffersBySku({
         shopifyVariant,
       });
 
+      const policies = await getAllEbayPolicies(marketplaceId);
+      const defaultPolicyIds = pickDefaultPolicyIds(policies);
+
       const translation = translations[marketplaceId] || null;
 
       const marketplaceDescriptionHtml = buildEbayAPlusDescription({
@@ -3078,14 +3081,17 @@ async function repairCategoryForPublishedOffersBySku({
               "EUR",
           },
         },
-        listingPolicies: {
+                listingPolicies: {
           paymentPolicyId:
+            defaultPolicyIds?.paymentPolicyId ||
             fullOffer?.listingPolicies?.paymentPolicyId ||
             fullOffer?.paymentPolicyId,
           returnPolicyId:
+            defaultPolicyIds?.returnPolicyId ||
             fullOffer?.listingPolicies?.returnPolicyId ||
             fullOffer?.returnPolicyId,
           fulfillmentPolicyId:
+            defaultPolicyIds?.fulfillmentPolicyId ||
             fullOffer?.listingPolicies?.fulfillmentPolicyId ||
             fullOffer?.fulfillmentPolicyId,
         },
