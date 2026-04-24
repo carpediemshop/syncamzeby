@@ -5124,6 +5124,7 @@ app.get("/ebay/repair/category", async (req, res) => {
   try {
     const sku = String(req.query.sku || "").trim();
     const sourceLanguage = getSourceLanguage(req.query.sourceLanguage || "it");
+
     const marketplaces = String(req.query.marketplaces || "")
       .split(",")
       .map((x) => String(x || "").trim())
@@ -5133,13 +5134,20 @@ app.get("/ebay/repair/category", async (req, res) => {
       return res.status(400).json({ ok: false, error: "missing sku" });
     }
 
-    const result = await publishSkuToMultipleEbayMarkets({
+    const finalMarketplaces = marketplaces.length
+      ? marketplaces
+      : MARKETPLACES.map((m) => m.marketplaceId);
+
+    console.log("[EBAY REPAIR][CATEGORY REQUEST]", {
       sku,
       sourceLanguage,
-      categoryMap: {},
-      marketplaces: marketplaces.length
-        ? marketplaces
-        : MARKETPLACES.map((m) => m.marketplaceId),
+      marketplaces: finalMarketplaces,
+    });
+
+    const result = await repairCategoryForPublishedOffersBySku({
+      sku,
+      sourceLanguage,
+      marketplaces: finalMarketplaces,
     });
 
     return res.json(result);
