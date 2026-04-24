@@ -1815,53 +1815,61 @@ await loadProductBySku();
     }
 
     async function repairCurrentSku(marketplaceId = "") {
-      const sku = document.getElementById("skuInput").value.trim();
-      if (!sku) {
-        showToast("SKU mancante", "Inserisci prima lo SKU.", "error");
-        return;
-      }
+  const sku = document.getElementById("skuInput").value.trim();
+  if (!sku) {
+    showToast("SKU mancante", "Inserisci prima lo SKU.", "error");
+    return;
+  }
 
-      const sourceLanguage = document.getElementById("sourceLanguage").value || "it";
-      const marketParam = marketplaceId || getSelectedMarketplaces().join(",");
+  const sourceLanguage = document.getElementById("sourceLanguage").value || "it";
+  const marketParam = String(marketplaceId || "").trim();
 
-      openOverlay("Repair categoria SKU", `Sto eseguendo il repair categoria per ${sku}.`);
-      appendOverlayLog("Avvio repair SKU", { sku, sourceLanguage, marketplaces: marketParam });
+  openOverlay("Repair categoria SKU", `Sto eseguendo il repair per ${sku}.`);
+  appendOverlayLog("Avvio repair SKU", {
+    sku,
+    sourceLanguage,
+    marketplaces: marketParam ? [marketParam] : "tutti",
+  });
 
-      try {
-        setSingleProgress(`Repair categoria in corso`, 25, [
-          `SKU: ${sku}`,
-          `Mercati: ${marketParam || "tutti"}`
-        ]);
+  try {
+    setSingleProgress("Repair categoria in corso", 25, [
+      `SKU: ${sku}`,
+      `Mercati: ${marketParam || "tutti"}`
+    ]);
 
-        const result = await fetchJson(API.repairCategory(sku, sourceLanguage, marketParam));
-        appendOverlayLog("Risultato repair", result);
+    const url =
+      `/ebay/repair/category?sku=${encodeURIComponent(sku)}` +
+      `&sourceLanguage=${encodeURIComponent(sourceLanguage)}` +
+      (marketParam ? `&marketplaces=${encodeURIComponent(marketParam)}` : "");
 
-        setSingleProgress(`Repair completato`, 100, [
-          `SKU: ${sku}`,
-          "Controlla adesso lo stato marketplace"
-        ]);
+    const result = await fetchJson(url);
+    appendOverlayLog("Risultato repair", result);
 
-        setOverlayStatus("Repair completato", 100, [
-          `SKU: ${sku}`,
-          `Mercati: ${marketParam || "tutti"}`
-        ]);
+    setSingleProgress("Repair completato", 100, [
+      `SKU: ${sku}`,
+      `Mercati: ${marketParam || "tutti"}`
+    ]);
 
-        showToast("Repair completato", `Repair categoria eseguito per ${sku}.`, "success");
-        await loadProductBySku();
-      } catch (error) {
-        document.getElementById("statErrors").textContent = String(Number(document.getElementById("statErrors").textContent || 0) + 1);
-        setSingleProgress(`Errore repair`, 100, [
-          `SKU: ${sku}`,
-          `Errore: ${error.message}`
-        ]);
-        setOverlayStatus("Errore repair", 100, [
-          `SKU: ${sku}`,
-          `Errore: ${error.message}`
-        ]);
-        appendOverlayLog("Errore repair", error.message);
-        showToast("Errore repair", error.message, "error");
-      }
-    }
+    setOverlayStatus("Repair completato", 100, [
+      `SKU: ${sku}`,
+      `Mercati: ${marketParam || "tutti"}`
+    ]);
+
+    showToast("Repair completato", `Repair categoria eseguito per ${sku}.`, "success");
+    await loadProductBySku();
+  } catch (error) {
+    document.getElementById("statErrors").textContent =
+      String(Number(document.getElementById("statErrors").textContent || 0) + 1);
+
+    setSingleProgress("Errore repair", 100, [
+      `SKU: ${sku}`,
+      `Errore: ${error.message}`
+    ]);
+
+    appendOverlayLog("Errore repair", error.message);
+    showToast("Errore repair", error.message, "error");
+  }
+}
 
     async function repairSingleMarketplace(marketplaceId) {
       await repairCurrentSku(marketplaceId);
