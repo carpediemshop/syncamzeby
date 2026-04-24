@@ -1412,12 +1412,40 @@ async function getAllEbayPolicies(marketplaceId) {
 function pickBestPolicy(items = [], idKey) {
   if (!Array.isArray(items) || !items.length) return null;
 
-  const preferred =
-    items.find((p) => p?.categoryTypes?.some((c) => c?.default === true)) ||
-    items.find((p) => p?.name && /default/i.test(String(p.name))) ||
-    items[0];
+  const activeItems = items.filter((p) => {
+    const status = String(p?.status || p?.policyStatus || "").toUpperCase();
+    return !status || status === "ACTIVE";
+  });
 
-  return preferred?.[idKey] || null;
+  const usableItems = activeItems.length ? activeItems : items;
+
+  const preferred =
+    usableItems.find((p) =>
+      p?.categoryTypes?.some((c) => c?.default === true)
+    ) ||
+    usableItems.find((p) =>
+      /^default$/i.test(String(p?.name || "").trim())
+    ) ||
+    usableItems.find((p) =>
+      /default/i.test(String(p?.name || "").trim())
+    ) ||
+    usableItems[0];
+
+  const selectedId = preferred?.[idKey] || null;
+
+  console.log("[EBAY POLICY][PICK]", {
+    idKey,
+    selectedId,
+    selectedName: preferred?.name || null,
+    available: usableItems.map((p) => ({
+      name: p?.name || null,
+      id: p?.[idKey] || null,
+      status: p?.status || p?.policyStatus || null,
+      categoryTypes: p?.categoryTypes || null,
+    })),
+  });
+
+  return selectedId;
 }
 
 function pickDefaultPolicyIds(policiesData) {
