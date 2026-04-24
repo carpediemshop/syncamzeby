@@ -1209,15 +1209,65 @@ async function ensureValidEbayAccessToken() {
   return ebayConnectionStore.accessToken;
 }
 
-async function ebayGet(pathname, accessToken, params = {}, extraHeaders = {}) {
-  const response = await axios.get(
-    `${EBAY_API_BASE}${pathname}${getQueryString(params)}`,
-    {
-      headers: buildEbayApiHeaders(accessToken, extraHeaders),
-    }
-  );
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-  return response.data;
+function isEbayTooManyRequestsError(error) {
+  const status = Number(error?.response?.status || 0);
+  const errors = error?.response?.data?.errors || [];
+
+  return (
+    status === 429 ||
+    errors.some((e) =>
+      String(e?.errorId || "") === "2001" ||
+      /too many requests/i.test(String(e?.message || "")) ||
+      /request limit/i.test(String(e?.longMessage || ""))
+    )
+  );
+}
+
+async function ebayRequestWithRetry(fn, label, maxAttempts = 4) {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+
+      if (!isEbayTooManyRequestsError(error) || attempt === maxAttempts) {
+        throw error;
+      }
+
+      const delayMs = attempt * 5000;
+
+      console.log("[EBAY RETRY][TOO MANY REQUESTS]", {
+        label,
+        attempt,
+        nextAttemptInMs: delayMs,
+        status: error?.response?.status || null,
+        data: error?.response?.data || null,
+      });
+
+      await sleep(delayMs);
+    }
+  }
+
+  throw lastError;
+}
+
+async function ebayGet(pathname, accessToken, params = {}, extraHeaders = {}) {
+  return ebayRequestWithRetry(async () => {
+    const response = await axios.get(
+      `${EBAY_API_BASE}${pathname}${getQueryString(params)}`,
+      {
+        headers: buildEbayApiHeaders(accessToken, extraHeaders),
+      }
+    );
+
+    return response.data;
+  }, `GET ${pathname}`);
 }
 
 async function ebayPost(
@@ -1227,15 +1277,17 @@ async function ebayPost(
   params = {},
   extraHeaders = {}
 ) {
-  const response = await axios.post(
-    `${EBAY_API_BASE}${pathname}${getQueryString(params)}`,
-    body,
-    {
-      headers: buildEbayApiHeaders(accessToken, extraHeaders),
-    }
-  );
+  return ebayRequestWithRetry(async () => {
+    const response = await axios.post(
+      `${EBAY_API_BASE}${pathname}${getQueryString(params)}`,
+      body,
+      {
+        headers: buildEbayApiHeaders(accessToken, extraHeaders),
+      }
+    );
 
-  return response.data;
+    return response.data;
+  }, `POST ${pathname}`);
 }
 
 async function ebayPut(
@@ -1245,20 +1297,22 @@ async function ebayPut(
   params = {},
   extraHeaders = {}
 ) {
-  const response = await axios.put(
-    `${EBAY_API_BASE}${pathname}${getQueryString(params)}`,
-    body,
-    {
-      headers: buildEbayApiHeaders(accessToken, extraHeaders),
-      validateStatus: (status) => status >= 200 && status < 300,
-    }
-  );
+  return ebayRequestWithRetry(async () => {
+    const response = await axios.put(
+      `${EBAY_API_BASE}${pathname}${getQueryString(params)}`,
+      body,
+      {
+        headers: buildEbayApiHeaders(accessToken, extraHeaders),
+        validateStatus: (status) => status >= 200 && status < 300,
+      }
+    );
 
-  return {
-    status: response.status,
-    data: response.data,
-    headers: response.headers,
-  };
+    return {
+      status: response.status,
+      data: response.data,
+      headers: response.headers,
+    };
+  }, `PUT ${pathname}`);
 }
 
 async function ebayPostNoBody(
@@ -1267,20 +1321,22 @@ async function ebayPostNoBody(
   params = {},
   extraHeaders = {}
 ) {
-  const response = await axios.post(
-    `${EBAY_API_BASE}${pathname}${getQueryString(params)}`,
-    null,
-    {
-      headers: buildEbayApiHeaders(accessToken, extraHeaders),
-      validateStatus: (status) => status >= 200 && status < 300,
-    }
-  );
+  return ebayRequestWithRetry(async () => {
+    const response = await axios.post(
+      `${EBAY_API_BASE}${pathname}${getQueryString(params)}`,
+      null,
+      {
+        headers: buildEbayApiHeaders(accessToken, extraHeaders),
+        validateStatus: (status) => status >= 200 && status < 300,
+      }
+    );
 
-  return {
-    status: response.status,
-    data: response.data,
-    headers: response.headers,
-  };
+    return {
+      status: response.status,
+      data: response.data,
+      headers: response.headers,
+    };
+  }, `POST ${pathname}`);
 }
 
 // =========================
