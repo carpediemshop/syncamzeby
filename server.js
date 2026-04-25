@@ -3232,9 +3232,27 @@ async function repairCategoryForPublishedOffersBySku({
       const policies = await getAllEbayPolicies(marketplaceId);
       const defaultPolicyIds = pickDefaultPolicyIds(policies);
 
-      const translation = translations[marketplaceId] || null;
+      const translation = {
+  ...(translations[marketplaceId] || {}),
+  marketplaceId,
+  locale: market.locale,
+};
 
-      const marketplaceDescriptionHtml = buildEbayAPlusDescription({
+const inventoryData = await ensureInventoryItemForMarketplace({
+  sku: safeSku,
+  shopifyVariant,
+  translation,
+});
+
+console.log("[EBAY REPAIR][INVENTORY ITEM UPDATED]", {
+  sku: safeSku,
+  marketplaceId,
+  offerId,
+  categoryId: finalCategoryId,
+  contentLanguage: inventoryData?.contentLanguage || null,
+});
+  
+const marketplaceDescriptionHtml = buildEbayAPlusDescription({
         marketplaceId,
         title: translation?.translatedTitle || shopifyVariant.product.title,
         translatedDescription:
@@ -3309,6 +3327,8 @@ async function repairCategoryForPublishedOffersBySku({
         newCategoryId: finalCategoryId,
         previousStatus: fullOffer?.status || null,
         currentStatus: refreshedOffer?.status || null,
+        inventoryItemUpdate: inventoryData?.inventoryItemUpdate || null,
+        inventoryItemPayload: inventoryData?.inventoryItemPayload || null,
         updateResult,
         publishResult,
         publishError,
