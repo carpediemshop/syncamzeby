@@ -2768,7 +2768,7 @@ function sanitizeEbayTitle(value, max = 80) {
   return out || text.slice(0, max).trim();
 }
 
-function buildInventoryItemPayload(shopifyVariant, translatedTitle = "") {
+function buildInventoryItemPayload(shopifyVariant, translatedTitle = "", marketplaceId = "EBAY_IT") {
   const titleBase = firstNonEmpty(translatedTitle, shopifyVariant?.product?.title);
   const variantTitle = firstNonEmpty(shopifyVariant?.variantTitle);
 
@@ -2799,7 +2799,7 @@ function buildInventoryItemPayload(shopifyVariant, translatedTitle = "") {
     product: {
       title,
       description,
-      aspects: buildDefaultAspects(shopifyVariant),
+      aspects: buildDefaultAspects(shopifyVariant, marketplaceId),
       imageUrls,
     },
   };
@@ -3340,9 +3340,10 @@ async function ensureInventoryItemForMarketplace({
   const contentLanguage = normalizeContentLanguage(translation?.locale, "it-IT");
 
   const inventoryItemPayload = buildInventoryItemPayload(
-    shopifyVariant,
-    translation?.translatedTitle || shopifyVariant.product.title
-  );
+  shopifyVariant,
+  translation?.translatedTitle || shopifyVariant.product.title,
+  translation?.marketplaceId || "EBAY_IT"
+);
 
   const inventoryItemUpdate = await createOrReplaceInventoryItem({
     sku,
