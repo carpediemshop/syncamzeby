@@ -2930,6 +2930,23 @@ async function updateOffer({
   };
 }
 
+async function deleteOffer({ offerId }) {
+  const accessToken = await ensureValidEbayAccessToken();
+
+  const response = await axios.delete(
+    `${EBAY_API_BASE}/sell/inventory/v1/offer/${encodeURIComponent(offerId)}`,
+    {
+      headers: buildEbayApiHeaders(accessToken),
+      validateStatus: (status) => status >= 200 && status < 300,
+    }
+  );
+
+  return {
+    status: response.status,
+    data: response.data,
+  };
+}
+
 async function publishOffer({ offerId }) {
   const accessToken = await ensureValidEbayAccessToken();
 
@@ -3339,18 +3356,52 @@ await new Promise((resolve) => setTimeout(resolve, 2500));
 const refreshedOffer = await getOffer(offerId).catch(() => null);
 const refreshedStatus = String(refreshedOffer?.status || "").trim().toUpperCase();
 const reallyPublished = refreshedStatus === "PUBLISHED";
+      let recreateResult = null;
+let deleteResult = null;
+
+if (!reallyPublished && offerId) {
+  console.log("[EBAY REPAIR][DELETE AND RECREATE UNPUBLISHED]", {
+    sku: safeSku,
+    marketplaceId,
+    offerId,
+    previousStatus: refreshedStatus,
+  });
+
+  deleteResult = await deleteOffer({ offerId });
+
+  recreateResult = await publishOrUpdateSkuOnMarketplace({
+    sku: safeSku,
+    shopifyVariant,
+    marketplaceId,
+    sourceLanguage,
+    categoryId: finalCategoryId,
+    marketplacePriceAdjustment: 0,
+  });
+}
 
 results.push({
   marketplaceId,
   locale: market.locale,
   site: market.site,
-  ok: !publishError && reallyPublished,
+  ok: (!publishError && reallyPublished) || recreateResult?.ok === true,
   offerId,
   oldCategoryId: fullOffer?.categoryId || null,
   newCategoryId: finalCategoryId,
   previousStatus: fullOffer?.status || null,
   currentStatus: refreshedOffer?.status || null,
   reallyPublished,
+  deletedOldUnpublishedOffer: Boolean(deleteResult),
+deleteResult: deleteResult ? { status: deleteResult.status } : null,
+recreated: Boolean(recreateResult),
+recreateResult: recreateResult
+  ? {
+      ok: recreateResult.ok,
+      offerId: recreateResult.offerId,
+      offerMode: recreateResult.offerMode,
+      categoryId: recreateResult.categoryId,
+      finalPrice: recreateResult.finalPrice,
+    }
+  : null,
 
   inventoryItemUpdate: inventoryData?.inventoryItemUpdate || null,
 
