@@ -3307,32 +3307,41 @@ const marketplaceDescriptionHtml = buildEbayAPlusDescription({
       });
 
       let publishResult = null;
-      let publishError = null;
+let publishError = null;
 
-      try {
-        publishResult = await publishOffer({ offerId });
-      } catch (error) {
-        publishError = errorToSerializable(error);
-      }
+try {
+  publishResult = await publishOffer({ offerId });
+} catch (error) {
+  publishError = errorToSerializable(error);
+}
 
-      const refreshedOffer = await getOffer(offerId).catch(() => null);
+await new Promise((resolve) => setTimeout(resolve, 2500));
 
-      results.push({
-        marketplaceId,
-        locale: market.locale,
-        site: market.site,
-        ok: !publishError,
-        offerId,
-        oldCategoryId: fullOffer?.categoryId || null,
-        newCategoryId: finalCategoryId,
-        previousStatus: fullOffer?.status || null,
-        currentStatus: refreshedOffer?.status || null,
-        inventoryItemUpdate: inventoryData?.inventoryItemUpdate || null,
-        inventoryItemPayload: inventoryData?.inventoryItemPayload || null,
-        updateResult,
-        publishResult,
-        publishError,
-      });
+const refreshedOffer = await getOffer(offerId).catch(() => null);
+const refreshedStatus = String(refreshedOffer?.status || "").trim().toUpperCase();
+const reallyPublished = refreshedStatus === "PUBLISHED";
+
+results.push({
+  marketplaceId,
+  locale: market.locale,
+  site: market.site,
+  ok: !publishError && reallyPublished,
+  offerId,
+  oldCategoryId: fullOffer?.categoryId || null,
+  newCategoryId: finalCategoryId,
+  previousStatus: fullOffer?.status || null,
+  currentStatus: refreshedOffer?.status || null,
+  reallyPublished,
+
+  inventoryItemUpdate: inventoryData?.inventoryItemUpdate || null,
+
+  updateResult: updateResult
+    ? { status: updateResult.status }
+    : null,
+
+  publishOk: !publishError && reallyPublished,
+  publishError: publishError?.message || null,
+});
     } catch (error) {
       results.push({
         marketplaceId,
