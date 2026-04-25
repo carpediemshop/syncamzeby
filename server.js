@@ -2767,6 +2767,37 @@ function buildDefaultAspects(shopifyVariant) {
       }
     }
   }
+
+  const skuFallback = sanitizeAspectToken(shopifyVariant?.sku || "");
+  const resistantValue = sanitizeAspectToken("Resistente");
+
+  if (skuFallback) {
+    setAspectIfValue(
+      aspects,
+      [
+        "Model",
+        "Modello",
+        "Modelo",
+        "Modell",
+        "Modèle"
+      ],
+      skuFallback
+    );
+  }
+
+  if (resistantValue) {
+    setAspectIfValue(
+      aspects,
+      [
+        "Features",
+        "Caratteristiche",
+        "Características",
+        "Caractéristiques",
+        "Eigenschaften"
+      ],
+      resistantValue
+    );
+  }
   
   return aspects;
 }
@@ -3891,26 +3922,42 @@ async function syncShopifySkuToEbay({
 
   const republishResults = [];
 
-  for (const offer of unpublishedOffers) {
-    try {
-      const publishResult = await publishOffer({ offerId: offer.offerId });
-      republishResults.push({
-        offerId: offer.offerId,
-        marketplaceId: offer?.marketplaceId || null,
-        previousStatus: offer?.status || null,
-        ok: true,
-        publishResult,
-      });
-    } catch (error) {
-      republishResults.push({
-        offerId: offer.offerId,
-        marketplaceId: offer?.marketplaceId || null,
-        previousStatus: offer?.status || null,
-        ok: false,
-        error: errorToSerializable(error),
-      });
-    }
+for (const offer of unpublishedOffers) {
+  const marketplaceId = String(offer?.marketplaceId || "").trim();
+
+  try {
+    console.log("[EBAY AUTO REPAIR][UNPUBLISHED FOUND]", {
+      sku: safeSku,
+      offerId: offer.offerId,
+      marketplaceId,
+      previousStatus: offer?.status || null,
+    });
+
+    const repairResult = await repairCategoryForPublishedOffersBySku({
+      sku: safeSku,
+      sourceLanguage,
+      marketplaces: marketplaceId ? [marketplaceId] : [],
+    });
+
+    republishResults.push({
+      offerId: offer.offerId,
+      marketplaceId,
+      previousStatus: offer?.status || null,
+      ok: repairResult?.ok === true,
+      repaired: true,
+      repairResult,
+    });
+  } catch (error) {
+    republishResults.push({
+      offerId: offer.offerId,
+      marketplaceId,
+      previousStatus: offer?.status || null,
+      ok: false,
+      repaired: false,
+      error: errorToSerializable(error),
+    });
   }
+}
 
     const failedRepublishMarketplaceIds = republishResults
     .filter((r) => r.ok === false && r.marketplaceId)
