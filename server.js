@@ -2577,26 +2577,100 @@ function buildModelValue(shopifyVariant) {
   return sanitizeAspectToken(shopifyVariant?.sku || "");
 }
 
-function buildColorValue(shopifyVariant) {
+function buildColorValue(shopifyVariant, marketplaceId = "EBAY_IT") {
   const colorOption = safeArray(shopifyVariant?.selectedOptions).find((opt) =>
     /colore|color|colour|farbe|couleur/i.test(String(opt?.name || "").trim())
   );
 
-  const optionColorValue = sanitizeAspectToken(colorOption?.value || "");
-  if (optionColorValue) return optionColorValue;
-
+  const rawValue = String(colorOption?.value || "").trim();
   const title = String(shopifyVariant?.product?.title || "").toLowerCase();
 
-  if (/\bblu|blue|bleu|azul\b/.test(title)) return "Blu";
-  if (/\bnero|black|noir|schwarz\b/.test(title)) return "Nero";
-  if (/\bbianco|white|blanc|weiß|weiss\b/.test(title)) return "Bianco";
-  if (/\brosso|red|rouge|rot\b/.test(title)) return "Rosso";
-  if (/\bverde|green|vert|grün|grun\b/.test(title)) return "Verde";
-  if (/\bgiallo|yellow|jaune|gelb\b/.test(title)) return "Giallo";
-  if (/\brosa|pink|rose\b/.test(title)) return "Rosa";
-  if (/\bgrigio|grey|gray|gris|grau\b/.test(title)) return "Grigio";
+  let detected = "";
 
-  return "";
+  if (rawValue) {
+    const v = rawValue.toLowerCase();
+
+    if (/\bblu|blue|bleu|azul\b/.test(v)) detected = "blue";
+    else if (/\bnero|black|noir|schwarz\b/.test(v)) detected = "black";
+    else if (/\bbianco|white|blanc|weiß|weiss\b/.test(v)) detected = "white";
+    else if (/\brosso|red|rouge|rot\b/.test(v)) detected = "red";
+    else if (/\bverde|green|vert|grün|grun\b/.test(v)) detected = "green";
+    else if (/\bgiallo|yellow|jaune|gelb\b/.test(v)) detected = "yellow";
+    else if (/\brosa|pink|rose\b/.test(v)) detected = "pink";
+    else if (/\bgrigio|grey|gray|gris|grau\b/.test(v)) detected = "grey";
+  }
+
+  if (!detected) {
+    if (/\bblu|blue|bleu|azul\b/.test(title)) detected = "blue";
+    else if (/\bnero|black|noir|schwarz\b/.test(title)) detected = "black";
+    else if (/\bbianco|white|blanc|weiß|weiss\b/.test(title)) detected = "white";
+    else if (/\brosso|red|rouge|rot\b/.test(title)) detected = "red";
+    else if (/\bverde|green|vert|grün|grun\b/.test(title)) detected = "green";
+    else if (/\bgiallo|yellow|jaune|gelb\b/.test(title)) detected = "yellow";
+    else if (/\brosa|pink|rose\b/.test(title)) detected = "pink";
+    else if (/\bgrigio|grey|gray|gris|grau\b/.test(title)) detected = "grey";
+  }
+
+  const localizedColors = {
+    EBAY_IT: {
+      blue: "Blu",
+      black: "Nero",
+      white: "Bianco",
+      red: "Rosso",
+      green: "Verde",
+      yellow: "Giallo",
+      pink: "Rosa",
+      grey: "Grigio",
+      fallback: "Multicolore",
+    },
+    EBAY_DE: {
+      blue: "Blau",
+      black: "Schwarz",
+      white: "Weiß",
+      red: "Rot",
+      green: "Grün",
+      yellow: "Gelb",
+      pink: "Rosa",
+      grey: "Grau",
+      fallback: "Mehrfarbig",
+    },
+    EBAY_FR: {
+      blue: "Bleu",
+      black: "Noir",
+      white: "Blanc",
+      red: "Rouge",
+      green: "Vert",
+      yellow: "Jaune",
+      pink: "Rose",
+      grey: "Gris",
+      fallback: "Multicolore",
+    },
+    EBAY_ES: {
+      blue: "Azul",
+      black: "Negro",
+      white: "Blanco",
+      red: "Rojo",
+      green: "Verde",
+      yellow: "Amarillo",
+      pink: "Rosa",
+      grey: "Gris",
+      fallback: "Multicolor",
+    },
+    EBAY_GB: {
+      blue: "Blue",
+      black: "Black",
+      white: "White",
+      red: "Red",
+      green: "Green",
+      yellow: "Yellow",
+      pink: "Pink",
+      grey: "Grey",
+      fallback: "Multicoloured",
+    },
+  };
+
+  const map = localizedColors[marketplaceId] || localizedColors.EBAY_IT;
+  return sanitizeAspectToken(map[detected] || map.fallback);
 }
 
 function buildCompatibleBrandValue(shopifyVariant) {
@@ -2664,7 +2738,7 @@ function buildDefaultAspects(shopifyVariant, marketplaceId = "EBAY_IT") {
     buildModelValue(shopifyVariant) ||
     ""
   );
-  const colorValue = buildColorValue(shopifyVariant);
+  const colorValue = buildColorValue(shopifyVariant, marketplaceId);
   const compatibleBrandValue = buildCompatibleBrandValue(shopifyVariant);
   const typeValue = buildTypeValue(shopifyVariant);
   const eanValue = sanitizeAspectToken(shopifyVariant?.barcode || shopifyVariant?.sku || "");
