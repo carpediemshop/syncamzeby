@@ -1468,12 +1468,31 @@ async function getAllEbayPolicies(marketplaceId) {
       getEbayReturnPolicies(safeMarketplaceId),
     ]);
 
-  const data = {
-    marketplaceId: safeMarketplaceId,
-    fulfillmentPolicies,
-    paymentPolicies,
-    returnPolicies,
-  };
+  const slimPolicy = (p, idKey) => ({
+  [idKey]: p?.[idKey] || p?.id || null,
+  name: p?.name || null,
+  status: p?.status || p?.policyStatus || null,
+  categoryTypes: safeArray(p?.categoryTypes),
+});
+
+const data = {
+  marketplaceId: safeMarketplaceId,
+  fulfillmentPolicies: {
+    fulfillmentPolicies: safeArray(fulfillmentPolicies?.fulfillmentPolicies).map((p) =>
+      slimPolicy(p, "fulfillmentPolicyId")
+    ),
+  },
+  paymentPolicies: {
+    paymentPolicies: safeArray(paymentPolicies?.paymentPolicies).map((p) =>
+      slimPolicy(p, "paymentPolicyId")
+    ),
+  },
+  returnPolicies: {
+    returnPolicies: safeArray(returnPolicies?.returnPolicies).map((p) =>
+      slimPolicy(p, "returnPolicyId")
+    ),
+  },
+};
 
   ebayPoliciesCache.set(cacheKey, {
     savedAt: now,
