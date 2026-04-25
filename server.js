@@ -2635,170 +2635,111 @@ function setAspectIfValue(aspects, keys, value) {
   }
 }
 
-function buildDefaultAspects(shopifyVariant) {
+function buildDefaultAspects(shopifyVariant, marketplaceId = "EBAY_IT") {
   const aspects = {};
 
   const brandValue = buildBrandValue(shopifyVariant);
   const productValue = buildProductValue(shopifyVariant);
-  const modelValue = buildModelValue(shopifyVariant);
+  const modelValue = sanitizeAspectToken(
+    shopifyVariant?.sku ||
+    buildModelValue(shopifyVariant) ||
+    ""
+  );
   const colorValue = buildColorValue(shopifyVariant);
   const compatibleBrandValue = buildCompatibleBrandValue(shopifyVariant);
   const typeValue = buildTypeValue(shopifyVariant);
+  const eanValue = sanitizeAspectToken(shopifyVariant?.barcode || shopifyVariant?.sku || "");
+  const resistantValue = sanitizeAspectToken("Resistente");
 
-  setAspectIfValue(aspects, ["Brand", "Marca", "Marke", "Marque"], brandValue);
+  const aspectKeysByMarketplace = {
+    EBAY_IT: {
+      brand: ["Marca"],
+      product: ["Prodotto"],
+      model: ["Modello"],
+      compatibleBrand: ["Marca compatibile"],
+      type: ["Tipo", "Tipo di prodotto"],
+      color: ["Colore"],
+      language: ["Lingua"],
+      ean: ["EAN"],
+      mpn: ["Numero di parte fabbricante"],
+      features: ["Caratteristiche"],
+    },
+    EBAY_DE: {
+      brand: ["Marke"],
+      product: ["Produkt"],
+      model: ["Modell"],
+      compatibleBrand: ["Markenkompatibilität"],
+      type: ["Produktart", "Typ"],
+      color: ["Farbe"],
+      language: ["Sprache"],
+      ean: ["EAN"],
+      mpn: ["Herstellernummer"],
+      features: ["Eigenschaften"],
+    },
+    EBAY_FR: {
+      brand: ["Marque"],
+      product: ["Produit"],
+      model: ["Modèle"],
+      compatibleBrand: ["Marque compatible"],
+      type: ["Type de produit"],
+      color: ["Couleur"],
+      language: ["Langue"],
+      ean: ["EAN"],
+      mpn: ["Numéro de pièce fabricant"],
+      features: ["Caractéristiques"],
+    },
+    EBAY_ES: {
+      brand: ["Marca"],
+      product: ["Producto"],
+      model: ["Modelo"],
+      compatibleBrand: ["Marca compatible"],
+      type: ["Tipo de producto"],
+      color: ["Color"],
+      language: ["Idioma"],
+      ean: ["EAN"],
+      mpn: ["Número de pieza del fabricante"],
+      features: ["Características"],
+    },
+    EBAY_GB: {
+      brand: ["Brand"],
+      product: ["Product"],
+      model: ["Model"],
+      compatibleBrand: ["Compatible Brand"],
+      type: ["Type"],
+      color: ["Colour"],
+      language: ["Language"],
+      ean: ["EAN"],
+      mpn: ["MPN", "Manufacturer Part Number"],
+      features: ["Features"],
+    },
+  };
 
-  setAspectIfValue(
-    aspects,
-    ["Product", "Prodotto", "Producto", "Produit", "Produkt", "Produktart"],
-    productValue
-  );
+  const keys = aspectKeysByMarketplace[marketplaceId] || aspectKeysByMarketplace.EBAY_IT;
 
-  setAspectIfValue(
-    aspects,
-    ["Model", "Modello", "Modelo", "Modell", "Modèle"],
-    modelValue
-  );
+  setAspectIfValue(aspects, keys.brand, brandValue);
+  setAspectIfValue(aspects, keys.product, productValue);
+  setAspectIfValue(aspects, keys.model, modelValue);
+  setAspectIfValue(aspects, keys.compatibleBrand, compatibleBrandValue);
+  setAspectIfValue(aspects, keys.type, typeValue);
+  setAspectIfValue(aspects, keys.color, colorValue);
+  setAspectIfValue(aspects, keys.language, "Multilingua");
+  setAspectIfValue(aspects, keys.features, resistantValue);
 
-  setAspectIfValue(
-    aspects,
-    ["Compatible Brand", "Marca compatibile", "Compatible Brand/Model", "Markenkompatibilität", "Marque compatible"],
-    compatibleBrandValue
-  );
-
-    setAspectIfValue(
-    aspects,
-    [
-      "Type",
-      "Tipo",
-      "Tipo di prodotto",
-      "Tipo de producto",
-      "Typ",
-      "Produktart",
-      "Type de produit"
-    ],
-    typeValue
-  );
-
-  setAspectIfValue(
-    aspects,
-    ["Color", "Colour", "Colore", "Farbe", "Couleur"],
-    colorValue
-  );
-
-    setAspectIfValue(
-    aspects,
-    [
-      "Language",
-      "Lingua",
-      "Sprache",
-      "Langue",
-      "Idioma"
-    ],
-    "Multilingua"
-  );
+  if (eanValue) {
+    setAspectIfValue(aspects, keys.ean, eanValue);
+    setAspectIfValue(aspects, keys.mpn, eanValue);
+  }
 
   for (const option of safeArray(shopifyVariant?.selectedOptions)) {
     const name = String(option?.name || "").trim();
     const value = sanitizeAspectToken(option?.value || "");
     if (!name || !value) continue;
 
-    if (!aspects[name]) {
+    if (!aspects[name] && Object.keys(aspects).length < 40) {
       aspects[name] = [value];
     }
   }
 
-  if (shopifyVariant?.barcode) {
-    const ean = sanitizeAspectToken(shopifyVariant.barcode);
-    if (ean) {
-      aspects.EAN = [ean];
-    }
-  }
-
-  const isbnFallback = sanitizeAspectToken(
-    shopifyVariant?.barcode ||
-    shopifyVariant?.sku ||
-    ""
-  );
-
-  if (isbnFallback) {
-    const isbnKeys = [
-      "ISBN",
-      "Isbn"
-    ];
-
-    for (const key of isbnKeys) {
-      const current = aspects[key];
-
-      if (
-        !Array.isArray(current) ||
-        !current.length ||
-        !String(current[0] || "").trim()
-      ) {
-        aspects[key] = [isbnFallback];
-      }
-    }
-  }
-  
-        const mpnFallback = sanitizeAspectToken(
-    shopifyVariant?.barcode ||
-    shopifyVariant?.sku ||
-    ""
-  );
-
-  if (mpnFallback) {
-    const mpnKeys = [
-      "MPN",
-      "Manufacturer Part Number",
-      "Numero di parte fabbricante",
-      "Numéro de pièce fabricant",
-      "Herstellernummer",
-      "Número de pieza del fabricante"
-    ];
-
-    for (const key of mpnKeys) {
-      const current = aspects[key];
-
-      if (
-        !Array.isArray(current) ||
-        !current.length ||
-        !String(current[0] || "").trim()
-      ) {
-        aspects[key] = [mpnFallback];
-      }
-    }
-  }
-
-  const skuFallback = sanitizeAspectToken(shopifyVariant?.sku || "");
-  const resistantValue = sanitizeAspectToken("Resistente");
-
-  if (skuFallback) {
-    setAspectIfValue(
-      aspects,
-      [
-        "Model",
-        "Modello",
-        "Modelo",
-        "Modell",
-        "Modèle"
-      ],
-      skuFallback
-    );
-  }
-
-  if (resistantValue) {
-    setAspectIfValue(
-      aspects,
-      [
-        "Features",
-        "Caratteristiche",
-        "Características",
-        "Caractéristiques",
-        "Eigenschaften"
-      ],
-      resistantValue
-    );
-  }
-  
   return aspects;
 }
 
