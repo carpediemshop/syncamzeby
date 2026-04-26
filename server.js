@@ -2955,15 +2955,49 @@ async function createOrReplaceInventoryItem({
   const accessToken = await ensureValidEbayAccessToken();
   const safeContentLanguage = normalizeContentLanguage(contentLanguage, "it-IT");
 
-  return ebayPut(
-    `/sell/inventory/v1/inventory_item/${encodeURIComponent(sku)}`,
-    accessToken,
-    payload,
-    {},
-    {
-      "Content-Language": safeContentLanguage,
+  try {
+    const response = await axios.put(
+      `${EBAY_API_BASE}/sell/inventory/v1/inventory_item/${encodeURIComponent(sku)}`,
+      payload,
+      {
+        headers: buildEbayApiHeaders(accessToken, {
+          "Content-Language": safeContentLanguage,
+        }),
+        validateStatus: (status) => status >= 200 && status < 300,
+      }
+    );
+
+    return {
+      ok: true,
+      status: response.status,
+      data: response.data || {},
+      headers: response.headers,
+    };
+  } catch (error) {
+    const data = error?.response?.data || {};
+    const errors = safeArray(data?.errors);
+
+    const onlyBusinessPolicyWarning =
+      errors.length > 0 &&
+      errors.every((e) => Number(e?.errorId) === 25402);
+
+    if (onlyBusinessPolicyWarning) {
+      console.log("[EBAY INVENTORY ITEM][WARNING IGNORED]", {
+        sku,
+        contentLanguage: safeContentLanguage,
+        errors,
+      });
+
+      return {
+        ok: true,
+        status: error?.response?.status || 200,
+        warningIgnored: true,
+        data,
+      };
     }
-  );
+
+    throw error;
+  }
 }
 
 async function getOffersBySku({ sku, marketplaceId, format }) {
