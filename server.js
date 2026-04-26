@@ -3250,28 +3250,66 @@ async function upsertOfferForMarketplace({
     };
   }
 
-  const createResult = await createOffer({
+  let createResult = null;
+let offerId = null;
+
+try {
+  createResult = await createOffer({
     payload,
     contentLanguage,
   });
-  const offerId = createResult?.offerId;
 
-  if (!offerId) {
-    throw new Error(
-      `Offer create response missing offerId for ${marketplaceId}: ${JSON.stringify(
-        createResult
-      )}`
+  offerId = createResult?.offerId;
+} catch (error) {
+  const responseData = error?.response?.data || {};
+  const errors = safeArray(responseData?.errors);
+  const messageText = JSON.stringify(responseData);
+
+  const alreadyExists =
+    messageText.includes("Offer entity already exists") ||
+    errors.some((e) =>
+      String(e?.message || "").includes("Offer entity already exists")
     );
+
+  const existingOfferId =
+    errors
+      .flatMap((e) => safeArray(e?.parameters))
+      .find((p) => String(p?.name || "") === "offerId")?.value || null;
+
+  if (!alreadyExists || !existingOfferId) {
+    throw error;
   }
 
-  return {
-    mode: "created",
-    offerId,
+  const updateResult = await updateOffer({
+    offerId: existingOfferId,
     payload,
     contentLanguage,
-    createResult,
+  });
+
+  return {
+    mode: "updated_existing_after_create_conflict",
+    offerId: existingOfferId,
+    payload,
+    contentLanguage,
+    updateResult: updateResult ? { status: updateResult.status } : null,
   };
 }
+
+if (!offerId) {
+  throw new Error(
+    `Offer create response missing offerId for ${marketplaceId}: ${JSON.stringify({
+      createResult,
+    })}`
+  );
+}
+
+return {
+  mode: "created",
+  offerId,
+  payload,
+  contentLanguage,
+  createResult,
+};
 
 async function repairCategoryForPublishedOffersBySku({
   sku,
