@@ -2577,6 +2577,33 @@ function buildModelValue(shopifyVariant) {
   return sanitizeAspectToken(shopifyVariant?.sku || "");
 }
 
+function buildStoveTypeValue(shopifyVariant, marketplaceId = "EBAY_IT") {
+  const text = [
+    shopifyVariant?.product?.title,
+    shopifyVariant?.product?.descriptionText,
+    shopifyVariant?.product?.productType,
+    shopifyVariant?.product?.categoryFullName,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const hasInduction =
+    /induction|induzione|induktion|inducción/i.test(text);
+
+  if (!hasInduction) return "";
+
+  const values = {
+    EBAY_IT: "Induzione",
+    EBAY_DE: "Induktion",
+    EBAY_FR: "Induction",
+    EBAY_ES: "Inducción",
+    EBAY_GB: "Induction",
+  };
+
+  return sanitizeAspectToken(values[marketplaceId] || values.EBAY_IT);
+}
+
 function buildColorValue(shopifyVariant, marketplaceId = "EBAY_IT") {
   const colorOption = safeArray(shopifyVariant?.selectedOptions).find((opt) =>
     /colore|color|colour|farbe|couleur/i.test(String(opt?.name || "").trim())
@@ -2739,6 +2766,7 @@ function buildDefaultAspects(shopifyVariant, marketplaceId = "EBAY_IT") {
     ""
   );
   const colorValue = buildColorValue(shopifyVariant, marketplaceId);
+  const stoveTypeValue = buildStoveTypeValue(shopifyVariant, marketplaceId);
   const compatibleBrandValue = buildCompatibleBrandValue(shopifyVariant);
   const typeValue = buildTypeValue(shopifyVariant);
   const eanValue = sanitizeAspectToken(shopifyVariant?.barcode || shopifyVariant?.sku || "");
@@ -2764,6 +2792,7 @@ function buildDefaultAspects(shopifyVariant, marketplaceId = "EBAY_IT") {
       compatibleBrand: ["Markenkompatibilität"],
       type: ["Produktart", "Typ"],
       color: ["Farbe"],
+      stoveType: ["Geeigneter Herdtyp"],
       language: ["Sprache"],
       ean: ["EAN"],
       mpn: ["Herstellernummer"],
@@ -2815,6 +2844,12 @@ function buildDefaultAspects(shopifyVariant, marketplaceId = "EBAY_IT") {
   setAspectIfValue(aspects, keys.compatibleBrand, compatibleBrandValue);
   setAspectIfValue(aspects, keys.type, typeValue);
   setAspectIfValue(aspects, keys.color, colorValue);
+  setAspectIfValue(
+  aspects,
+  keys.stoveType || [],
+  stoveTypeValue
+);
+  
   setAspectIfValue(aspects, keys.language, "Multilingua");
   setAspectIfValue(aspects, keys.features, resistantValue);
 
