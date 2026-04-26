@@ -3393,25 +3393,25 @@ async function repairCategoryForPublishedOffersBySku({
       let deletedOldOffer = false;
       let deleteStatus = null;
 
-      if (oldOfferId && oldStatus && oldStatus !== "PUBLISHED") {
-        try {
-          const deleteResult = await deleteOffer({ offerId: oldOfferId });
-          deletedOldOffer = true;
-          deleteStatus = deleteResult?.status || null;
-        } catch (deleteError) {
-          results.push({
-            marketplaceId,
-            locale: market.locale,
-            site: market.site,
-            ok: false,
-            offerId: oldOfferId,
-            previousStatus: oldStatus,
-            failedStep: "delete_unpublished_offer",
-            error: errorToSerializable(deleteError),
-          });
-          continue;
-        }
-      }
+      let deleteError = null;
+
+if (oldOfferId && oldStatus && oldStatus !== "PUBLISHED") {
+  try {
+    const deleteResult = await deleteOffer({ offerId: oldOfferId });
+    deletedOldOffer = true;
+    deleteStatus = deleteResult?.status || null;
+  } catch (error) {
+    deleteError = errorToSerializable(error);
+
+    console.log("[EBAY REPAIR][DELETE FAILED - CONTINUE RECREATE]", {
+      sku: safeSku,
+      marketplaceId,
+      oldOfferId,
+      oldStatus,
+      deleteError,
+    });
+  }
+}
 
       const finalCategoryId = await resolveCategoryIdForMarketplace({
         sku: safeSku,
