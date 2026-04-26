@@ -4004,73 +4004,71 @@ async function syncShopifySkuToEbay({
 
   const responses = safeArray(bulkUpdateResult?.responses);
 
-  const unpublishedOffers = offers.filter((offer) => {
+    const unpublishedOffers = safeArray(offers).filter((offer) => {
     const status = String(offer?.status || "").trim().toUpperCase();
     return Boolean(offer?.offerId) && status && status !== "PUBLISHED";
   });
 
-  const republishResults = [];
+  const autoRepairMarketplaceIds = [
+    ...unpublishedOffers
+      .map((offer) => String(offer?.marketplaceId || "").trim())
+      .filter(Boolean),
 
-for (const offer of unpublishedOffers) {
-  const marketplaceId = String(offer?.marketplaceId || "").trim();
+    ...safeArray(autoPublishErrors)
+      .map((row) => String(row?.marketplaceId || "").trim())
+      .filter(Boolean),
+  ];
 
-  try {
-    console.log("[EBAY AUTO REPAIR][UNPUBLISHED FOUND]", {
-      sku: safeSku,
-      offerId: offer.offerId,
-      marketplaceId,
-      previousStatus: offer?.status || null,
-    });
-
-    const repairResult = await repairCategoryForPublishedOffersBySku({
-      sku: safeSku,
-      sourceLanguage,
-      marketplaces: marketplaceId ? [marketplaceId] : [],
-    });
-
-    republishResults.push({
-      offerId: offer.offerId,
-      marketplaceId,
-      previousStatus: offer?.status || null,
-      ok: repairResult?.ok === true,
-      repaired: true,
-      repairResult,
-    });
-  } catch (error) {
-    republishResults.push({
-      offerId: offer.offerId,
-      marketplaceId,
-      previousStatus: offer?.status || null,
-      ok: false,
-      repaired: false,
-      error: errorToSerializable(error),
-    });
-  }
-}
-
-    const failedRepublishMarketplaceIds = republishResults
-    .filter((r) => r.ok === false && r.marketplaceId)
-    .map((r) => String(r.marketplaceId).trim())
-    .filter(Boolean);
+  const uniqueAutoRepairMarketplaceIds = [...new Set(autoRepairMarketplaceIds)];
 
   let autoRepairResult = null;
+  let republishResults = [];
 
-  if (failedRepublishMarketplaceIds.length) {
+  if (uniqueAutoRepairMarketplaceIds.length) {
     try {
+      console.log("[EBAY AUTO REPAIR][START]", {
+        sku: safeSku,
+        marketplaces: uniqueAutoRepairMarketplaceIds,
+      });
+
       autoRepairResult = await repairCategoryForPublishedOffersBySku({
         sku: safeSku,
         sourceLanguage,
-        marketplaces: [...new Set(failedRepublishMarketplaceIds)],
+        marketplaces: uniqueAutoRepairMarketplaceIds,
       });
+
+      republishResults = safeArray(autoRepairResult?.results).map((row) => ({
+        offerId: row?.oldOfferId || row?.offerId || row?.newOfferId || null,
+        marketplaceId: row?.marketplaceId || null,
+        previousStatus: row?.oldStatus || row?.previousStatus || null,
+        currentStatus: row?.currentStatus || null,
+        ok: row?.ok === true,
+        repaired: true,
+        recreated: Boolean(row?.deletedOldOffer || row?.recreated),
+        error: row?.error || null,
+      }));
     } catch (error) {
       autoRepairResult = {
         ok: false,
         error: errorToSerializable(error),
       };
     }
+
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    try {
+      offers = await getOffersBySku({ sku: safeSku });
+    } catch {
+      offers = [];
+    }
   }
+
+  const failedRepublishMarketplaceIds = republishResults
+    .filter((r) => r.ok === false && r.marketplaceId)
+    .map((r) => String(r.marketplaceId).trim())
+    .filter(Boolean);
   
-  const offerResults = offers.map((offer) => {
+  const offerResults = safeArray(offers).map((offer) => {
     const responseRow =
       responses.find((r) => String(r?.offerId || "") === String(offer?.offerId || "")) ||
       null;
