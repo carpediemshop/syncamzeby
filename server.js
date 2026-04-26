@@ -4190,6 +4190,17 @@ try {
 
 const unpublishedOffers = corruptedOffers;
 const republishResults = forceRecreateResults;
+
+  const autoRepairResult = {
+  ok: forceRecreateResults.every((r) => r.ok === true),
+  mode: "force_recovery",
+  results: forceRecreateResults,
+};
+
+const failedRepublishMarketplaceIds = forceRecreateResults
+  .filter((r) => r.ok === false && r.marketplaceId)
+  .map((r) => String(r.marketplaceId).trim())
+  .filter(Boolean);
   
   const responses = safeArray(bulkUpdateResult?.responses);
 
