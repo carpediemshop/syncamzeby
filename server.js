@@ -3993,16 +3993,25 @@ async function syncShopifySkuToEbay({
     let bulkUpdateResult = null;
   let bulkUpdateError = null;
 
+const publishedOffersForBulkUpdate = safeArray(offers).filter((offer) => {
+  const status = String(offer?.status || "").trim().toUpperCase();
+  return Boolean(offer?.offerId) && status === "PUBLISHED";
+});
+  
   try {
+  if (publishedOffersForBulkUpdate.length) {
     bulkUpdateResult = await bulkUpdatePublishedOffersForSku({
       sku: safeSku,
       price: shopifyVariant.price,
       quantity: shopifyVariant.inventoryQuantity,
-      offers,
+      offers: publishedOffersForBulkUpdate,
     });
-  } catch (error) {
-    bulkUpdateError = errorToSerializable(error);
+  } else {
+    bulkUpdateResult = { responses: [] };
   }
+} catch (error) {
+  bulkUpdateError = errorToSerializable(error);
+}
 
 // ==========================
 // FORCE RECREATE CORRUPTED OFFERS
