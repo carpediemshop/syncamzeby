@@ -4203,11 +4203,6 @@ const failedRepublishMarketplaceIds = forceRecreateResults
   .filter(Boolean);
   
   const responses = safeArray(bulkUpdateResult?.responses);
-
-  const failedRepublishMarketplaceIds = republishResults
-    .filter((r) => r.ok === false && r.marketplaceId)
-    .map((r) => String(r.marketplaceId).trim())
-    .filter(Boolean);
   
   const offerResults = safeArray(offers).map((offer) => {
     const responseRow =
