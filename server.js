@@ -4071,6 +4071,7 @@ try {
   offers = [];
 }
   
+  const unpublishedOffers = corruptedOffers;
   const republishResults = forceRecreateResults;
   
   const responses = safeArray(bulkUpdateResult?.responses);
