@@ -4111,11 +4111,18 @@ for (const market of MARKETPLACES) {
       error: err,
     });
 
-    console.log("[EBAY CLEAN CREATE][FAILED]", {
+    console.log(
+  "[EBAY CLEAN CREATE][FAILED]",
+  JSON.stringify(
+    {
       sku: safeSku,
       marketplaceId,
       error: err,
-    });
+    },
+    null,
+    2
+  )
+);
   }
 }
 
