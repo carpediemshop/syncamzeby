@@ -4071,6 +4071,8 @@ try {
   offers = [];
 }
   
+  const republishResults = forceRecreateResults;
+  
   const responses = safeArray(bulkUpdateResult?.responses);
 
   const failedRepublishMarketplaceIds = republishResults
