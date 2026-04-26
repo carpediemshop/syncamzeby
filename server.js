@@ -4004,66 +4004,74 @@ async function syncShopifySkuToEbay({
     bulkUpdateError = errorToSerializable(error);
   }
 
-  const responses = safeArray(bulkUpdateResult?.responses);
+// ==========================
+// FORCE RECREATE CORRUPTED OFFERS
+// ==========================
 
-    const unpublishedOffers = safeArray(offers).filter((offer) => {
-    const status = String(offer?.status || "").trim().toUpperCase();
-    return Boolean(offer?.offerId) && status && status !== "PUBLISHED";
-  });
+const corruptedOffers = offers.filter((offer) => {
+  const status = String(offer?.status || "").toUpperCase();
+  return status !== "PUBLISHED";
+});
 
-  const autoRepairMarketplaceIds = [
-    ...unpublishedOffers
-      .map((offer) => String(offer?.marketplaceId || "").trim())
-      .filter(Boolean),
+const forceRecreateResults = [];
 
-    ...safeArray(autoPublishErrors)
-      .map((row) => String(row?.marketplaceId || "").trim())
-      .filter(Boolean),
-  ];
+for (const offer of corruptedOffers) {
+  const marketplaceId = offer.marketplaceId;
 
-  const uniqueAutoRepairMarketplaceIds = [...new Set(autoRepairMarketplaceIds)];
+  try {
+    console.log("[EBAY FORCE RECREATE]", {
+      sku: safeSku,
+      offerId: offer.offerId,
+      marketplaceId,
+      status: offer.status,
+    });
 
-  let autoRepairResult = null;
-  let republishResults = [];
-
-  if (uniqueAutoRepairMarketplaceIds.length) {
+    // DELETE (non bloccare se fallisce)
     try {
-      console.log("[EBAY AUTO REPAIR][START]", {
-        sku: safeSku,
-        marketplaces: uniqueAutoRepairMarketplaceIds,
-      });
-
-      autoRepairResult = await repairCategoryForPublishedOffersBySku({
-        sku: safeSku,
-        sourceLanguage,
-        marketplaces: uniqueAutoRepairMarketplaceIds,
-      });
-
-      republishResults = safeArray(autoRepairResult?.results).map((row) => ({
-        offerId: row?.oldOfferId || row?.offerId || row?.newOfferId || null,
-        marketplaceId: row?.marketplaceId || null,
-        previousStatus: row?.oldStatus || row?.previousStatus || null,
-        currentStatus: row?.currentStatus || null,
-        ok: row?.ok === true,
-        repaired: true,
-        recreated: Boolean(row?.deletedOldOffer || row?.recreated),
-        error: row?.error || null,
-      }));
-    } catch (error) {
-      autoRepairResult = {
-        ok: false,
-        error: errorToSerializable(error),
-      };
+      await deleteOffer({ offerId: offer.offerId });
+    } catch (e) {
+      console.log("[DELETE FAILED - IGNORE]", e?.message);
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    // CREA NUOVA OFFER
+    const categoryId = await resolveCategoryIdForMarketplace({
+      sku: safeSku,
+      marketplaceId,
+      shopifyVariant,
+    });
 
-    try {
-      offers = await getOffersBySku({ sku: safeSku });
-    } catch {
-      offers = [];
-    }
+    const recreateResult = await publishOrUpdateSkuOnMarketplace({
+      sku: safeSku,
+      shopifyVariant,
+      marketplaceId,
+      sourceLanguage,
+      categoryId,
+    });
+
+    forceRecreateResults.push({
+      marketplaceId,
+      ok: true,
+      recreated: true,
+      result: recreateResult,
+    });
+
+  } catch (error) {
+    forceRecreateResults.push({
+      marketplaceId,
+      ok: false,
+      error: errorToSerializable(error),
+    });
   }
+}
+
+// ricarica offerte aggiornate
+try {
+  offers = await getOffersBySku({ sku: safeSku });
+} catch {
+  offers = [];
+}
+  
+  const responses = safeArray(bulkUpdateResult?.responses);
 
   const failedRepublishMarketplaceIds = republishResults
     .filter((r) => r.ok === false && r.marketplaceId)
