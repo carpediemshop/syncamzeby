@@ -3485,13 +3485,14 @@ async function ensureInventoryItemForMarketplace({
   sku,
   shopifyVariant,
   translation,
+  marketplaceId = "EBAY_IT",
 }) {
   const contentLanguage = normalizeContentLanguage(translation?.locale, "it-IT");
 
   const inventoryItemPayload = buildInventoryItemPayload(
   shopifyVariant,
   translation?.translatedTitle || shopifyVariant.product.title,
-  translation?.marketplaceId || "EBAY_IT"
+  marketplaceId
 );
 
   const inventoryItemUpdate = await createOrReplaceInventoryItem({
@@ -3531,10 +3532,11 @@ async function publishOrUpdateSkuOnMarketplace({
   )[marketplaceId];
 
   const inventoryData = await ensureInventoryItemForMarketplace({
-    sku,
-    shopifyVariant,
-    translation,
-  });
+  sku,
+  shopifyVariant,
+  translation,
+  marketplaceId,
+});
 
   const finalCategoryId =
     String(categoryId || "").trim() ||
@@ -3583,6 +3585,14 @@ console.log("MARKETPLACE PRICE DEBUG", {
 });
 
   const publishResult = await publishOffer({ offerId: upsert.offerId });
+  const refreshedOffer = await getOffer(upsert.offerId).catch(() => null);
+const refreshedStatus = String(refreshedOffer?.status || "").trim().toUpperCase();
+
+if (refreshedStatus !== "PUBLISHED") {
+  throw new Error(
+    `Offer ${upsert.offerId} for ${marketplaceId} still not PUBLISHED after publish. Status: ${refreshedStatus || "UNKNOWN"}`
+  );
+}
 
   return {
     ok: true,
