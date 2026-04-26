@@ -2771,6 +2771,8 @@ function buildDefaultAspects(shopifyVariant, marketplaceId = "EBAY_IT") {
   const typeValue = buildTypeValue(shopifyVariant);
   const eanValue = sanitizeAspectToken(shopifyVariant?.barcode || shopifyVariant?.sku || "");
   const resistantValue = sanitizeAspectToken("Resistente");
+  const widthValue = sanitizeAspectToken("30 cm");
+  const lengthValue = sanitizeAspectToken("30 cm");
 
   const aspectKeysByMarketplace = {
     EBAY_IT: {
@@ -2780,6 +2782,8 @@ function buildDefaultAspects(shopifyVariant, marketplaceId = "EBAY_IT") {
       compatibleBrand: ["Marca compatibile"],
       type: ["Tipo", "Tipo di prodotto"],
       color: ["Colore"],
+      width: ["Larghezza"],
+      length: ["Lunghezza"],
       language: ["Lingua"],
       ean: ["EAN"],
       mpn: ["Numero di parte fabbricante"],
@@ -2792,6 +2796,8 @@ function buildDefaultAspects(shopifyVariant, marketplaceId = "EBAY_IT") {
       compatibleBrand: ["Markenkompatibilität"],
       type: ["Produktart", "Typ"],
       color: ["Farbe"],
+      width: ["Breite"],
+      length: ["Länge"],
       stoveType: ["Geeigneter Herdtyp"],
       language: ["Sprache"],
       ean: ["EAN"],
@@ -2805,6 +2811,8 @@ function buildDefaultAspects(shopifyVariant, marketplaceId = "EBAY_IT") {
       compatibleBrand: ["Marque compatible"],
       type: ["Type de produit"],
       color: ["Couleur"],
+      width: ["Largeur"],
+      length: ["Longueur"],
       language: ["Langue"],
       ean: ["EAN"],
       mpn: ["Numéro de pièce fabricant"],
@@ -2817,6 +2825,8 @@ function buildDefaultAspects(shopifyVariant, marketplaceId = "EBAY_IT") {
       compatibleBrand: ["Marca compatible"],
       type: ["Tipo de producto"],
       color: ["Color"],
+      width: ["Ancho"],
+      length: ["Longitud"],
       language: ["Idioma"],
       ean: ["EAN"],
       mpn: ["Número de pieza del fabricante"],
@@ -2829,6 +2839,8 @@ function buildDefaultAspects(shopifyVariant, marketplaceId = "EBAY_IT") {
       compatibleBrand: ["Compatible Brand"],
       type: ["Type"],
       color: ["Colour"],
+      width: ["Width"],
+      length: ["Length"],
       language: ["Language"],
       ean: ["EAN"],
       mpn: ["MPN", "Manufacturer Part Number"],
@@ -2852,6 +2864,8 @@ function buildDefaultAspects(shopifyVariant, marketplaceId = "EBAY_IT") {
   
   setAspectIfValue(aspects, keys.language, "Multilingua");
   setAspectIfValue(aspects, keys.features, resistantValue);
+  setAspectIfValue(aspects, keys.width, widthValue);
+  setAspectIfValue(aspects, keys.length, lengthValue);
 
   if (eanValue) {
     setAspectIfValue(aspects, keys.ean, eanValue);
