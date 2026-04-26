@@ -3340,37 +3340,43 @@ async function repairCategoryForPublishedOffersBySku({
     const market = getMarketplaceMeta(marketplaceId);
 
     if (!market) {
-      results.push({
-        marketplaceId,
-        ok: false,
-        error: "unknown marketplace",
-      });
+      results.push({ marketplaceId, ok: false, error: "unknown marketplace" });
       continue;
     }
 
     try {
-      const offers = await getOffersBySku({
-        sku: safeSku,
-        marketplaceId,
-      });
+      const offers = await getOffersBySku({ sku: safeSku, marketplaceId });
 
       const existingOffer =
-        safeArray(offers).find((o) => String(o?.marketplaceId || "") === marketplaceId) ||
-        null;
+        safeArray(offers).find(
+          (o) => String(o?.marketplaceId || "") === marketplaceId
+        ) || null;
 
-      if (!existingOffer?.offerId) {
-        results.push({
-          marketplaceId,
-          locale: market.locale,
-          site: market.site,
-          ok: false,
-          error: "offer not found for marketplace",
-        });
-        continue;
+      const oldOfferId = existingOffer?.offerId ? String(existingOffer.offerId) : null;
+      const oldStatus = String(existingOffer?.status || "").toUpperCase();
+
+      let deletedOldOffer = false;
+      let deleteStatus = null;
+
+      if (oldOfferId && oldStatus && oldStatus !== "PUBLISHED") {
+        try {
+          const deleteResult = await deleteOffer({ offerId: oldOfferId });
+          deletedOldOffer = true;
+          deleteStatus = deleteResult?.status || null;
+        } catch (deleteError) {
+          results.push({
+            marketplaceId,
+            locale: market.locale,
+            site: market.site,
+            ok: false,
+            offerId: oldOfferId,
+            previousStatus: oldStatus,
+            failedStep: "delete_unpublished_offer",
+            error: errorToSerializable(deleteError),
+          });
+          continue;
+        }
       }
-
-      const offerId = String(existingOffer.offerId);
-      const fullOffer = await getOffer(offerId);
 
       const finalCategoryId = await resolveCategoryIdForMarketplace({
         sku: safeSku,
@@ -3378,158 +3384,52 @@ async function repairCategoryForPublishedOffersBySku({
         shopifyVariant,
       });
 
-      const policies = await getAllEbayPolicies(marketplaceId);
-      const defaultPolicyIds = pickDefaultPolicyIds(policies);
-
-      const translation = {
-  ...(translations[marketplaceId] || {}),
-  marketplaceId,
-  locale: market.locale,
-};
-
-const inventoryData = await ensureInventoryItemForMarketplace({
-  sku: safeSku,
-  shopifyVariant,
-  translation,
-});
-
-console.log("[EBAY REPAIR][INVENTORY ITEM UPDATED]", {
-  sku: safeSku,
-  marketplaceId,
-  offerId,
-  categoryId: finalCategoryId,
-  contentLanguage: inventoryData?.contentLanguage || null,
-});
-  
-const marketplaceDescriptionHtml = buildEbayAPlusDescription({
+      const result = await publishOrUpdateSkuOnMarketplace({
+        sku: safeSku,
+        shopifyVariant,
         marketplaceId,
-        title: translation?.translatedTitle || shopifyVariant.product.title,
-        translatedDescription:
-          translation?.translatedDescription ||
-          shopifyVariant.product.descriptionHtml ||
-          shopifyVariant.product.descriptionText,
-        imageUrls: shopifyVariant.product.imageUrls || [],
-      });
-
-      const updatedPayload = {
-        sku: fullOffer?.sku || safeSku,
-        marketplaceId,
-        format: fullOffer?.format || EBAY_DEFAULT_FORMAT,
-        availableQuantity: Math.max(
-          0,
-          Number(shopifyVariant.inventoryQuantity ?? fullOffer?.availableQuantity ?? 0)
-        ),
+        sourceLanguage,
         categoryId: finalCategoryId,
-        merchantLocationKey:
-          fullOffer?.merchantLocationKey || getMerchantLocationKey(marketplaceId),
-        pricingSummary: {
-          price: {
-            value: String(normalizeMoney(shopifyVariant.price)),
-            currency:
-              fullOffer?.pricingSummary?.price?.currency ||
-              market.currency ||
-              "EUR",
-          },
-        },
-                listingPolicies: {
-          paymentPolicyId:
-            defaultPolicyIds?.paymentPolicyId ||
-            fullOffer?.listingPolicies?.paymentPolicyId ||
-            fullOffer?.paymentPolicyId,
-          returnPolicyId:
-            defaultPolicyIds?.returnPolicyId ||
-            fullOffer?.listingPolicies?.returnPolicyId ||
-            fullOffer?.returnPolicyId,
-          fulfillmentPolicyId:
-            defaultPolicyIds?.fulfillmentPolicyId ||
-            fullOffer?.listingPolicies?.fulfillmentPolicyId ||
-            fullOffer?.fulfillmentPolicyId,
-        },
-        listingDuration: fullOffer?.listingDuration || EBAY_DEFAULT_LISTING_DURATION,
-        listingDescription: cleanHtmlForEbay(marketplaceDescriptionHtml),
-      };
-
-      const updateResult = await updateOffer({
-        offerId,
-        payload: updatedPayload,
-        contentLanguage: normalizeContentLanguage(market.locale, "it-IT"),
+        marketplacePriceAdjustment: 0,
       });
 
-      let publishResult = null;
-let publishError = null;
+      await new Promise((resolve) => setTimeout(resolve, 2500));
 
-try {
-  publishResult = await publishOffer({ offerId });
-} catch (error) {
-  publishError = errorToSerializable(error);
-}
+      const refreshedOffers = await getOffersBySku({
+        sku: safeSku,
+        marketplaceId,
+      }).catch(() => []);
 
-await new Promise((resolve) => setTimeout(resolve, 2500));
+      const refreshedOffer =
+        safeArray(refreshedOffers).find(
+          (o) => String(o?.marketplaceId || "") === marketplaceId
+        ) || null;
 
-const refreshedOffer = await getOffer(offerId).catch(() => null);
-const refreshedStatus = String(refreshedOffer?.status || "").trim().toUpperCase();
-const reallyPublished = refreshedStatus === "PUBLISHED";
-      let recreateResult = null;
-let deleteResult = null;
+      const currentStatus = String(refreshedOffer?.status || "").toUpperCase();
+      const reallyPublished = currentStatus === "PUBLISHED";
 
-if (!reallyPublished && offerId) {
-  console.log("[EBAY REPAIR][DELETE AND RECREATE UNPUBLISHED]", {
-    sku: safeSku,
-    marketplaceId,
-    offerId,
-    previousStatus: refreshedStatus,
-  });
-
-  deleteResult = await deleteOffer({ offerId });
-
-  recreateResult = await publishOrUpdateSkuOnMarketplace({
-    sku: safeSku,
-    shopifyVariant,
-    marketplaceId,
-    sourceLanguage,
-    categoryId: finalCategoryId,
-    marketplacePriceAdjustment: 0,
-  });
-}
-
-results.push({
-  marketplaceId,
-  locale: market.locale,
-  site: market.site,
-  ok: (!publishError && reallyPublished) || recreateResult?.ok === true,
-  offerId,
-  oldCategoryId: fullOffer?.categoryId || null,
-  newCategoryId: finalCategoryId,
-  previousStatus: fullOffer?.status || null,
-  currentStatus: refreshedOffer?.status || null,
-  reallyPublished,
-  deletedOldUnpublishedOffer: Boolean(deleteResult),
-deleteResult: deleteResult ? { status: deleteResult.status } : null,
-recreated: Boolean(recreateResult),
-recreateResult: recreateResult
-  ? {
-      ok: recreateResult.ok,
-      offerId: recreateResult.offerId,
-      offerMode: recreateResult.offerMode,
-      categoryId: recreateResult.categoryId,
-      finalPrice: recreateResult.finalPrice,
-    }
-  : null,
-
-  inventoryItemUpdate: inventoryData?.inventoryItemUpdate || null,
-
-  updateResult: updateResult
-    ? { status: updateResult.status }
-    : null,
-
-  publishOk: !publishError && reallyPublished,
-  publishError: publishError?.message || null,
-});
+      results.push({
+        marketplaceId,
+        locale: market.locale,
+        site: market.site,
+        ok: result?.ok === true && reallyPublished,
+        oldOfferId,
+        newOfferId: refreshedOffer?.offerId || result?.offerId || null,
+        deletedOldOffer,
+        deleteStatus,
+        oldStatus: oldStatus || null,
+        currentStatus: currentStatus || null,
+        reallyPublished,
+        categoryId: finalCategoryId,
+        offerMode: result?.offerMode || null,
+        finalPrice: result?.finalPrice || null,
+        error: reallyPublished ? null : "offer still not published after recreate",
+      });
     } catch (error) {
       results.push({
         marketplaceId,
-        locale: market?.locale || null,
-        site: market?.site || null,
+        locale: market.locale,
+        site: market.site,
         ok: false,
         error: errorToSerializable(error),
       });
