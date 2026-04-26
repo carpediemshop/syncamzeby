@@ -3310,6 +3310,7 @@ return {
   contentLanguage,
   createResult,
 };
+  }
 
 async function repairCategoryForPublishedOffersBySku({
   sku,
