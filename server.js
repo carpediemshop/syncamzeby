@@ -4008,56 +4008,173 @@ async function syncShopifySkuToEbay({
 // FORCE RECREATE CORRUPTED OFFERS
 // ==========================
 
-const corruptedOffers = offers.filter((offer) => {
-  const status = String(offer?.status || "").toUpperCase();
-  return status !== "PUBLISHED";
+const corruptedOffers = safeArray(offers).filter((offer) => {
+  const status = String(offer?.status || "").trim().toUpperCase();
+  return Boolean(offer?.offerId) && status && status !== "PUBLISHED";
 });
 
 const forceRecreateResults = [];
 
 for (const offer of corruptedOffers) {
-  const marketplaceId = offer.marketplaceId;
+  const marketplaceId = String(offer?.marketplaceId || "").trim();
+  const offerId = String(offer?.offerId || "").trim();
+  const market = getMarketplaceMeta(marketplaceId);
+
+  if (!market || !marketplaceId || !offerId) {
+    forceRecreateResults.push({
+      marketplaceId,
+      offerId,
+      ok: false,
+      error: "missing marketplace or offerId",
+    });
+    continue;
+  }
 
   try {
-    console.log("[EBAY FORCE RECREATE]", {
+    console.log("[EBAY FORCE RECOVERY]", {
       sku: safeSku,
-      offerId: offer.offerId,
+      offerId,
       marketplaceId,
       status: offer.status,
     });
 
-    // DELETE (non bloccare se fallisce)
-    try {
-      await deleteOffer({ offerId: offer.offerId });
-    } catch (e) {
-      console.log("[DELETE FAILED - IGNORE]", e?.message);
-    }
-
-    // CREA NUOVA OFFER
     const categoryId = await resolveCategoryIdForMarketplace({
       sku: safeSku,
       marketplaceId,
       shopifyVariant,
     });
 
-    const recreateResult = await publishOrUpdateSkuOnMarketplace({
-      sku: safeSku,
-      shopifyVariant,
-      marketplaceId,
-      sourceLanguage,
-      categoryId,
-    });
+    let deleted = false;
+    let deleteError = null;
+
+    try {
+      await deleteOffer({ offerId });
+      deleted = true;
+    } catch (error) {
+      deleteError = errorToSerializable(error);
+      console.log("[EBAY DELETE FAILED - SWITCH TO HARD UPDATE]", {
+        sku: safeSku,
+        offerId,
+        marketplaceId,
+        deleteError,
+      });
+    }
+
+    let recoveryResult = null;
+
+    if (deleted) {
+      recoveryResult = await publishOrUpdateSkuOnMarketplace({
+        sku: safeSku,
+        shopifyVariant,
+        marketplaceId,
+        sourceLanguage,
+        categoryId,
+      });
+    } else {
+      const fullOffer = await getOffer(offerId).catch(() => offer);
+
+      const policies = await getAllEbayPolicies(marketplaceId);
+      const policyIds = pickDefaultPolicyIds(policies);
+
+      const descriptionHtml = buildEbayAPlusDescription({
+        marketplaceId,
+        title: shopifyVariant.product.title,
+        translatedDescription:
+          shopifyVariant.product.descriptionHtml ||
+          shopifyVariant.product.descriptionText,
+        imageUrls: shopifyVariant.product.imageUrls || [],
+      });
+
+      const hardPayload = {
+        sku: fullOffer?.sku || safeSku,
+        marketplaceId,
+        format: fullOffer?.format || EBAY_DEFAULT_FORMAT,
+        availableQuantity: Math.max(0, Number(shopifyVariant.inventoryQuantity || 0)),
+        categoryId,
+        merchantLocationKey:
+          fullOffer?.merchantLocationKey || getMerchantLocationKey(marketplaceId),
+        pricingSummary: {
+          price: {
+            value: String(normalizeMoney(shopifyVariant.price)),
+            currency:
+              fullOffer?.pricingSummary?.price?.currency ||
+              market.currency ||
+              "EUR",
+          },
+        },
+        listingPolicies: {
+          paymentPolicyId:
+            policyIds?.paymentPolicyId ||
+            fullOffer?.listingPolicies?.paymentPolicyId ||
+            fullOffer?.paymentPolicyId,
+          returnPolicyId:
+            policyIds?.returnPolicyId ||
+            fullOffer?.listingPolicies?.returnPolicyId ||
+            fullOffer?.returnPolicyId,
+          fulfillmentPolicyId:
+            policyIds?.fulfillmentPolicyId ||
+            fullOffer?.listingPolicies?.fulfillmentPolicyId ||
+            fullOffer?.fulfillmentPolicyId,
+        },
+        listingDuration: fullOffer?.listingDuration || EBAY_DEFAULT_LISTING_DURATION,
+        listingDescription: cleanHtmlForEbay(descriptionHtml),
+      };
+
+      await ensureInventoryItemForMarketplace({
+        sku: safeSku,
+        shopifyVariant,
+        translation: { locale: market.locale },
+        marketplaceId,
+      });
+
+      const updateResult = await updateOffer({
+        offerId,
+        payload: hardPayload,
+        contentLanguage: normalizeContentLanguage(market.locale, "it-IT"),
+      });
+
+      let publishResult = null;
+      let publishError = null;
+
+      try {
+        publishResult = await publishOffer({ offerId });
+      } catch (error) {
+        publishError = errorToSerializable(error);
+      }
+
+      recoveryResult = {
+        ok: !publishError,
+        mode: "hard_update_existing_offer",
+        offerId,
+        categoryId,
+        updateResult: updateResult ? { status: updateResult.status } : null,
+        publishResult,
+        publishError,
+      };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+
+    const refreshedOffer = await getOffer(
+      recoveryResult?.offerId || offerId
+    ).catch(() => null);
+
+    const currentStatus = String(refreshedOffer?.status || "").trim().toUpperCase();
 
     forceRecreateResults.push({
       marketplaceId,
-      ok: true,
-      recreated: true,
-      result: recreateResult,
+      offerId,
+      ok: currentStatus === "PUBLISHED",
+      deleted,
+      deleteError,
+      recoveryMode: recoveryResult?.mode || null,
+      recoveryResult,
+      currentStatus,
     });
-
   } catch (error) {
     forceRecreateResults.push({
       marketplaceId,
+      offerId,
       ok: false,
       error: errorToSerializable(error),
     });
@@ -4070,9 +4187,9 @@ try {
 } catch {
   offers = [];
 }
-  
-  const unpublishedOffers = corruptedOffers;
-  const republishResults = forceRecreateResults;
+
+const unpublishedOffers = corruptedOffers;
+const republishResults = forceRecreateResults;
   
   const responses = safeArray(bulkUpdateResult?.responses);
 
