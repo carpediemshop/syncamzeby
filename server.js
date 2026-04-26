@@ -3452,6 +3452,8 @@ if (oldOfferId && oldStatus && oldStatus !== "PUBLISHED") {
         newOfferId: refreshedOffer?.offerId || result?.offerId || null,
         deletedOldOffer,
         deleteStatus,
+        deleteError,
+deleteFailedButContinued: Boolean(deleteError),
         oldStatus: oldStatus || null,
         currentStatus: currentStatus || null,
         reallyPublished,
@@ -4087,15 +4089,17 @@ async function syncShopifySkuToEbay({
         errors.length === 0
       : !bulkUpdateError;
 
-    const republishOk = republishRow ? republishRow.ok === true : true;
+    const finalStatus = String(offer?.status || "").trim().toUpperCase();
+const statusOk = finalStatus === "PUBLISHED";
+const republishOk = republishRow ? republishRow.ok === true : true;
 
     return {
       offerId: offer?.offerId || null,
       marketplaceId: offer?.marketplaceId || null,
       format: offer?.format || null,
-      status: offer?.status || null,
+      status: finalStatus || null,
       statusCode: responseRow?.statusCode || null,
-      ok: bulkOk && republishOk,
+      ok: bulkOk && republishOk && statusOk,
       errors,
       warnings,
       republished: Boolean(republishRow),
