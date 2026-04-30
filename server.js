@@ -4848,10 +4848,6 @@ const ebaySlowResyncState = {
   stopRequested: false,
 };
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 app.get("/ebay/resync-all-slow/start", async (req, res) => {
   if (ebaySlowResyncState.running) {
     return res.json({
