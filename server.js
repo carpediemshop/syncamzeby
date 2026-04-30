@@ -4835,6 +4835,146 @@ app.get("/ebay/config/public", (req, res) => {
   });
 });
 
+const ebaySlowResyncState = {
+  running: false,
+  startedAt: null,
+  finishedAt: null,
+  delayMinutes: 6,
+  total: 0,
+  done: 0,
+  currentSku: null,
+  lastResult: null,
+  errors: [],
+  stopRequested: false,
+};
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+app.get("/ebay/resync-all-slow/start", async (req, res) => {
+  if (ebaySlowResyncState.running) {
+    return res.json({
+      ok: false,
+      error: "Resync già in corso",
+      state: ebaySlowResyncState,
+    });
+  }
+
+  const limit = Number(req.query.limit || 0);
+  const delayMinutes = Math.max(1, Number(req.query.delayMinutes || 6));
+
+  ebaySlowResyncState.running = true;
+  ebaySlowResyncState.startedAt = new Date().toISOString();
+  ebaySlowResyncState.finishedAt = null;
+  ebaySlowResyncState.delayMinutes = delayMinutes;
+  ebaySlowResyncState.total = 0;
+  ebaySlowResyncState.done = 0;
+  ebaySlowResyncState.currentSku = null;
+  ebaySlowResyncState.lastResult = null;
+  ebaySlowResyncState.errors = [];
+  ebaySlowResyncState.stopRequested = false;
+
+  res.json({
+    ok: true,
+    message: "Resync lenta avviata",
+    delayMinutes,
+    limit,
+    statusUrl: "/ebay/resync-all-slow/status",
+    stopUrl: "/ebay/resync-all-slow/stop",
+  });
+
+  try {
+    const skus = await getAllShopifySkus({ limit });
+    ebaySlowResyncState.total = skus.length;
+
+    console.log("[EBAY SLOW RESYNC][START]", {
+      total: skus.length,
+      delayMinutes,
+      limit,
+    });
+
+    for (const sku of skus) {
+      if (ebaySlowResyncState.stopRequested) {
+        console.log("[EBAY SLOW RESYNC][STOP REQUESTED]");
+        break;
+      }
+
+      ebaySlowResyncState.currentSku = sku;
+
+      try {
+        console.log("[EBAY SLOW RESYNC][SKU START]", {
+          sku,
+          index: ebaySlowResyncState.done + 1,
+          total: ebaySlowResyncState.total,
+        });
+
+        const result = await syncShopifySkuToEbay({
+          sku,
+          sourceLanguage: "it",
+          autoPublishAllMarkets: true,
+        });
+
+        ebaySlowResyncState.lastResult = {
+          sku,
+          ok: result?.ok === true,
+          at: new Date().toISOString(),
+        };
+
+        console.log("[EBAY SLOW RESYNC][SKU DONE]", ebaySlowResyncState.lastResult);
+      } catch (error) {
+        const err = errorToSerializable(error);
+
+        ebaySlowResyncState.errors.push({
+          sku,
+          at: new Date().toISOString(),
+          error: err,
+        });
+
+        console.log("[EBAY SLOW RESYNC][SKU ERROR]", {
+          sku,
+          error: err,
+        });
+      }
+
+      ebaySlowResyncState.done += 1;
+
+      if (ebaySlowResyncState.done < skus.length) {
+        await sleep(delayMinutes * 60 * 1000);
+      }
+    }
+  } catch (error) {
+    ebaySlowResyncState.errors.push({
+      sku: ebaySlowResyncState.currentSku,
+      at: new Date().toISOString(),
+      error: errorToSerializable(error),
+    });
+  } finally {
+    ebaySlowResyncState.running = false;
+    ebaySlowResyncState.finishedAt = new Date().toISOString();
+    ebaySlowResyncState.currentSku = null;
+
+    console.log("[EBAY SLOW RESYNC][FINISHED]", ebaySlowResyncState);
+  }
+});
+
+app.get("/ebay/resync-all-slow/status", (req, res) => {
+  res.json({
+    ok: true,
+    state: ebaySlowResyncState,
+  });
+});
+
+app.get("/ebay/resync-all-slow/stop", (req, res) => {
+  ebaySlowResyncState.stopRequested = true;
+
+  res.json({
+    ok: true,
+    message: "Stop richiesto. La resync si fermerà dopo lo SKU corrente.",
+    state: ebaySlowResyncState,
+  });
+});
+
 // =========================
 // DEBUG / DATA ROUTES UI
 // =========================
