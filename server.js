@@ -2999,6 +2999,7 @@ function buildInventoryItemPayload(shopifyVariant, translatedTitle = "", marketp
       imageUrls,
     },
   };
+  
 payload.packageWeightAndSize = {
   packageType: "MAILING_BOX",
   shippingIrregular: false,
@@ -3161,7 +3162,6 @@ async function updateInventoryQuantityAndImagesOnly({
           ? newImageUrls
           : existingImageUrls,
     },
-  };
 
 packageWeightAndSize: {
   packageType: "MAILING_BOX",
