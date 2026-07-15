@@ -2962,6 +2962,114 @@ async function getEbayInventoryItem(sku) {
   );
 }
 
+async function getEbayInventoryItem({ sku }) {
+  const accessToken = await ensureValidEbayAccessToken();
+
+  return ebayGet(
+    `/sell/inventory/v1/inventory_item/${encodeURIComponent(sku)}`,
+    accessToken
+  );
+}
+
+async function updateInventoryQuantityAndImagesOnly({
+  sku,
+  shopifyVariant,
+  contentLanguage = "it-IT",
+}) {
+  const safeSku = normalizeSku(sku);
+
+  if (!safeSku) {
+    throw new Error(
+      "updateInventoryQuantityAndImagesOnly: missing sku"
+    );
+  }
+
+  const currentInventoryItem = await getEbayInventoryItem({
+    sku: safeSku,
+  });
+
+  const currentProduct = currentInventoryItem?.product || {};
+  const newImageUrls = safeArray(
+    shopifyVariant?.product?.imageUrls
+  ).filter(Boolean);
+
+  /*
+   * Conserviamo integralmente i dati eBay:
+   * - titolo
+   * - descrizione
+   * - aspetti
+   * - codici prodotto
+   *
+   * Sostituiamo solamente immagini e quantità.
+   */
+  const payload = {
+    availability: {
+      ...(currentInventoryItem?.availability || {}),
+      shipToLocationAvailability: {
+        ...(
+          currentInventoryItem?.availability
+            ?.shipToLocationAvailability || {}
+        ),
+        quantity: Math.max(
+          0,
+          Number(shopifyVariant?.inventoryQuantity || 0)
+        ),
+      },
+    },
+
+    condition:
+      currentInventoryItem?.condition ||
+      EBAY_DEFAULT_CONDITION,
+
+    product: {
+      ...currentProduct,
+
+      // Conservazione esplicita dei dati modificati su eBay
+      title: currentProduct?.title || "",
+      description: currentProduct?.description || "",
+      aspects: currentProduct?.aspects || {},
+
+      // Solo le immagini arrivano da Shopify
+      imageUrls: newImageUrls.length
+        ? newImageUrls
+        : safeArray(currentProduct?.imageUrls),
+    },
+  };
+
+  /*
+   * Mantiene anche eventuali campi condizione presenti
+   * nell'Inventory Item eBay.
+   */
+  if (currentInventoryItem?.conditionDescription) {
+    payload.conditionDescription =
+      currentInventoryItem.conditionDescription;
+  }
+
+  if (currentInventoryItem?.packageWeightAndSize) {
+    payload.packageWeightAndSize =
+      currentInventoryItem.packageWeightAndSize;
+  }
+
+  const result = await createOrReplaceInventoryItem({
+    sku: safeSku,
+    payload,
+    contentLanguage,
+  });
+
+  return {
+    ok: true,
+    sku: safeSku,
+    preservedTitle: currentProduct?.title || "",
+    preservedDescriptionLength: String(
+      currentProduct?.description || ""
+    ).length,
+    imageCount: payload.product.imageUrls.length,
+    quantity:
+      payload.availability.shipToLocationAvailability.quantity,
+    result,
+  };
+}
+
 async function createOrReplaceInventoryItem({
   sku,
   payload,
@@ -3932,22 +4040,25 @@ async function syncShopifySkuToEbay({
 
   const inventoryItemPayload = buildInventoryItemPayload(shopifyVariant);
 
-  let inventoryItemUpdate = null;
-  try {
-    inventoryItemUpdate = await createOrReplaceInventoryItem({
+  let inventoryItemPayload = null;
+let inventoryItemUpdate = null;
+
+try {
+  inventoryItemUpdate =
+    await updateInventoryQuantityAndImagesOnly({
       sku: safeSku,
-      payload: inventoryItemPayload,
+      shopifyVariant,
       contentLanguage: inventoryContentLanguage,
     });
-  } catch (error) {
-    return {
-      ok: false,
-      sku: safeSku,
-      failedStep: "inventory_item_upsert",
-      inventoryContentLanguage,
-      error: errorToSerializable(error),
-    };
-  }
+} catch (error) {
+  return {
+    ok: false,
+    sku: safeSku,
+    failedStep: "inventory_quantity_images_update",
+    inventoryContentLanguage,
+    error: errorToSerializable(error),
+  };
+}
 
   let offers = [];
   let initialOfferLookupError = null;
