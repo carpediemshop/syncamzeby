@@ -4028,8 +4028,6 @@ async function syncShopifySkuToEbay({
     "it-IT"
   );
 
-  const inventoryItemPayload = buildInventoryItemPayload(shopifyVariant);
-
   let inventoryItemPayload = null;
 let inventoryItemUpdate = null;
 
