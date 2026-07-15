@@ -2956,14 +2956,6 @@ function buildInventoryItemPayload(shopifyVariant, translatedTitle = "", marketp
 
 async function getEbayInventoryItem(sku) {
   const accessToken = await ensureValidEbayAccessToken();
-  return ebayGet(
-    `/sell/inventory/v1/inventory_item/${encodeURIComponent(sku)}`,
-    accessToken
-  );
-}
-
-async function getEbayInventoryItem({ sku }) {
-  const accessToken = await ensureValidEbayAccessToken();
 
   return ebayGet(
     `/sell/inventory/v1/inventory_item/${encodeURIComponent(sku)}`,
@@ -2984,9 +2976,7 @@ async function updateInventoryQuantityAndImagesOnly({
     );
   }
 
-  const currentInventoryItem = await getEbayInventoryItem({
-    sku: safeSku,
-  });
+  const currentInventoryItem = await getEbayInventoryItem(safeSku);
 
   const currentProduct = currentInventoryItem?.product || {};
   const newImageUrls = safeArray(
