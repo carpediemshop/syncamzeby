@@ -2976,22 +2976,79 @@ async function updateInventoryQuantityAndImagesOnly({
     );
   }
 
-  const currentInventoryItem = await getEbayInventoryItem(safeSku);
+  let currentInventoryItem = null;
 
-  const currentProduct = currentInventoryItem?.product || {};
-  const newImageUrls = safeArray(
-    shopifyVariant?.product?.imageUrls
-  ).filter(Boolean);
+  try {
+    currentInventoryItem = await getEbayInventoryItem(safeSku);
+  } catch (error) {
+    const responseData = error?.response?.data || {};
+    const errors = safeArray(responseData?.errors);
+
+    const inventoryItemNotFound =
+      Number(error?.response?.status || 0) === 404 ||
+      errors.some(
+        (row) => Number(row?.errorId || 0) === 25710
+      );
+
+    if (!inventoryItemNotFound) {
+      throw error;
+    }
+
+    /*
+     * PRODOTTO NUOVO:
+     * l’Inventory Item eBay non esiste ancora.
+     * Lo creiamo completo usando i dati Shopify.
+     */
+    const newInventoryItemPayload = buildInventoryItemPayload(
+      shopifyVariant,
+      "",
+      "EBAY_IT"
+    );
+
+    const createResult = await createOrReplaceInventoryItem({
+      sku: safeSku,
+      payload: newInventoryItemPayload,
+      contentLanguage,
+    });
+
+    console.log("[EBAY INVENTORY ITEM][CREATED]", {
+      sku: safeSku,
+      imageCount: safeArray(
+        newInventoryItemPayload?.product?.imageUrls
+      ).length,
+      quantity:
+        newInventoryItemPayload?.availability
+          ?.shipToLocationAvailability?.quantity ?? null,
+    });
+
+    return {
+      ok: true,
+      mode: "created_new_inventory_item",
+      sku: safeSku,
+      inventoryItemPayload: newInventoryItemPayload,
+      result: createResult,
+    };
+  }
 
   /*
-   * Conserviamo integralmente i dati eBay:
-   * - titolo
-   * - descrizione
-   * - aspetti
-   * - codici prodotto
-   *
-   * Sostituiamo solamente immagini e quantità.
+   * PRODOTTO GIÀ ESISTENTE:
+   * conserva titolo, descrizione e attributi presenti su eBay.
+   * Aggiorna soltanto quantità e immagini.
    */
+  const currentProduct = currentInventoryItem?.product || {};
+
+  const newImageUrls = safeArray(
+    shopifyVariant?.product?.imageUrls
+  )
+    .map((url) => String(url || "").trim())
+    .filter(Boolean);
+
+  const existingImageUrls = safeArray(
+    currentProduct?.imageUrls
+  )
+    .map((url) => String(url || "").trim())
+    .filter(Boolean);
+
   const payload = {
     availability: {
       ...(currentInventoryItem?.availability || {}),
@@ -3014,22 +3071,23 @@ async function updateInventoryQuantityAndImagesOnly({
     product: {
       ...currentProduct,
 
-      // Conservazione esplicita dei dati modificati su eBay
+      /*
+       * Questi valori rimangono quelli già presenti su eBay.
+       */
       title: currentProduct?.title || "",
       description: currentProduct?.description || "",
       aspects: currentProduct?.aspects || {},
 
-      // Solo le immagini arrivano da Shopify
-      imageUrls: newImageUrls.length
-        ? newImageUrls
-        : safeArray(currentProduct?.imageUrls),
+      /*
+       * Solo le immagini vengono aggiornate da Shopify.
+       */
+      imageUrls:
+        newImageUrls.length > 0
+          ? newImageUrls
+          : existingImageUrls,
     },
   };
 
-  /*
-   * Mantiene anche eventuali campi condizione presenti
-   * nell'Inventory Item eBay.
-   */
   if (currentInventoryItem?.conditionDescription) {
     payload.conditionDescription =
       currentInventoryItem.conditionDescription;
@@ -3040,14 +3098,24 @@ async function updateInventoryQuantityAndImagesOnly({
       currentInventoryItem.packageWeightAndSize;
   }
 
-  const result = await createOrReplaceInventoryItem({
+  const updateResult = await createOrReplaceInventoryItem({
     sku: safeSku,
     payload,
     contentLanguage,
   });
 
+  console.log("[EBAY INVENTORY ITEM][IMAGES QUANTITY UPDATED]", {
+    sku: safeSku,
+    preservedTitle: Boolean(currentProduct?.title),
+    preservedDescription: Boolean(currentProduct?.description),
+    imageCount: payload.product.imageUrls.length,
+    quantity:
+      payload.availability.shipToLocationAvailability.quantity,
+  });
+
   return {
     ok: true,
+    mode: "updated_images_quantity_only",
     sku: safeSku,
     preservedTitle: currentProduct?.title || "",
     preservedDescriptionLength: String(
@@ -3056,7 +3124,7 @@ async function updateInventoryQuantityAndImagesOnly({
     imageCount: payload.product.imageUrls.length,
     quantity:
       payload.availability.shipToLocationAvailability.quantity,
-    result,
+    result: updateResult,
   };
 }
 
