@@ -2921,10 +2921,11 @@ function buildInventoryItemPayload(shopifyVariant, translatedTitle = "", marketp
       : titleBase.slice(0, 80);
 
   const description = firstNonEmpty(
-    shopifyVariant?.product?.descriptionText,
-    titleBase,
-    shopifyVariant?.sku
-  );
+  shopifyVariant?.product?.descriptionHtml,
+  shopifyVariant?.product?.descriptionText,
+  titleBase,
+  shopifyVariant?.sku
+);
 
   const imageUrls = shopifyVariant?.product?.imageUrls || [];
   if (!imageUrls.length) {
