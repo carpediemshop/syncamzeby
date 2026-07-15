@@ -2910,6 +2910,58 @@ function sanitizeEbayTitle(value, max = 80) {
   return out || text.slice(0, max).trim();
 }
 
+function getShopifyWeightInKg(shopifyVariant) {
+  const candidates = [
+    {
+      value: shopifyVariant?.weight,
+      unit: shopifyVariant?.weightUnit,
+    },
+    {
+      value: shopifyVariant?.inventoryItem?.measurement?.weight?.value,
+      unit: shopifyVariant?.inventoryItem?.measurement?.weight?.unit,
+    },
+    {
+      value: shopifyVariant?.measurement?.weight?.value,
+      unit: shopifyVariant?.measurement?.weight?.unit,
+    },
+    {
+      value: shopifyVariant?.weightValue,
+      unit: shopifyVariant?.weightUnit,
+    },
+  ];
+
+  const found = candidates.find(
+    (row) =>
+      Number.isFinite(Number(row?.value)) &&
+      Number(row.value) > 0
+  );
+
+  if (!found) return null;
+
+  const value = Number(found.value);
+  const unit = String(found.unit || "KILOGRAMS")
+    .trim()
+    .toUpperCase();
+
+  if (["G", "GRAM", "GRAMS"].includes(unit)) {
+    return value / 1000;
+  }
+
+  if (["KG", "KILOGRAM", "KILOGRAMS"].includes(unit)) {
+    return value;
+  }
+
+  if (["LB", "LBS", "POUND", "POUNDS"].includes(unit)) {
+    return value * 0.45359237;
+  }
+
+  if (["OZ", "OUNCE", "OUNCES"].includes(unit)) {
+    return value * 0.028349523125;
+  }
+
+  return value;
+}
+
 function buildInventoryItemPayload(shopifyVariant, translatedTitle = "", marketplaceId = "EBAY_IT") {
   const titleBase = firstNonEmpty(translatedTitle, shopifyVariant?.product?.title);
   const variantTitle = firstNonEmpty(shopifyVariant?.variantTitle);
@@ -2928,6 +2980,7 @@ function buildInventoryItemPayload(shopifyVariant, translatedTitle = "", marketp
 );
 
   const imageUrls = shopifyVariant?.product?.imageUrls || [];
+  const shopifyWeightKg = getShopifyWeightInKg(shopifyVariant);
   if (!imageUrls.length) {
     throw new Error("Shopify product has no images. eBay publish requires images.");
   }
@@ -2946,7 +2999,27 @@ function buildInventoryItemPayload(shopifyVariant, translatedTitle = "", marketp
       imageUrls,
     },
   };
+payload.packageWeightAndSize = {
+  packageType: "MAILING_BOX",
+  shippingIrregular: false,
 
+  dimensions: {
+    length: 33,
+    width: 30,
+    height: 30,
+    unit: "CENTIMETER",
+  },
+
+  ...(shopifyWeightKg
+    ? {
+        weight: {
+          value: Number(shopifyWeightKg.toFixed(3)),
+          unit: "KILOGRAM",
+        },
+      }
+    : {}),
+};
+  
   if (shopifyVariant?.barcode) {
     payload.product.ean = [String(shopifyVariant.barcode)];
   }
@@ -3064,6 +3137,38 @@ async function updateInventoryQuantityAndImagesOnly({
       },
     },
 
+    const shopifyWeightKg = getShopifyWeightInKg(shopifyVariant);
+
+payload.packageWeightAndSize = {
+  packageType:
+    currentInventoryItem?.packageWeightAndSize?.packageType ||
+    "MAILING_BOX",
+
+  shippingIrregular:
+    currentInventoryItem?.packageWeightAndSize?.shippingIrregular === true,
+
+  dimensions: {
+    length: 33,
+    width: 30,
+    height: 30,
+    unit: "CENTIMETER",
+  },
+
+  ...(shopifyWeightKg
+    ? {
+        weight: {
+          value: Number(shopifyWeightKg.toFixed(3)),
+          unit: "KILOGRAM",
+        },
+      }
+    : currentInventoryItem?.packageWeightAndSize?.weight
+      ? {
+          weight:
+            currentInventoryItem.packageWeightAndSize.weight,
+        }
+      : {}),
+};
+  
     condition:
       currentInventoryItem?.condition ||
       EBAY_DEFAULT_CONDITION,
@@ -3091,11 +3196,6 @@ async function updateInventoryQuantityAndImagesOnly({
   if (currentInventoryItem?.conditionDescription) {
     payload.conditionDescription =
       currentInventoryItem.conditionDescription;
-  }
-
-  if (currentInventoryItem?.packageWeightAndSize) {
-    payload.packageWeightAndSize =
-      currentInventoryItem.packageWeightAndSize;
   }
 
   const updateResult = await createOrReplaceInventoryItem({
