@@ -3122,6 +3122,8 @@ async function updateInventoryQuantityAndImagesOnly({
     .map((url) => String(url || "").trim())
     .filter(Boolean);
 
+  const shopifyWeightKg = getShopifyWeightInKg(shopifyVariant);
+  
   const payload = {
     availability: {
       ...(currentInventoryItem?.availability || {}),
@@ -3137,45 +3139,13 @@ async function updateInventoryQuantityAndImagesOnly({
       },
     },
 
-    const shopifyWeightKg = getShopifyWeightInKg(shopifyVariant);
-
-payload.packageWeightAndSize = {
-  packageType:
-    currentInventoryItem?.packageWeightAndSize?.packageType ||
-    "MAILING_BOX",
-
-  shippingIrregular:
-    currentInventoryItem?.packageWeightAndSize?.shippingIrregular === true,
-
-  dimensions: {
-    length: 33,
-    width: 30,
-    height: 30,
-    unit: "CENTIMETER",
-  },
-
-  ...(shopifyWeightKg
-    ? {
-        weight: {
-          value: Number(shopifyWeightKg.toFixed(3)),
-          unit: "KILOGRAM",
-        },
-      }
-    : currentInventoryItem?.packageWeightAndSize?.weight
-      ? {
-          weight:
-            currentInventoryItem.packageWeightAndSize.weight,
-        }
-      : {}),
-};
-  
     condition:
       currentInventoryItem?.condition ||
       EBAY_DEFAULT_CONDITION,
 
     product: {
       ...currentProduct,
-
+      
       /*
        * Questi valori rimangono quelli già presenti su eBay.
        */
@@ -3193,6 +3163,31 @@ payload.packageWeightAndSize = {
     },
   };
 
+packageWeightAndSize: {
+  packageType: "MAILING_BOX",
+  shippingIrregular: false,
+
+  dimensions: {
+    length: 33,
+    width: 30,
+    height: 30,
+    unit: "CENTIMETER",
+  },
+
+  ...(shopifyWeightKg
+    ? {
+        weight: {
+          value: Number(shopifyWeightKg.toFixed(3)),
+          unit: "KILOGRAM",
+        },
+      }
+    : currentInventoryItem?.packageWeightAndSize?.weight
+      ? {
+          weight: currentInventoryItem.packageWeightAndSize.weight,
+        }
+      : {}),
+},
+  
   if (currentInventoryItem?.conditionDescription) {
     payload.conditionDescription =
       currentInventoryItem.conditionDescription;
