@@ -3187,6 +3187,7 @@ packageWeightAndSize: {
         }
       : {}),
 },
+};
   
   if (currentInventoryItem?.conditionDescription) {
     payload.conditionDescription =
