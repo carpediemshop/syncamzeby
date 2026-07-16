@@ -4561,31 +4561,34 @@ for (const offer of corruptedOffers) {
       currentStatus: currentStatus || null,
       reallyPublished,
     });
-  } catch (error) {
-  const serializedRecoveryError = errorToSerializable(error);
+    } catch (error) {
+    const serializedRecoveryError = errorToSerializable(error);
 
-  forceRecreateResults.push({
-    marketplaceId,
-    oldOfferId,
-    ok: false,
-    error: serializedRecoveryError,
-  });
+    forceRecreateResults.push({
+      marketplaceId,
+      oldOfferId,
+      ok: false,
+      error: serializedRecoveryError,
+    });
 
-  console.error(
-    "[EBAY ZOMBIE RECOVERY][FAILED]",
-    JSON.stringify(
-      {
-        sku: safeSku,
-        marketplaceId,
-        oldOfferId,
-        previousStatus: offer?.status || null,
-        error: serializedRecoveryError,
-      },
-      null,
-      2
-    )
-  );
+    console.error(
+      "[EBAY ZOMBIE RECOVERY][FAILED]",
+      JSON.stringify(
+        {
+          sku: safeSku,
+          marketplaceId,
+          oldOfferId,
+          previousStatus: offer?.status || null,
+          error: serializedRecoveryError,
+        },
+        null,
+        2
+      )
+    );
+  }
 }
+
+const unpublishedOffers = corruptedOffers;
 
 const unpublishedOffers = corruptedOffers;
 const republishResults = forceRecreateResults;
