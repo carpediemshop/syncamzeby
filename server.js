@@ -2276,7 +2276,6 @@ async function getShopifyVariantBySku(sku) {
       productVariants(first: 1, query: $query) {
         nodes {
           id
-          status
           sku
           price
           inventoryQuantity
