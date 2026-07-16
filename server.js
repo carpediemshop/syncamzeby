@@ -2296,6 +2296,7 @@ async function getShopifyVariantBySku(sku) {
           }
           product {
             id
+            status
             title
             descriptionHtml
             vendor
@@ -4187,6 +4188,48 @@ async function syncShopifySkuToEbay({
     return { ok: false, sku: safeSku, error: `Shopify SKU not found: ${safeSku}` };
   }
 
+  const shopifyProductStatus = String(
+  shopifyVariant?.product?.status || ""
+)
+  .trim()
+  .toUpperCase();
+
+if (shopifyProductStatus !== "ACTIVE") {
+  console.log("[EBAY SYNC][SKIPPED NON ACTIVE]", {
+    sku: safeSku,
+    shopifyProductStatus: shopifyProductStatus || null,
+  });
+
+  return {
+    ok: true,
+    skipped: true,
+    sku: safeSku,
+    reason: "shopify_product_not_active",
+    shopifyProductStatus: shopifyProductStatus || null,
+  };
+}
+
+const shopifyProductStatus = String(
+  shopifyVariant?.product?.status || ""
+)
+  .trim()
+  .toUpperCase();
+
+if (shopifyProductStatus !== "ACTIVE") {
+  console.log("[EBAY SYNC][SKIPPED NON ACTIVE]", {
+    sku: safeSku,
+    shopifyProductStatus: shopifyProductStatus || null,
+  });
+
+  return {
+    ok: true,
+    skipped: true,
+    sku: safeSku,
+    reason: "shopify_product_not_active",
+    shopifyProductStatus: shopifyProductStatus || null,
+  };
+}
+  
   const inventoryContentLanguage = normalizeContentLanguage(
     languageToLocale(sourceLanguage),
     "it-IT"
@@ -4339,34 +4382,159 @@ const publishedOffersForBulkUpdate = safeArray(offers).filter((offer) => {
 // FORCE RECREATE CORRUPTED OFFERS
 // ==========================
 
-// ==========================
-// ZOMBIE OFFERS HANDLING
-// ==========================
+// =========================
+// ZOMBIE OFFERS RECOVERY
+// =========================
 
 const corruptedOffers = safeArray(offers).filter((offer) => {
-  const status = String(offer?.status || "").trim().toUpperCase();
-  return Boolean(offer?.offerId) && status && status !== "PUBLISHED";
+  const status = String(offer?.status || "")
+    .trim()
+    .toUpperCase();
+
+  return Boolean(offer?.offerId) &&
+    status &&
+    status !== "PUBLISHED";
 });
 
-const forceRecreateResults = corruptedOffers.map((offer) => ({
-  marketplaceId: String(offer?.marketplaceId || "").trim(),
-  offerId: String(offer?.offerId || "").trim(),
-  ok: false,
-  skipped: true,
-  reason: "zombie_unpublished_offer_ignored",
-  status: offer?.status || null,
-}));
+const forceRecreateResults = [];
+
+for (const offer of corruptedOffers) {
+  const marketplaceId = String(
+    offer?.marketplaceId || ""
+  ).trim();
+
+  const oldOfferId = String(
+    offer?.offerId || ""
+  ).trim();
+
+  if (!marketplaceId || !oldOfferId) {
+    forceRecreateResults.push({
+      marketplaceId: marketplaceId || null,
+      oldOfferId: oldOfferId || null,
+      ok: false,
+      error: "missing marketplaceId or offerId",
+    });
+
+    continue;
+  }
+
+  try {
+    console.log("[EBAY ZOMBIE RECOVERY][START]", {
+      sku: safeSku,
+      marketplaceId,
+      oldOfferId,
+      previousStatus: offer?.status || null,
+    });
+
+    const categoryId =
+      await resolveCategoryIdForMarketplace({
+        sku: safeSku,
+        marketplaceId,
+        shopifyVariant,
+      });
+
+    /*
+     * La funzione aggiorna l’offerta esistente se la trova.
+     * Se eBay restituisce "Offer already exists",
+     * recupera l’offerId esistente e lo aggiorna.
+     */
+    const recoveryResult =
+      await publishOrUpdateSkuOnMarketplace({
+        sku: safeSku,
+        shopifyVariant,
+        marketplaceId,
+        sourceLanguage,
+        categoryId,
+      });
+
+    const recoveredOfferId = String(
+      recoveryResult?.offerId || oldOfferId
+    ).trim();
+
+    let refreshedOffer = null;
+    let verificationError = null;
+
+    try {
+      refreshedOffer = await getOffer(recoveredOfferId);
+    } catch (error) {
+      verificationError = errorToSerializable(error);
+    }
+
+    const currentStatus = String(
+      refreshedOffer?.status || ""
+    )
+      .trim()
+      .toUpperCase();
+
+    const reallyPublished =
+      currentStatus === "PUBLISHED";
+
+    forceRecreateResults.push({
+      marketplaceId,
+      oldOfferId,
+      newOfferId: recoveredOfferId,
+      ok: recoveryResult?.ok === true && reallyPublished,
+      previousStatus: offer?.status || null,
+      currentStatus: currentStatus || null,
+      reallyPublished,
+      categoryId,
+      offerMode: recoveryResult?.offerMode || null,
+      finalPrice: recoveryResult?.finalPrice ?? null,
+      verificationError,
+      recoveryResult,
+    });
+
+    console.log("[EBAY ZOMBIE RECOVERY][RESULT]", {
+      sku: safeSku,
+      marketplaceId,
+      oldOfferId,
+      recoveredOfferId,
+      currentStatus: currentStatus || null,
+      reallyPublished,
+    });
+  } catch (error) {
+    forceRecreateResults.push({
+      marketplaceId,
+      oldOfferId,
+      ok: false,
+      previousStatus: offer?.status || null,
+      error: errorToSerializable(error),
+    });
+
+    console.log("[EBAY ZOMBIE RECOVERY][FAILED]", {
+      sku: safeSku,
+      marketplaceId,
+      oldOfferId,
+      error: errorToSerializable(error),
+    });
+  }
+}
 
 const unpublishedOffers = corruptedOffers;
 const republishResults = forceRecreateResults;
 
 const autoRepairResult = {
-  ok: true,
-  mode: "zombie_offers_ignored",
+  ok: forceRecreateResults.every(
+    (row) => row?.ok === true
+  ),
+  mode: "zombie_offer_recovery",
   results: forceRecreateResults,
 };
 
-const failedRepublishMarketplaceIds = [];
+const failedRepublishMarketplaceIds = [
+  ...new Set(
+    forceRecreateResults
+      .filter(
+        (row) =>
+          row?.ok === false &&
+          row?.marketplaceId
+      )
+      .map((row) =>
+        String(row.marketplaceId).trim()
+      )
+      .filter(Boolean)
+  ),
+];
 
 // ==========================
 // CREATE CLEAN OFFERS FOR MISSING MARKETPLACES
