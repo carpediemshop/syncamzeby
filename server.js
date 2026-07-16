@@ -3154,6 +3154,17 @@ if (
   mergedAspects.Marca = [shopifyVendor];
 }
   
+  const shopifySku = String(
+  shopifyVariant?.sku || safeSku || ""
+).trim();
+
+if (
+  !safeArray(mergedAspects.Modello).length &&
+  shopifySku
+) {
+  mergedAspects.Modello = [shopifySku];
+}
+  
   const newImageUrls = safeArray(
     shopifyVariant?.product?.imageUrls
   )
