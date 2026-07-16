@@ -2276,6 +2276,7 @@ async function getShopifyVariantBySku(sku) {
       productVariants(first: 1, query: $query) {
         nodes {
           id
+          status
           sku
           price
           inventoryQuantity
@@ -2361,6 +2362,7 @@ async function getShopifyVariantBySku(sku) {
     packageLength: 20,
     product: {
       id: variant.product?.id || null,
+      status: variant?.product?.status || null,
       title: variant.product?.title || "",
       descriptionHtml,
       descriptionText,
@@ -2393,6 +2395,7 @@ async function getShopifyVariantsBatch({ first = 100, after = null }) {
           }
           product {
             id
+            status
             title
             descriptionHtml
             vendor
@@ -2441,6 +2444,7 @@ async function getShopifyVariantsBatch({ first = 100, after = null }) {
           selectedOptions: safeArray(variant?.selectedOptions),
           product: {
             id: variant?.product?.id || null,
+            status: variant.product?.status || null,
             title: variant?.product?.title || "",
             descriptionHtml,
             descriptionText,
