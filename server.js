@@ -3198,11 +3198,50 @@ packageWeightAndSize: {
       currentInventoryItem.conditionDescription;
   }
 
-  const updateResult = await createOrReplaceInventoryItem({
+  let updateResult = null;
+
+try {
+  updateResult = await createOrReplaceInventoryItem({
     sku: safeSku,
     payload,
     contentLanguage,
   });
+} catch (error) {
+  const serializedUpdateError = errorToSerializable(error);
+
+  const errorIds = safeArray(
+    serializedUpdateError?.errors
+  ).map((row) => Number(row?.errorId || 0));
+
+  const isTemporaryInventoryError =
+    errorIds.includes(25001) ||
+    String(serializedUpdateError?.message || "")
+      .toLowerCase()
+      .includes("core inventory service internal error");
+
+  if (!isTemporaryInventoryError) {
+    throw error;
+  }
+
+  console.log("[EBAY INVENTORY][25001 RETRY]", {
+    sku: safeSku,
+    firstError: serializedUpdateError,
+    retryAfterMs: 4000,
+  });
+
+  await sleep(4000);
+
+  updateResult = await createOrReplaceInventoryItem({
+    sku: safeSku,
+    payload,
+    contentLanguage,
+  });
+
+  console.log("[EBAY INVENTORY][25001 RETRY SUCCESS]", {
+    sku: safeSku,
+    status: updateResult?.status || null,
+  });
+}
 
   console.log("[EBAY INVENTORY ITEM][IMAGES QUANTITY UPDATED]", {
     sku: safeSku,
@@ -3899,14 +3938,62 @@ console.log("MARKETPLACE PRICE DEBUG", {
   offerId: upsert?.offerId || null,
 });
 
-  const publishResult = await publishOffer({ offerId: upsert.offerId });
-  const refreshedOffer = await getOffer(upsert.offerId).catch(() => null);
-const refreshedStatus = String(refreshedOffer?.status || "").trim().toUpperCase();
+  let publishResult = null;
 
-if (refreshedStatus !== "PUBLISHED") {
-  throw new Error(
-    `Offer ${upsert.offerId} for ${marketplaceId} still not PUBLISHED after publish. Status: ${refreshedStatus || "UNKNOWN"}`
+try {
+  console.log("[EBAY PUBLISH][START]", {
+    sku,
+    marketplaceId,
+    offerId: upsert.offerId,
+    offerMode: upsert.mode,
+  });
+
+  publishResult = await publishOffer({
+    offerId: upsert.offerId,
+  });
+
+  const refreshedOffer = await getOffer(upsert.offerId).catch(() => null);
+
+  const refreshedStatus = String(
+    refreshedOffer?.status || ""
+  )
+    .trim()
+    .toUpperCase();
+
+  console.log("[EBAY PUBLISH][RESULT]", {
+    sku,
+    marketplaceId,
+    offerId: upsert.offerId,
+    refreshedStatus: refreshedStatus || null,
+    publishResult,
+  });
+
+  if (refreshedStatus !== "PUBLISHED") {
+    throw new Error(
+      `Offer ${upsert.offerId} for ${marketplaceId} still not PUBLISHED after publish. Status: ${
+        refreshedStatus || "UNKNOWN"
+      }`
+    );
+  }
+} catch (error) {
+  const serializedPublishError = errorToSerializable(error);
+
+  console.error(
+    "[EBAY PUBLISH][FAILED]",
+    JSON.stringify(
+      {
+        sku,
+        marketplaceId,
+        offerId: upsert.offerId,
+        offerMode: upsert.mode,
+        error: serializedPublishError,
+      },
+      null,
+      2
+    )
   );
+
+  throw error;
 }
 
   return {
@@ -4475,30 +4562,29 @@ for (const offer of corruptedOffers) {
       reallyPublished,
     });
   } catch (error) {
-    forceRecreateResults.push({
-  marketplaceId,
-  offerId,
-  ok: false,
-  error: serializedRecoveryError,
-});
+  const serializedRecoveryError = errorToSerializable(error);
 
-    const serializedRecoveryError = errorToSerializable(error);
+  forceRecreateResults.push({
+    marketplaceId,
+    oldOfferId,
+    ok: false,
+    error: serializedRecoveryError,
+  });
 
-console.error(
-  "[EBAY ZOMBIE RECOVERY][FAILED]",
-  JSON.stringify(
-    {
-      sku: safeSku,
-      marketplaceId,
-      oldOfferId: offerId,
-      previousStatus: offer?.status || null,
-      error: serializedRecoveryError,
-    },
-    null,
-    2
-  )
-);
-  }
+  console.error(
+    "[EBAY ZOMBIE RECOVERY][FAILED]",
+    JSON.stringify(
+      {
+        sku: safeSku,
+        marketplaceId,
+        oldOfferId,
+        previousStatus: offer?.status || null,
+        error: serializedRecoveryError,
+      },
+      null,
+      2
+    )
+  );
 }
 
 const unpublishedOffers = corruptedOffers;
