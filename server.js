@@ -4376,25 +4376,13 @@ if (shopifyProductStatus !== "ACTIVE") {
     "it-IT"
   );
 
-  let inventoryItemPayload = null;
-let inventoryItemUpdate = null;
-
-try {
-  inventoryItemUpdate =
-    await updateInventoryQuantityAndImagesOnly({
-      sku: safeSku,
-      shopifyVariant,
-      contentLanguage: inventoryContentLanguage,
-    });
-} catch (error) {
-  return {
-    ok: false,
-    sku: safeSku,
-    failedStep: "inventory_quantity_images_update",
-    inventoryContentLanguage,
-    error: errorToSerializable(error),
-  };
-}
+/*
+ * Aggiornamento ordinario:
+ * non tocchiamo l'Inventory Item e quindi non rivalidiamo
+ * categoria, titolo, descrizione o caratteristiche.
+ */
+const inventoryItemUpdate = null;
+const inventoryItemPayload = null;
 
   let offers = [];
   let initialOfferLookupError = null;
@@ -4471,6 +4459,14 @@ try {
     }
   }
 
+const publishedOffers = safeArray(offers).filter((offer) => {
+  const status = String(offer?.status || "")
+    .trim()
+    .toUpperCase();
+
+  return Boolean(offer?.offerId) && status === "PUBLISHED";
+});
+  
   if (!offers.length) {
     return {
       ok: false,
