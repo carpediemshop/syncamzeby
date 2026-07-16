@@ -4589,8 +4589,6 @@ for (const offer of corruptedOffers) {
 }
 
 const unpublishedOffers = corruptedOffers;
-
-const unpublishedOffers = corruptedOffers;
 const republishResults = forceRecreateResults;
 
 const autoRepairResult = {
