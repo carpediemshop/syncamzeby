@@ -4476,19 +4476,28 @@ for (const offer of corruptedOffers) {
     });
   } catch (error) {
     forceRecreateResults.push({
-      marketplaceId,
-      oldOfferId,
-      ok: false,
-      previousStatus: offer?.status || null,
-      error: errorToSerializable(error),
-    });
+  marketplaceId,
+  offerId,
+  ok: false,
+  error: serializedRecoveryError,
+});
 
-    console.log("[EBAY ZOMBIE RECOVERY][FAILED]", {
+    const serializedRecoveryError = errorToSerializable(error);
+
+console.error(
+  "[EBAY ZOMBIE RECOVERY][FAILED]",
+  JSON.stringify(
+    {
       sku: safeSku,
       marketplaceId,
-      oldOfferId,
-      error: errorToSerializable(error),
-    });
+      oldOfferId: offerId,
+      previousStatus: offer?.status || null,
+      error: serializedRecoveryError,
+    },
+    null,
+    2
+  )
+);
   }
 }
 
