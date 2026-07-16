@@ -3112,6 +3112,48 @@ async function updateInventoryQuantityAndImagesOnly({
    */
   const currentProduct = currentInventoryItem?.product || {};
 
+const currentAspects = currentProduct?.aspects || {};
+
+const generatedAspects = buildDefaultAspects(
+  shopifyVariant,
+  "EBAY_IT"
+);
+
+const mergedAspects = {
+  ...generatedAspects,
+  ...currentAspects,
+};
+
+/*
+ * Se un attributo già presente su eBay è vuoto,
+ * non deve sovrascrivere quello generato da Shopify.
+ */
+for (const [aspectName, aspectValues] of Object.entries(mergedAspects)) {
+  const validValues = safeArray(aspectValues)
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  if (validValues.length) {
+    mergedAspects[aspectName] = validValues;
+  } else {
+    delete mergedAspects[aspectName];
+  }
+}
+
+const shopifyVendor = String(
+  shopifyVariant?.product?.vendor || ""
+).trim();
+
+/*
+ * Sicurezza specifica per il mercato italiano.
+ */
+if (
+  !safeArray(mergedAspects.Marca).length &&
+  shopifyVendor
+) {
+  mergedAspects.Marca = [shopifyVendor];
+}
+  
   const newImageUrls = safeArray(
     shopifyVariant?.product?.imageUrls
   )
