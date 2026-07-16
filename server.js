@@ -3005,10 +3005,7 @@ function buildInventoryItemPayload(shopifyVariant, translatedTitle = "", marketp
   };
   
 payload.packageWeightAndSize = {
-  packageType: "MAILING_BOX",
-  shippingIrregular: false,
-
-  dimensions: {
+    dimensions: {
     length: 33,
     width: 30,
     height: 30,
@@ -3168,10 +3165,7 @@ async function updateInventoryQuantityAndImagesOnly({
     },
 
 packageWeightAndSize: {
-  packageType: "MAILING_BOX",
-  shippingIrregular: false,
-
-  dimensions: {
+    dimensions: {
     length: 33,
     width: 30,
     height: 30,
