@@ -4208,27 +4208,6 @@ if (shopifyProductStatus !== "ACTIVE") {
     shopifyProductStatus: shopifyProductStatus || null,
   };
 }
-
-const shopifyProductStatus = String(
-  shopifyVariant?.product?.status || ""
-)
-  .trim()
-  .toUpperCase();
-
-if (shopifyProductStatus !== "ACTIVE") {
-  console.log("[EBAY SYNC][SKIPPED NON ACTIVE]", {
-    sku: safeSku,
-    shopifyProductStatus: shopifyProductStatus || null,
-  });
-
-  return {
-    ok: true,
-    skipped: true,
-    sku: safeSku,
-    reason: "shopify_product_not_active",
-    shopifyProductStatus: shopifyProductStatus || null,
-  };
-}
   
   const inventoryContentLanguage = normalizeContentLanguage(
     languageToLocale(sourceLanguage),
