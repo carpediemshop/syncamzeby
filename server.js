@@ -3527,6 +3527,18 @@ async function bulkUpdatePublishedOffersForSku({
   return bulkUpdatePriceQuantity({ requests });
 }
 
+function getVatPercentageForMarketplace(marketplaceId) {
+  const vatByMarketplace = {
+    EBAY_IT: 22,
+    EBAY_DE: 19,
+    EBAY_FR: 20,
+    EBAY_ES: 21,
+    EBAY_GB: 20,
+  };
+
+  return vatByMarketplace[String(marketplaceId || "").trim()] ?? null;
+}
+
 function buildOfferPayload({
   sku,
   price,
@@ -3550,27 +3562,40 @@ function buildOfferPayload({
     throw new Error(`Missing categoryId for ${marketplaceId}`);
   }
 
+  const vatPercentage = getVatPercentageForMarketplace(marketplaceId);
+
   return {
-    sku,
-    marketplaceId,
-    format: EBAY_DEFAULT_FORMAT,
-    availableQuantity: Math.max(0, Number(quantity || 0)),
-    categoryId,
-    merchantLocationKey: getMerchantLocationKey(marketplaceId),
-    pricingSummary: {
-      price: {
-        value: String(normalizeMoney(price)),
-        currency: currency || "EUR",
-      },
+  sku,
+  marketplaceId,
+  format: EBAY_DEFAULT_FORMAT,
+  availableQuantity: Math.max(0, Number(quantity || 0)),
+  categoryId,
+  merchantLocationKey: getMerchantLocationKey(marketplaceId),
+
+  pricingSummary: {
+    price: {
+      value: String(normalizeMoney(price)),
+      currency: currency || "EUR",
     },
-    listingPolicies: {
-      paymentPolicyId: policyIds.paymentPolicyId,
-      returnPolicyId: policyIds.returnPolicyId,
-      fulfillmentPolicyId: policyIds.fulfillmentPolicyId,
-    },
-    listingDuration: EBAY_DEFAULT_LISTING_DURATION,
-    listingDescription: cleanHtmlForEbay(listingDescription || ""),
-  };
+  },
+
+  ...(vatPercentage !== null
+    ? {
+        tax: {
+          vatPercentage,
+        },
+      }
+    : {}),
+
+  listingPolicies: {
+    paymentPolicyId: policyIds.paymentPolicyId,
+    returnPolicyId: policyIds.returnPolicyId,
+    fulfillmentPolicyId: policyIds.fulfillmentPolicyId,
+  },
+
+  listingDuration: EBAY_DEFAULT_LISTING_DURATION,
+  listingDescription: cleanHtmlForEbay(listingDescription || ""),
+};
 }
 
 async function upsertOfferForMarketplace({
